@@ -174,12 +174,21 @@ struct HomeView: View {
     }
     
     private func startAutoScroll() {
-        guard featuredApps.count > 1 else { return }
+        guard featuredApps.count > 1 else { 
+            print("Auto-scroll not started: only \(featuredApps.count) featured apps")
+            return 
+        }
+        print("Starting auto-scroll with \(featuredApps.count) apps")
         autoScrollTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
             if isAutoScrolling {
-                withAnimation(.easeInOut(duration: 0.5)) {
-                    currentFeaturedIndex = (currentFeaturedIndex + 1) % featuredApps.count
+                print("Auto-scrolling from index \(currentFeaturedIndex)")
+                DispatchQueue.main.async {
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        currentFeaturedIndex = (currentFeaturedIndex + 1) % featuredApps.count
+                    }
                 }
+            } else {
+                print("Auto-scroll paused")
             }
         }
     }
@@ -214,6 +223,9 @@ struct FeaturedCarouselView: View {
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
             .frame(height: 240)
+            .onChange(of: currentIndex) { newValue in
+                print("Carousel index changed to: \(newValue)")
+            }
             
             // Page Indicators
             HStack(spacing: 8) {
