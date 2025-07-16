@@ -58,31 +58,49 @@ struct AppModel: Identifiable, Codable {
         updated_at = try container.decodeIfPresent(String.self, forKey: .updated_at)
         release_date = try container.decodeIfPresent(String.self, forKey: .release_date)
         
-        // Handle size field - try Int first, then String conversion
-        if let sizeInt = try container.decodeIfPresent(Int.self, forKey: .size) {
-            size = sizeInt
-        } else if let sizeString = try container.decodeIfPresent(String.self, forKey: .size) {
-            size = Int(sizeString)
-        } else {
-            size = nil
+        // Handle size field with robust error handling
+        size = nil
+        if container.contains(.size) {
+            do {
+                size = try container.decode(Int.self, forKey: .size)
+            } catch {
+                do {
+                    let sizeString = try container.decode(String.self, forKey: .size)
+                    size = Int(sizeString)
+                } catch {
+                    size = nil
+                }
+            }
         }
         
-        // Handle rating field - try Double first, then String conversion
-        if let ratingDouble = try container.decodeIfPresent(Double.self, forKey: .rating) {
-            rating = ratingDouble
-        } else if let ratingString = try container.decodeIfPresent(String.self, forKey: .rating) {
-            rating = Double(ratingString)
-        } else {
-            rating = nil
+        // Handle rating field with robust error handling
+        rating = nil
+        if container.contains(.rating) {
+            do {
+                rating = try container.decode(Double.self, forKey: .rating)
+            } catch {
+                do {
+                    let ratingString = try container.decode(String.self, forKey: .rating)
+                    rating = Double(ratingString)
+                } catch {
+                    rating = nil
+                }
+            }
         }
         
-        // Handle rating_count field - try Int first, then String conversion
-        if let ratingCountInt = try container.decodeIfPresent(Int.self, forKey: .rating_count) {
-            rating_count = ratingCountInt
-        } else if let ratingCountString = try container.decodeIfPresent(String.self, forKey: .rating_count) {
-            rating_count = Int(ratingCountString)
-        } else {
-            rating_count = nil
+        // Handle rating_count field with robust error handling
+        rating_count = nil
+        if container.contains(.rating_count) {
+            do {
+                rating_count = try container.decode(Int.self, forKey: .rating_count)
+            } catch {
+                do {
+                    let ratingCountString = try container.decode(String.self, forKey: .rating_count)
+                    rating_count = Int(ratingCountString)
+                } catch {
+                    rating_count = nil
+                }
+            }
         }
     }
     
