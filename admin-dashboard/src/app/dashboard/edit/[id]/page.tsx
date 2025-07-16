@@ -58,6 +58,12 @@ interface App {
   features: string[]
   status: 'ACTIVE' | 'PENDING' | 'INACTIVE'
   screenshots: Screenshot[]
+  // Add the new fields
+  version?: string
+  size?: number
+  rating?: number
+  rating_count?: number
+  release_date?: string
 }
 
 export default function EditAppPage({ params }: { params: { id: string } }) {
@@ -236,6 +242,12 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
           minimum_os_version: app.minimum_os_version,
           features: app.features,
           status: app.status,
+          // Add the new fields
+          version: app.version,
+          size: app.size,
+          rating: app.rating,
+          rating_count: app.rating_count,
+          release_date: app.release_date,
         })
         .eq('id', app.id)
         .select()
@@ -483,6 +495,54 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
               Technical Details
             </Typography>
             <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Version"
+                  value={app.version || ''}
+                  onChange={(e) => setApp({ ...app, version: e.target.value })}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Size (bytes)"
+                  type="number"
+                  value={app.size || ''}
+                  onChange={(e) => setApp({ ...app, size: parseInt(e.target.value) || undefined })}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Rating (1-5)"
+                  type="number"
+                  inputProps={{ min: 0, max: 5, step: 0.1 }}
+                  value={app.rating || ''}
+                  onChange={(e) => setApp({ ...app, rating: parseFloat(e.target.value) || undefined })}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Rating Count"
+                  type="number"
+                  value={app.rating_count || ''}
+                  onChange={(e) => setApp({ ...app, rating_count: parseInt(e.target.value) || undefined })}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Release Date"
+                  type="date"
+                  value={app.release_date ? app.release_date.split('T')[0] : ''}
+                  onChange={(e) => setApp({ ...app, release_date: e.target.value })}
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                />
+              </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
