@@ -58,29 +58,29 @@ struct AppModel: Identifiable, Codable {
         updated_at = try container.decodeIfPresent(String.self, forKey: .updated_at)
         release_date = try container.decodeIfPresent(String.self, forKey: .release_date)
         
-        // Handle size field that might come as string or number
-        if let sizeString = try container.decodeIfPresent(String.self, forKey: .size) {
-            size = Int(sizeString)
-        } else if let sizeInt = try container.decodeIfPresent(Int.self, forKey: .size) {
+        // Handle size field - try Int first, then String conversion
+        if let sizeInt = try container.decodeIfPresent(Int.self, forKey: .size) {
             size = sizeInt
+        } else if let sizeString = try container.decodeIfPresent(String.self, forKey: .size) {
+            size = Int(sizeString)
         } else {
             size = nil
         }
         
-        // Handle rating field that might come as string or number
-        if let ratingString = try container.decodeIfPresent(String.self, forKey: .rating) {
-            rating = Double(ratingString)
-        } else if let ratingDouble = try container.decodeIfPresent(Double.self, forKey: .rating) {
+        // Handle rating field - try Double first, then String conversion
+        if let ratingDouble = try container.decodeIfPresent(Double.self, forKey: .rating) {
             rating = ratingDouble
+        } else if let ratingString = try container.decodeIfPresent(String.self, forKey: .rating) {
+            rating = Double(ratingString)
         } else {
             rating = nil
         }
         
-        // Handle rating_count field that might come as string or number
-        if let ratingCountString = try container.decodeIfPresent(String.self, forKey: .rating_count) {
-            rating_count = Int(ratingCountString)
-        } else if let ratingCountInt = try container.decodeIfPresent(Int.self, forKey: .rating_count) {
+        // Handle rating_count field - try Int first, then String conversion
+        if let ratingCountInt = try container.decodeIfPresent(Int.self, forKey: .rating_count) {
             rating_count = ratingCountInt
+        } else if let ratingCountString = try container.decodeIfPresent(String.self, forKey: .rating_count) {
+            rating_count = Int(ratingCountString)
         } else {
             rating_count = nil
         }
