@@ -40,89 +40,118 @@ struct ContentView: View {
 
 struct HomeView: View {
     @StateObject private var apiService = APIService()
-    @State private var selectedFilter: AppFilter = .all
+    @State private var currentFeaturedIndex = 0
+    @State private var autoScrollTimer: Timer?
+    @State private var isAutoScrolling = true
     
-    enum AppFilter: String, CaseIterable {
-        case all = "All"
-        case featured = "Featured"
-        case free = "Free"
-        case paid = "Paid"
+    // Featured apps (top 5 apps or apps marked as featured)
+    var featuredApps: [AppModel] {
+        let apps = apiService.apps
+        let featured = apps.filter { $0.is_featured == true }
+        return featured.isEmpty ? Array(apps.prefix(5)) : featured
     }
     
-    var filteredApps: [AppModel] {
-        switch selectedFilter {
-        case .all:
-            return apiService.apps
-        case .featured:
-            return apiService.apps.filter { $0.is_featured == true }
-        case .free:
-            return apiService.apps.filter { $0.is_free == true }
-        case .paid:
-            return apiService.apps.filter { $0.is_free == false }
-        }
+    // Recently added apps (last 10 apps)
+    var recentlyAddedApps: [AppModel] {
+        Array(apiService.apps.prefix(10))
+    }
+    
+    // Top rated apps (sorted by rating)
+    var topRatedApps: [AppModel] {
+        apiService.apps
+            .filter { $0.rating != nil && $0.rating! > 0 }
+            .sorted { ($0.rating ?? 0) > ($1.rating ?? 0) }
+            .prefix(10)
+            .map { $0 }
+    }
+    
+    // Free apps
+    var freeApps: [AppModel] {
+        apiService.apps.filter { $0.is_free == true }.prefix(10).map { $0 }
     }
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // Filter Picker
-                Picker("Filter", selection: $selectedFilter) {
-                    ForEach(AppFilter.allCases, id: \.self) { filter in
-                        Text(filter.rawValue).tag(filter)
+            Group {
+                if apiService.isLoading {
+                    VStack {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Text("Loading apps...")
+                            .foregroundColor(.secondary)
+                            .padding(.top)
                     }
-                }
-                .pickerStyle(SegmentedPickerStyle())
-                .padding()
-                
-                // Apps Grid
-                Group {
-                    if apiService.isLoading {
-                        VStack {
-                            ProgressView()
-                                .scaleEffect(1.5)
-                            Text("Loading apps...")
-                                .foregroundColor(.secondary)
-                                .padding(.top)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if let error = apiService.errorMessage {
-                        VStack {
-                            Image(systemName: "exclamationmark.triangle")
-                                .font(.system(size: 50))
-                                .foregroundColor(.orange)
-                            Text("Error")
-                                .font(.title2)
-                                .fontWeight(.semibold)
-                            Text(error)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding()
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if filteredApps.isEmpty {
-                        VStack {
-                            Image(systemName: "app.badge")
-                                .font(.system(size: 50))
-                                .foregroundColor(.secondary)
-                            Text("No apps found")
-                                .font(.title2)
-                                .fontWeight(.semibold)
-                            Text("Try changing the filter or check back later")
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        ScrollView {
-                            LazyVGrid(columns: [
-                                GridItem(.flexible()),
-                                GridItem(.flexible())
-                            ], spacing: 20) {
-                                ForEach(filteredApps) { app in
-                                    AppGridCard(app: app)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let error = apiService.errorMessage {
+                    VStack {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 50))
+                            .foregroundColor(.orange)
+                        Text("Error")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        Text(error)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if apiService.apps.isEmpty {
+                    VStack {
+                        Image(systemName: "app.badge")
+                            .font(.system(size: 50))
+                            .foregroundColor(.secondary)
+                        Text("No apps found")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        Text("Check back later for new apps")
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            // Featured Carousel
+                            if !featuredApps.isEmpty {
+                                FeaturedCarouselView(
+                                    apps: featuredApps,
+                                    currentIndex: $currentFeaturedIndex,
+                                    isAutoScrolling: $isAutoScrolling
+                                )
+                                .frame(height: 280)
+                            }
+                            
+                            // Category Sections
+                            VStack(spacing: 24) {
+                                // Recently Added Section
+                                if !recentlyAddedApps.isEmpty {
+                                    AppSectionView(
+                                        title: "Recently Added",
+                                        apps: recentlyAddedApps,
+                                        icon: "clock.fill"
+                                    )
+                                }
+                                
+                                // Top Rated Section
+                                if !topRatedApps.isEmpty {
+                                    AppSectionView(
+                                        title: "Top Rated",
+                                        apps: topRatedApps,
+                                        icon: "star.fill"
+                                    )
+                                }
+                                
+                                // Free Apps Section
+                                if !freeApps.isEmpty {
+                                    AppSectionView(
+                                        title: "Free Apps",
+                                        apps: freeApps,
+                                        icon: "gift.fill"
+                                    )
                                 }
                             }
-                            .padding()
+                            .padding(.top, 20)
                         }
                     }
                 }
@@ -136,25 +165,213 @@ struct HomeView: View {
                 Task {
                     await apiService.fetchApps()
                 }
+                startAutoScroll()
+            }
+            .onDisappear {
+                stopAutoScroll()
             }
         }
     }
+    
+    private func startAutoScroll() {
+        guard featuredApps.count > 1 else { return }
+        autoScrollTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+            if isAutoScrolling {
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    currentFeaturedIndex = (currentFeaturedIndex + 1) % featuredApps.count
+                }
+            }
+        }
+    }
+    
+    private func stopAutoScroll() {
+        autoScrollTimer?.invalidate()
+        autoScrollTimer = nil
+    }
 }
 
-struct FeaturedAppsSection: View {
+// Featured Carousel View
+struct FeaturedCarouselView: View {
     let apps: [AppModel]
+    @Binding var currentIndex: Int
+    @Binding var isAutoScrolling: Bool
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Carousel
+            TabView(selection: $currentIndex) {
+                ForEach(Array(apps.enumerated()), id: \.element.id) { index, app in
+                    FeaturedAppCard(app: app)
+                        .tag(index)
+                        .onTapGesture {
+                            // Pause auto-scroll on tap
+                            isAutoScrolling = false
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                isAutoScrolling = true
+                            }
+                        }
+                }
+            }
+            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+            .frame(height: 240)
+            
+            // Page Indicators
+            HStack(spacing: 8) {
+                ForEach(0..<apps.count, id: \.self) { index in
+                    Circle()
+                        .fill(index == currentIndex ? Color.blue : Color.gray.opacity(0.3))
+                        .frame(width: 8, height: 8)
+                        .scaleEffect(index == currentIndex ? 1.2 : 1.0)
+                        .animation(.easeInOut(duration: 0.2), value: currentIndex)
+                }
+            }
+            .padding(.top, 8)
+        }
+        .padding(.horizontal)
+    }
+}
+
+// Featured App Card
+struct FeaturedAppCard: View {
+    let app: AppModel
+    
+    var body: some View {
+        NavigationLink(destination: AppDetailView(app: app)) {
+            ZStack {
+                // Background with gradient
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color.blue.opacity(0.1),
+                                Color.purple.opacity(0.1)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    )
+                
+                HStack(spacing: 20) {
+                    // App Icon
+                    if let iconUrl = app.icon_url, let url = URL(string: iconUrl) {
+                        AsyncImage(url: url) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.gray.opacity(0.2))
+                                .overlay(
+                                    Image(systemName: "app.badge")
+                                        .foregroundColor(.gray)
+                                        .font(.system(size: 30))
+                                )
+                        }
+                        .frame(width: 120, height: 120)
+                        .cornerRadius(20)
+                        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+                    } else {
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(width: 120, height: 120)
+                            .overlay(
+                                Image(systemName: "app.badge")
+                                    .foregroundColor(.gray)
+                                    .font(.system(size: 30))
+                            )
+                            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+                    }
+                    
+                    // App Info
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(app.name)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.primary)
+                            .lineLimit(2)
+                        
+                        if let developer = app.developer {
+                            Text(developer)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                        
+                        HStack(spacing: 16) {
+                            if let rating = app.rating {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "star.fill")
+                                        .foregroundColor(.yellow)
+                                        .font(.title3)
+                                    Text(String(format: "%.1f", rating))
+                                        .font(.title3)
+                                        .fontWeight(.semibold)
+                                }
+                            }
+                            
+                            if let price = app.price {
+                                Text(price == "0" ? "Free" : "$\(price)")
+                                    .font(.title3)
+                                    .fontWeight(.bold)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        price == "0" 
+                                            ? Color.green.opacity(0.2)
+                                            : Color.blue.opacity(0.2)
+                                    )
+                                    .foregroundColor(price == "0" ? .green : .blue)
+                                    .cornerRadius(12)
+                            }
+                        }
+                        
+                        Spacer()
+                    }
+                    
+                    Spacer()
+                }
+                .padding(20)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// App Section View
+struct AppSectionView: View {
+    let title: String
+    let apps: [AppModel]
+    let icon: String
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Featured")
-                .font(.title2)
-                .fontWeight(.bold)
-                .padding(.horizontal)
+            // Section Header
+            HStack {
+                Image(systemName: icon)
+                    .foregroundColor(.blue)
+                    .font(.title2)
+                
+                Text(title)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Spacer()
+                
+                NavigationLink("See All", destination: Text("See All \(title)"))
+                    .font(.subheadline)
+                    .foregroundColor(.blue)
+            }
+            .padding(.horizontal)
             
+            // Horizontal App List
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
                     ForEach(apps) { app in
-                        FeaturedAppCard(app: app)
+                        HorizontalAppCard(app: app)
                     }
                 }
                 .padding(.horizontal)
@@ -163,7 +380,8 @@ struct FeaturedAppsSection: View {
     }
 }
 
-struct FeaturedAppCard: View {
+// Horizontal App Card
+struct HorizontalAppCard: View {
     let app: AppModel
     
     var body: some View {
@@ -174,7 +392,7 @@ struct FeaturedAppCard: View {
                     AsyncImage(url: url) { image in
                         image
                             .resizable()
-                            .aspectRatio(contentMode: .fit)
+                            .aspectRatio(contentMode: .fill)
                     } placeholder: {
                         RoundedRectangle(cornerRadius: 16)
                             .fill(Color.gray.opacity(0.2))
@@ -185,6 +403,7 @@ struct FeaturedAppCard: View {
                     }
                     .frame(width: 80, height: 80)
                     .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
                 } else {
                     RoundedRectangle(cornerRadius: 16)
                         .fill(Color.gray.opacity(0.2))
@@ -193,20 +412,24 @@ struct FeaturedAppCard: View {
                             Image(systemName: "app.badge")
                                 .foregroundColor(.gray)
                         )
+                        .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
                 }
                 
+                // App Info
                 VStack(alignment: .leading, spacing: 4) {
                     Text(app.name)
                         .font(.headline)
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
                         .lineLimit(2)
+                        .frame(width: 80)
                     
                     if let developer = app.developer {
                         Text(developer)
-                            .font(.subheadline)
+                            .font(.caption)
                             .foregroundColor(.secondary)
                             .lineLimit(1)
+                            .frame(width: 80)
                     }
                     
                     HStack {
@@ -214,9 +437,9 @@ struct FeaturedAppCard: View {
                             HStack(spacing: 2) {
                                 Image(systemName: "star.fill")
                                     .foregroundColor(.yellow)
-                                    .font(.caption)
+                                    .font(.caption2)
                                 Text(String(format: "%.1f", rating))
-                                    .font(.caption)
+                                    .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
                         }
@@ -225,22 +448,22 @@ struct FeaturedAppCard: View {
                         
                         if let price = app.price {
                             Text(price == "0" ? "Free" : "$\(price)")
-                                .font(.caption)
+                                .font(.caption2)
                                 .fontWeight(.semibold)
-                                .padding(.horizontal, 8)
+                                .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(price == "0" ? Color.green.opacity(0.2) : Color.blue.opacity(0.2))
+                                .background(
+                                    price == "0" 
+                                        ? Color.green.opacity(0.2)
+                                        : Color.blue.opacity(0.2)
+                                )
                                 .foregroundColor(price == "0" ? .green : .blue)
                                 .cornerRadius(6)
                         }
                     }
                 }
             }
-            .frame(width: 160)
-            .padding()
-            .background(Color(.systemBackground))
-            .cornerRadius(20)
-            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+            .frame(width: 80)
         }
         .buttonStyle(PlainButtonStyle())
     }
