@@ -1,7 +1,7 @@
 'use client'
 
 import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Card, Alert, CircularProgress, Button, Dialog, DialogTitle, DialogContent, DialogActions, Avatar, ImageList, ImageListItem } from '@mui/material'
-import { Edit, Delete, Add, Image as ImageIcon } from '@mui/icons-material'
+import { Edit, Delete, Add, Image as ImageIcon, Star, StarBorder } from '@mui/icons-material'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
@@ -25,6 +25,8 @@ interface App {
   status: string
   icon_url: string | null
   screenshots: Screenshot[]
+  is_featured: boolean | null
+  is_free: boolean | null
 }
 
 export default function DashboardPage() {
@@ -55,6 +57,8 @@ export default function DashboardPage() {
           is_on_mas,
           status,
           icon_url,
+          is_featured,
+          is_free,
           screenshots:screenshots!fk_app (
             id,
             url,
@@ -208,6 +212,34 @@ export default function DashboardPage() {
     setAppToDelete(null)
   }
 
+  const toggleFeatured = async (appId: string, currentFeatured: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('apps')
+        .update({ is_featured: !currentFeatured })
+        .eq('id', appId)
+
+      if (error) throw error
+      await fetchApps()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update featured status')
+    }
+  }
+
+  const toggleFree = async (appId: string, currentFree: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('apps')
+        .update({ is_free: !currentFree })
+        .eq('id', appId)
+
+      if (error) throw error
+      await fetchApps()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update free status')
+    }
+  }
+
   const handleOpenScreenshots = (app: App) => {
     setSelectedApp(app)
     setScreenshotsOpen(true)
@@ -257,6 +289,8 @@ export default function DashboardPage() {
                 <TableCell>Price</TableCell>
                 <TableCell>Source</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell>Featured</TableCell>
+                <TableCell>Free</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -326,6 +360,36 @@ export default function DashboardPage() {
                       size="small"
                       sx={{ minWidth: 80 }}
                     />
+                  </TableCell>
+                  <TableCell>
+                    <IconButton
+                      size="small"
+                      onClick={() => toggleFeatured(app.id, !!app.is_featured)}
+                      color={app.is_featured ? 'primary' : 'default'}
+                      sx={{ 
+                        '&:hover': { 
+                          backgroundColor: app.is_featured ? 'primary.main' : 'action.hover',
+                          color: app.is_featured ? 'white' : 'inherit'
+                        } 
+                      }}
+                    >
+                      {app.is_featured ? <Star /> : <StarBorder />}
+                    </IconButton>
+                  </TableCell>
+                  <TableCell>
+                    <IconButton
+                      size="small"
+                      onClick={() => toggleFree(app.id, !!app.is_free)}
+                      color={app.is_free ? 'success' : 'default'}
+                      sx={{ 
+                        '&:hover': { 
+                          backgroundColor: app.is_free ? 'success.main' : 'action.hover',
+                          color: app.is_free ? 'white' : 'inherit'
+                        } 
+                      }}
+                    >
+                      {app.is_free ? 'Free' : 'Paid'}
+                    </IconButton>
                   </TableCell>
                   <TableCell align="right">
                     {app.screenshots?.length > 0 && (
