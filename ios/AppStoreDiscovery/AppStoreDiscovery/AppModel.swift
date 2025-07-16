@@ -59,49 +59,52 @@ struct AppModel: Identifiable, Codable {
         release_date = try container.decodeIfPresent(String.self, forKey: .release_date)
         
         // Handle size field with robust error handling
-        size = nil
+        var tempSize: Int? = nil
         if container.contains(.size) {
             do {
-                size = try container.decode(Int.self, forKey: .size)
+                tempSize = try container.decode(Int.self, forKey: .size)
             } catch {
                 do {
                     let sizeString = try container.decode(String.self, forKey: .size)
-                    size = Int(sizeString)
+                    tempSize = Int(sizeString)
                 } catch {
-                    size = nil
+                    tempSize = nil
                 }
             }
         }
+        size = tempSize
         
         // Handle rating field with robust error handling
-        rating = nil
+        var tempRating: Double? = nil
         if container.contains(.rating) {
             do {
-                rating = try container.decode(Double.self, forKey: .rating)
+                tempRating = try container.decode(Double.self, forKey: .rating)
             } catch {
                 do {
                     let ratingString = try container.decode(String.self, forKey: .rating)
-                    rating = Double(ratingString)
+                    tempRating = Double(ratingString)
                 } catch {
-                    rating = nil
+                    tempRating = nil
                 }
             }
         }
+        rating = tempRating
         
         // Handle rating_count field with robust error handling
-        rating_count = nil
+        var tempRatingCount: Int? = nil
         if container.contains(.rating_count) {
             do {
-                rating_count = try container.decode(Int.self, forKey: .rating_count)
+                tempRatingCount = try container.decode(Int.self, forKey: .rating_count)
             } catch {
                 do {
                     let ratingCountString = try container.decode(String.self, forKey: .rating_count)
-                    rating_count = Int(ratingCountString)
+                    tempRatingCount = Int(ratingCountString)
                 } catch {
-                    rating_count = nil
+                    tempRatingCount = nil
                 }
             }
         }
+        rating_count = tempRatingCount
     }
     
     // Manual initializer for creating AppModel instances
