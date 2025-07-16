@@ -327,8 +327,10 @@ struct FeaturedAppCard: View {
                             .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
                     }
                     
-                    // App Info
+                                        // App Info
                     VStack(alignment: .leading, spacing: 12) {
+                        Spacer()
+                        
                         Text(app.name)
                             .font(.title2)
                             .fontWeight(.bold)
@@ -343,10 +345,6 @@ struct FeaturedAppCard: View {
                                 .lineLimit(1)
                                 .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                         }
-                        
-
-                        
-                        Spacer()
                     }
                     
                     Spacer()
