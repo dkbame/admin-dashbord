@@ -344,37 +344,7 @@ struct FeaturedAppCard: View {
                                 .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                         }
                         
-                        HStack(spacing: 16) {
-                            if let rating = app.rating {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "star.fill")
-                                        .foregroundColor(.yellow)
-                                        .font(.title3)
-                                        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-                                    Text(String(format: "%.1f", rating))
-                                        .font(.title3)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.white)
-                                        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-                                }
-                            }
-                            
-                            if let price = app.price {
-                                Text(price == "0" ? "Free" : "$\(price)")
-                                    .font(.title3)
-                                    .fontWeight(.bold)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        price == "0" 
-                                            ? Color.green.opacity(0.9)
-                                            : Color.blue.opacity(0.9)
-                                    )
-                                    .foregroundColor(.white)
-                                    .cornerRadius(12)
-                                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                            }
-                        }
+
                         
                         Spacer()
                     }
