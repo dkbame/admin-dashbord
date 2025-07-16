@@ -161,11 +161,21 @@ struct HomeView: View {
             .refreshable {
                 await apiService.fetchApps()
             }
+            .onChange(of: apiService.apps.count) { newCount in
+                if newCount > 0 {
+                    // Restart auto-scroll when apps are loaded
+                    stopAutoScroll()
+                    startAutoScroll()
+                }
+            }
             .onAppear {
                 Task {
                     await apiService.fetchApps()
+                    // Start auto-scroll after apps are loaded
+                    DispatchQueue.main.async {
+                        startAutoScroll()
+                    }
                 }
-                startAutoScroll()
             }
             .onDisappear {
                 stopAutoScroll()
