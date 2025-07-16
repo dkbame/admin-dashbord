@@ -35,4 +35,78 @@ struct AppModel: Identifiable, Codable {
     let is_featured: Bool?
     let created_at: String?
     let updated_at: String?
+    
+    // Custom initializer to handle string-to-number conversions
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        description = try container.decode(String.self, forKey: .description)
+        developer = try container.decodeIfPresent(String.self, forKey: .developer)
+        price = try container.decodeIfPresent(String.self, forKey: .price)
+        category_id = try container.decode(String.self, forKey: .category_id)
+        icon_url = try container.decodeIfPresent(String.self, forKey: .icon_url)
+        screenshots = try container.decodeIfPresent([Screenshot].self, forKey: .screenshots)
+        app_store_url = try container.decodeIfPresent(String.self, forKey: .app_store_url)
+        website_url = try container.decodeIfPresent(String.self, forKey: .website_url)
+        version = try container.decodeIfPresent(String.self, forKey: .version)
+        last_updated = try container.decodeIfPresent(String.self, forKey: .last_updated)
+        is_free = try container.decodeIfPresent(Bool.self, forKey: .is_free)
+        is_featured = try container.decodeIfPresent(Bool.self, forKey: .is_featured)
+        created_at = try container.decodeIfPresent(String.self, forKey: .created_at)
+        updated_at = try container.decodeIfPresent(String.self, forKey: .updated_at)
+        release_date = try container.decodeIfPresent(String.self, forKey: .release_date)
+        
+        // Handle size field that might come as string or number
+        if let sizeString = try container.decodeIfPresent(String.self, forKey: .size) {
+            size = Int(sizeString)
+        } else if let sizeInt = try container.decodeIfPresent(Int.self, forKey: .size) {
+            size = sizeInt
+        } else {
+            size = nil
+        }
+        
+        // Handle rating field that might come as string or number
+        if let ratingString = try container.decodeIfPresent(String.self, forKey: .rating) {
+            rating = Double(ratingString)
+        } else if let ratingDouble = try container.decodeIfPresent(Double.self, forKey: .rating) {
+            rating = ratingDouble
+        } else {
+            rating = nil
+        }
+        
+        // Handle rating_count field that might come as string or number
+        if let ratingCountString = try container.decodeIfPresent(String.self, forKey: .rating_count) {
+            rating_count = Int(ratingCountString)
+        } else if let ratingCountInt = try container.decodeIfPresent(Int.self, forKey: .rating_count) {
+            rating_count = ratingCountInt
+        } else {
+            rating_count = nil
+        }
+    }
+    
+    // Manual initializer for creating AppModel instances
+    init(id: String, name: String, description: String, developer: String?, price: String?, category_id: String, icon_url: String?, screenshots: [Screenshot]?, app_store_url: String?, website_url: String?, version: String?, size: Int?, rating: Double?, rating_count: Int?, release_date: String?, last_updated: String?, is_free: Bool?, is_featured: Bool?, created_at: String?, updated_at: String?) {
+        self.id = id
+        self.name = name
+        self.description = description
+        self.developer = developer
+        self.price = price
+        self.category_id = category_id
+        self.icon_url = icon_url
+        self.screenshots = screenshots
+        self.app_store_url = app_store_url
+        self.website_url = website_url
+        self.version = version
+        self.size = size
+        self.rating = rating
+        self.rating_count = rating_count
+        self.release_date = release_date
+        self.last_updated = last_updated
+        self.is_free = is_free
+        self.is_featured = is_featured
+        self.created_at = created_at
+        self.updated_at = updated_at
+    }
 } 
