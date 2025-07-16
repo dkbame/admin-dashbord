@@ -238,22 +238,63 @@ struct FeaturedAppCard: View {
     var body: some View {
         NavigationLink(destination: AppDetailView(app: app)) {
             ZStack {
-                // Background with gradient
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.blue.opacity(0.1),
-                                Color.purple.opacity(0.1)
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                // Background with screenshot or gradient fallback
+                if let screenshots = app.screenshots, !screenshots.isEmpty, let firstScreenshotUrl = URL(string: screenshots[0].url) {
+                    AsyncImage(url: firstScreenshotUrl) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .clipped()
+                    } placeholder: {
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.blue.opacity(0.1),
+                                        Color.purple.opacity(0.1)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    }
+                    .cornerRadius(20)
+                    .overlay(
+                        // Dark overlay for better text readability
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.black.opacity(0.3),
+                                        Color.black.opacity(0.1)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 20)
                             .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                     )
+                } else {
+                    // Fallback gradient background
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.blue.opacity(0.1),
+                                    Color.purple.opacity(0.1)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        )
+                }
                 
                 HStack(spacing: 20) {
                     // App Icon
@@ -291,14 +332,16 @@ struct FeaturedAppCard: View {
                         Text(app.name)
                             .font(.title2)
                             .fontWeight(.bold)
-                            .foregroundColor(.primary)
+                            .foregroundColor(.white)
                             .lineLimit(2)
+                            .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                         
                         if let developer = app.developer {
                             Text(developer)
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.white.opacity(0.9))
                                 .lineLimit(1)
+                                .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                         }
                         
                         HStack(spacing: 16) {
@@ -307,9 +350,12 @@ struct FeaturedAppCard: View {
                                     Image(systemName: "star.fill")
                                         .foregroundColor(.yellow)
                                         .font(.title3)
+                                        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                                     Text(String(format: "%.1f", rating))
                                         .font(.title3)
                                         .fontWeight(.semibold)
+                                        .foregroundColor(.white)
+                                        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                                 }
                             }
                             
@@ -321,11 +367,12 @@ struct FeaturedAppCard: View {
                                     .padding(.vertical, 6)
                                     .background(
                                         price == "0" 
-                                            ? Color.green.opacity(0.2)
-                                            : Color.blue.opacity(0.2)
+                                            ? Color.green.opacity(0.9)
+                                            : Color.blue.opacity(0.9)
                                     )
-                                    .foregroundColor(price == "0" ? .green : .blue)
+                                    .foregroundColor(.white)
                                     .cornerRadius(12)
+                                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
                             }
                         }
                         
