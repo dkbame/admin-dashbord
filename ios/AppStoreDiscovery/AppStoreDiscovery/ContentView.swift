@@ -189,11 +189,11 @@ struct HomeView: View {
             return 
         }
         print("Starting auto-scroll with \(featuredApps.count) apps")
-        autoScrollTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+        autoScrollTimer = Timer.scheduledTimer(withTimeInterval: 6.0, repeats: true) { _ in
             if isAutoScrolling {
                 print("Auto-scrolling from index \(currentFeaturedIndex)")
                 DispatchQueue.main.async {
-                    withAnimation(.easeInOut(duration: 0.5)) {
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                         currentFeaturedIndex = (currentFeaturedIndex + 1) % featuredApps.count
                     }
                 }
@@ -217,170 +217,219 @@ struct FeaturedCarouselView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Carousel
+            // App Store Style Carousel
             TabView(selection: $currentIndex) {
                 ForEach(Array(apps.enumerated()), id: \.element.id) { index, app in
-                    FeaturedAppCard(app: app)
+                    AppStoreStyleCard(app: app)
                         .tag(index)
-                        .onTapGesture {
-                            // Pause auto-scroll on tap
-                            isAutoScrolling = false
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                isAutoScrolling = true
-                            }
-                        }
+                        .gesture(
+                            DragGesture()
+                                .onChanged { _ in
+                                    // Pause auto-scroll during manual interaction
+                                    isAutoScrolling = false
+                                }
+                                .onEnded { _ in
+                                    // Resume auto-scroll after delay
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                        isAutoScrolling = true
+                                    }
+                                }
+                        )
                 }
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-            .frame(height: 240)
+            .frame(height: 280)
             .onChange(of: currentIndex) { oldValue, newValue in
                 print("Carousel index changed to: \(newValue)")
             }
-            
-            // Page Indicators
-            HStack(spacing: 8) {
-                ForEach(0..<apps.count, id: \.self) { index in
-                    Circle()
-                        .fill(index == currentIndex ? Color.blue : Color.gray.opacity(0.3))
-                        .frame(width: 8, height: 8)
-                        .scaleEffect(index == currentIndex ? 1.2 : 1.0)
-                        .animation(.easeInOut(duration: 0.2), value: currentIndex)
-                }
-            }
-            .padding(.top, 8)
         }
         .padding(.horizontal)
     }
 }
 
-// Featured App Card
-struct FeaturedAppCard: View {
+// App Store Style Card with Optimized Image Loading
+struct AppStoreStyleCard: View {
     let app: AppModel
+    @State private var screenshotLoaded = false
+    @State private var iconLoaded = false
     
     var body: some View {
         NavigationLink(destination: AppDetailView(app: app)) {
             ZStack {
-                // Background with screenshot or gradient fallback
-                if let screenshots = app.screenshots, !screenshots.isEmpty, let firstScreenshotUrl = URL(string: screenshots[0].url) {
-                    AsyncImage(url: firstScreenshotUrl) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .clipped()
-                    } placeholder: {
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [
-                                        Color.blue.opacity(0.1),
-                                        Color.purple.opacity(0.1)
-                                    ]),
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                    }
-                    .cornerRadius(20)
-                    .overlay(
-                        // Dark overlay for better text readability
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [
-                                        Color.black.opacity(0.3),
-                                        Color.black.opacity(0.1)
-                                    ]),
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20)
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                    )
-                } else {
-                    // Fallback gradient background
+            // Screenshot Background with Optimized Loading
+            if let screenshots = app.screenshots, !screenshots.isEmpty, let firstScreenshotUrl = URL(string: screenshots[0].url) {
+                OptimizedAsyncImage(
+                    url: firstScreenshotUrl,
+                    isLoaded: $screenshotLoaded
+                ) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    // Skeleton loading for screenshot
                     RoundedRectangle(cornerRadius: 20)
                         .fill(
                             LinearGradient(
                                 gradient: Gradient(colors: [
-                                    Color.blue.opacity(0.1),
-                                    Color.purple.opacity(0.1)
+                                    Color.gray.opacity(0.3),
+                                    Color.gray.opacity(0.1)
                                 ]),
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            ProgressView()
+                                .scaleEffect(1.2)
+                                .foregroundColor(.white)
                         )
                 }
-                
-                HStack(spacing: 20) {
-                    // App Icon
-                    if let iconUrl = app.icon_url, let url = URL(string: iconUrl) {
-                        AsyncImage(url: url) { image in
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.gray.opacity(0.2))
-                                .overlay(
-                                    Image(systemName: "app.badge")
-                                        .foregroundColor(.gray)
-                                        .font(.system(size: 30))
-                                )
-                        }
-                        .frame(width: 120, height: 120)
-                        .cornerRadius(20)
-                        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
-                    } else {
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(Color.gray.opacity(0.2))
-                            .frame(width: 120, height: 120)
-                            .overlay(
-                                Image(systemName: "app.badge")
-                                    .foregroundColor(.gray)
-                                    .font(.system(size: 30))
-                            )
-                            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
-                    }
-                    
-                                        // App Info
-                    VStack(alignment: .leading, spacing: 12) {
-                        Spacer()
-                        
-                        Spacer()
-                            .frame(height: 20)
-                        
-                        Text(app.name)
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                            .lineLimit(2)
-                            .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-                        
-                        if let developer = app.developer {
-                            Text(developer)
-                                .font(.subheadline)
-                                .foregroundColor(.white.opacity(0.9))
-                                .lineLimit(1)
-                                .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-                        }
-                        
-                        Spacer()
-                            .frame(height: 10)
-                    }
-                    
+                .clipped()
+                .cornerRadius(20)
+            } else {
+                // Fallback gradient background
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color.blue.opacity(0.3),
+                                Color.purple.opacity(0.3)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+            
+            // App Store Style Dark Gradient Overlay
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.4),
+                    Color.black.opacity(0.1),
+                    Color.black.opacity(0.6)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .cornerRadius(20)
+            
+            // Content Overlay
+            VStack(alignment: .leading, spacing: 0) {
+                // App Icon Top-Left with Optimized Loading
+                HStack {
+                    OptimizedAppIcon(app: app, isLoaded: $iconLoaded)
                     Spacer()
                 }
-                .padding(20)
+                .padding(.top, 20)
+                .padding(.leading, 20)
+                
+                Spacer()
+                
+                // Text at Bottom (App Store Style)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(app.name)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+                        .lineLimit(2)
+                    
+                    if let developer = app.developer {
+                        Text(developer)
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.9))
+                            .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
             }
         }
-        .buttonStyle(PlainButtonStyle())
+        .frame(height: 280)
+        .padding(.horizontal, 20      .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// Optimized Async Image with Loading State
+struct OptimizedAsyncImage<Content: View, Placeholder: View>: View {
+    let url: URL
+    @Binding var isLoaded: Bool
+    let content: (Image) -> Content
+    let placeholder: () -> Placeholder
+    
+    init(
+        url: URL,
+        isLoaded: Binding<Bool>,
+        @ViewBuilder content: @escaping (Image) -> Content,
+        @ViewBuilder placeholder: @escaping () -> Placeholder
+    ) {
+        self.url = url
+        self._isLoaded = isLoaded
+        self.content = content
+        self.placeholder = placeholder
+    }
+    
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            switch phase {
+            case .empty:
+                placeholder()
+            case .success(let image):
+                content(image)
+                    .onAppear {
+                        withAnimation(.easeIn(duration: 0.3)) {
+                            isLoaded = true
+                        }
+                    }
+            case .failure(_):
+                placeholder()
+            @unknown default:
+                placeholder()
+            }
+        }
+        .onAppear {
+            isLoaded = false
+        }
+    }
+}
+
+// Optimized App Icon with Loading State
+struct OptimizedAppIcon: View {
+    let app: AppModel
+    @Binding var isLoaded: Bool
+    
+    var body: some View {
+        if let iconUrl = app.icon_url, let url = URL(string: iconUrl) {
+            OptimizedAsyncImage(url: url, isLoaded: $isLoaded) { image in
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } placeholder: {
+                // Skeleton loading for app icon
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.gray.opacity(0.3))
+                    .overlay(
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .foregroundColor(.white)
+                    )
+            }
+            .frame(width: 80, height:80)
+            .cornerRadius(16)
+            .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+        } else {
+            // Fallback app icon
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: 80, height: 80)
+                .overlay(
+                    Image(systemName: "app.badge")
+                        .foregroundColor(.white)
+                        .font(.system(size: 30))
+                )
+                .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+        }
     }
 }
 
