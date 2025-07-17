@@ -91,8 +91,9 @@ class APIService: ObservableObject {
                         }
                     }
                     
+                    let finalApps = appsWithScreenshots
                     await MainActor.run {
-                        self.apps = appsWithScreenshots
+                        self.apps = finalApps
                         self.isLoading = false
                     }
                 } catch let decodingError {

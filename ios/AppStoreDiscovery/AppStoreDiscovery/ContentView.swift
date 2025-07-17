@@ -161,7 +161,7 @@ struct HomeView: View {
             .refreshable {
                 await apiService.fetchApps()
             }
-            .onChange(of: apiService.apps.count) { newCount in
+            .onChange(of: apiService.apps.count) { oldCount, newCount in
                 if newCount > 0 {
                     // Restart auto-scroll when apps are loaded
                     stopAutoScroll()
@@ -233,7 +233,7 @@ struct FeaturedCarouselView: View {
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
             .frame(height: 240)
-            .onChange(of: currentIndex) { newValue in
+            .onChange(of: currentIndex) { oldValue, newValue in
                 print("Carousel index changed to: \(newValue)")
             }
             
