@@ -10,4 +10,6 @@ import Foundation
 struct Category: Identifiable, Codable {
     let id: String
     let name: String
+    let slug: String
+    let created_at: String?
 } 

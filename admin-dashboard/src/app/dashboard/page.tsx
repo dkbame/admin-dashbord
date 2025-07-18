@@ -1,7 +1,7 @@
 'use client'
 
-import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Card, Alert, CircularProgress, Button, Dialog, DialogTitle, DialogContent, DialogActions, Avatar, ImageList, ImageListItem } from '@mui/material'
-import { Edit, Delete, Add, Image as ImageIcon, Star, StarBorder } from '@mui/icons-material'
+import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Card, Alert, CircularProgress, Button, Dialog, DialogTitle, DialogContent, DialogActions, Avatar, ImageList, ImageListItem, Switch, FormControlLabel, ImageListItemBar } from '@mui/material'
+import { Edit, Delete, Add, Image as ImageIcon, Star, StarBorder, FeaturedPlayList } from '@mui/icons-material'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
@@ -37,6 +37,7 @@ export default function DashboardPage() {
   const [screenshotsOpen, setScreenshotsOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [appToDelete, setAppToDelete] = useState<string | null>(null)
+  const [updatingFeatured, setUpdatingFeatured] = useState<string | null>(null)
 
   useEffect(() => {
     fetchApps()
@@ -213,6 +214,7 @@ export default function DashboardPage() {
   }
 
   const toggleFeatured = async (appId: string, currentFeatured: boolean) => {
+    setUpdatingFeatured(appId)
     try {
       const { error } = await supabase
         .from('apps')
@@ -220,9 +222,17 @@ export default function DashboardPage() {
         .eq('id', appId)
 
       if (error) throw error
-      await fetchApps()
+
+      // Update local state
+      setApps(apps.map(app => 
+        app.id === appId 
+          ? { ...app, is_featured: !currentFeatured }
+          : app
+      ))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update featured status')
+    } finally {
+      setUpdatingFeatured(null)
     }
   }
 
@@ -243,6 +253,19 @@ export default function DashboardPage() {
   const handleOpenScreenshots = (app: App) => {
     setSelectedApp(app)
     setScreenshotsOpen(true)
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'ACTIVE':
+        return 'success'
+      case 'PENDING':
+        return 'warning'
+      case 'INACTIVE':
+        return 'error'
+      default:
+        return 'default'
+    }
   }
 
   if (loading) {
@@ -278,7 +301,7 @@ export default function DashboardPage() {
         </Alert>
       )}
 
-      <Card>
+      <Paper sx={{ width: '100%', overflow: 'hidden' }}>
         <TableContainer>
           <Table sx={{ minWidth: 650 }} aria-label="apps table">
             <TableHead>
@@ -356,25 +379,24 @@ export default function DashboardPage() {
                   <TableCell>
                     <Chip
                       label={app.status}
-                      color={app.status === 'ACTIVE' ? 'success' : app.status === 'PENDING' ? 'warning' : 'error'}
+                      color={getStatusColor(app.status) as any}
                       size="small"
                       sx={{ minWidth: 80 }}
                     />
                   </TableCell>
                   <TableCell>
-                    <IconButton
-                      size="small"
-                      onClick={() => toggleFeatured(app.id, !!app.is_featured)}
-                      color={app.is_featured ? 'primary' : 'default'}
-                      sx={{ 
-                        '&:hover': { 
-                          backgroundColor: app.is_featured ? 'primary.main' : 'action.hover',
-                          color: app.is_featured ? 'white' : 'inherit'
-                        } 
-                      }}
-                    >
-                      {app.is_featured ? <Star /> : <StarBorder />}
-                    </IconButton>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={app.is_featured || false}
+                          onChange={() => toggleFeatured(app.id, app.is_featured || false)}
+                          disabled={updatingFeatured === app.id}
+                          icon={<StarBorder />}
+                          checkedIcon={<Star />}
+                        />
+                      }
+                      label=""
+                    />
                   </TableCell>
                   <TableCell>
                     <IconButton
@@ -422,8 +444,9 @@ export default function DashboardPage() {
             </TableBody>
           </Table>
         </TableContainer>
-      </Card>
+      </Paper>
 
+      {/* Screenshots Dialog */}
       <Dialog
         open={screenshotsOpen}
         onClose={() => setScreenshotsOpen(false)}

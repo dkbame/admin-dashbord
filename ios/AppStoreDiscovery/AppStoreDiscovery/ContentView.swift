@@ -7,6 +7,443 @@
 
 import SwiftUI
 
+// MARK: - Image Cache Manager
+class ImageCache {
+    static let shared = ImageCache()
+    private let cache = NSCache<NSString, UIImage>()
+    private let fileManager = FileManager.default
+    private let cacheDirectory: URL
+    
+    init() {
+        cache.countLimit = 10 // Limit memory usage
+        cache.totalCostLimit = 50 * 1241024 // MB limit
+        
+        // Create cache directory
+        let paths = fileManager.urls(for: .cachesDirectory, in: .userDomainMask)
+        cacheDirectory = paths[0].appendingPathComponent("ImageCache")
+        
+        try? fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+    }
+    
+    func getImage(for url: String) -> UIImage? { // Check memory cache first
+        if let cachedImage = cache.object(forKey: url as NSString) {
+            return cachedImage
+        }
+        
+        // Check disk cache
+        let fileName = url.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed) ?? url
+        let fileURL = cacheDirectory.appendingPathComponent(fileName)
+        
+        if let data = try? Data(contentsOf: fileURL), let image = UIImage(data: data) {
+            // Store in memory cache
+            cache.setObject(image, forKey: url as NSString)
+            return image
+        }
+        
+        return nil
+    }
+    
+    func setImage(_ image: UIImage, for url: String) { // Store in memory cache
+        cache.setObject(image, forKey: url as NSString)
+        
+        // Store in disk cache
+        let fileName = url.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed) ?? url
+        let fileURL = cacheDirectory.appendingPathComponent(fileName)
+        
+        if let data = image.jpegData(compressionQuality: 0.8) {
+            try? data.write(to: fileURL)
+        }
+    }
+    
+    func clearCache() {
+        cache.removeAllObjects()
+        try? fileManager.removeItem(at: cacheDirectory)
+        try? fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+    }
+}
+
+// MARK: - High Resolution Card Image with Performance Optimization
+struct HighResCardImage: View {
+    let url: String
+    let size: CGSize
+    @State private var lowResImage: UIImage?
+    @State private var highResImage: UIImage?
+    @State private var isLoading = true
+    @State private var loadTask: Task<Void, Never>?
+    
+    var body: some View {
+        ZStack {
+            // Background placeholder
+            RoundedRectangle(cornerRadius: 16)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color.gray.opacity(0.3),
+                            Color.gray.opacity(0.1)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            
+            // Low-res image (instant display)
+            if let lowRes = lowResImage {
+                Image(uiImage: lowRes)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                    .cornerRadius(16)
+                    .blur(radius: 0.3) // Slight blur for smooth transition
+            }
+            
+            // High-res image (fades in when ready)
+            if let highRes = highResImage {
+                Image(uiImage: highRes)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                    .cornerRadius(16)
+                    .transition(.opacity.animation(.easeInOut(duration: 0.4)))
+            }
+            
+            // Loading shimmer
+            if isLoading {
+                ShimmerView()
+                    .cornerRadius(16)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .onAppear {
+            loadImage()
+        }
+        .onDisappear {
+            loadTask?.cancel()
+        }
+    }
+    
+    private func loadImage() {
+        guard let imageURL = URL(string: url) else { return }
+        
+        // Check cache first
+        if let cachedImage = ImageCache.shared.getImage(for: url) {
+            self.highResImage = cachedImage
+            self.isLoading = false
+            return
+        }
+        
+        loadTask = Task {
+            // Load low-res first (for instant display)
+            await loadLowResImage(from: imageURL)
+            
+            // Load high-res in background
+            await loadHighResImage(from: imageURL)
+        }
+    }
+    
+    private func loadLowResImage(from url: URL) async {
+        // Create a smaller version for instant display
+        let lowResSize = CGSize(width: size.width * 0.3, height: size.height * 0.3)
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            if let image = UIImage(data: data) {
+                let resizedImage = await resizeImage(image, to: lowResSize)
+                
+                await MainActor.run {
+                    self.lowResImage = resizedImage
+                }
+            }
+        } catch {
+            print("Failed to load low-res image: \(error)")
+        }
+    }
+    
+    private func loadHighResImage(from url: URL) async {
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            if let image = UIImage(data: data) {
+                let resizedImage = await resizeImage(image, to: size)
+                
+                await MainActor.run {
+                    self.highResImage = resizedImage
+                    self.isLoading = false
+                    
+                    // Cache the high-res image
+                    ImageCache.shared.setImage(resizedImage, for: url.absoluteString)
+                }
+            }
+        } catch {
+            print("Failed to load high-res image: \(error)")
+            await MainActor.run {
+                self.isLoading = false
+            }
+        }
+    }
+    
+    private func resizeImage(_ image: UIImage, to size: CGSize) async -> UIImage {
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let renderer = UIGraphicsImageRenderer(size: size)
+                let resizedImage = renderer.image { context in
+                    image.draw(in: CGRect(origin: .zero, size: size))
+                }
+                continuation.resume(returning: resizedImage)
+            }
+        }
+    }
+}
+
+// MARK: - Shimmer Loading Effect
+struct ShimmerView: View {
+    @State private var isAnimating = false
+    
+    var body: some View {
+        LinearGradient(
+            gradient: Gradient(colors: [
+                Color.gray.opacity(0.3),
+                Color.gray.opacity(0.1),
+                Color.gray.opacity(0.3)
+            ]),
+            startPoint: isAnimating ? .leading : .trailing,
+            endPoint: isAnimating ? .trailing : .leading
+        )
+        .onAppear {
+            withAnimation(Animation.linear(duration: 1.0).repeatForever(autoreverses: false)) {
+                isAnimating = true
+            }
+        }
+    }
+}
+
+// MARK: - Category Bar Component
+struct CategoryBar: View {
+    let categories: [Category]
+    let onCategoryTap: (Category) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Section Header
+            HStack {
+                Text("Categories")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Spacer()
+                
+                NavigationLink("See All", destination: CategoriesView())
+                    .font(.subheadline)
+                    .foregroundColor(.blue)
+            }
+            .padding(.horizontal)
+            
+            // Horizontal Scrollable Categories
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(categories) { category in
+                        CategoryButton(
+                            category: category,
+                            onTap: { onCategoryTap(category) }
+                        )
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+}
+
+// MARK: - Category Button
+struct CategoryButton: View {
+    let category: Category
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            Text(category.name)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(.systemGray6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color(.systemGray4), lineWidth: 0.5)
+                        )
+                )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+
+
+// MARK: - Featured Apps View with Horizontal Scroll
+struct FeaturedAppsView: View {
+    let apps: [AppModel]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing:16) {
+            // Section Header
+            HStack {
+                Image(systemName: "star.circle.fill")
+                    .foregroundColor(.orange)
+                    .font(.title2)
+                
+                Text("Featured Apps")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Spacer()
+                
+                NavigationLink("See All", destination: Text("See All Featured Apps"))
+                    .font(.subheadline)
+                    .foregroundColor(.blue)
+            }
+            .padding(.horizontal)
+            
+            // Horizontal Scroll with Large Cards
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    ForEach(apps) { app in
+                        FeaturedAppCard(app: app)
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+}
+
+// MARK: - Featured App Card
+struct FeaturedAppCard: View {
+    let app: AppModel
+    
+    private let cardSize = CGSize(width: 280, height: 200)
+    
+    var body: some View {
+        NavigationLink(destination: AppDetailView(app: app)) {
+            ZStack {
+                // Screenshot Background
+                if let screenshots = app.screenshots, !screenshots.isEmpty {
+                    HighResCardImage(
+                        url: screenshots[0].url,
+                        size: cardSize
+                    )
+                } else {
+                    // Fallback gradient background
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.blue.opacity(0.3),
+                                    Color.purple.opacity(0.3)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: cardSize.width, height: cardSize.height)
+                }
+                
+                // Dark gradient overlay for text readability
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.3),
+                        Color.black.opacity(0.1),
+                        Color.black.opacity(0.5)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .cornerRadius(16)
+                
+                // Content Overlay
+                VStack(alignment: .leading, spacing: 12) {
+                    // App Icon and Info
+                    HStack(alignment: .top, spacing: 12) {
+                        // App Icon
+                        if let iconUrl = app.icon_url {
+                            AsyncImage(url: URL(string: iconUrl)) { image in
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            } placeholder: {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.gray.opacity(0.3))
+                                    .overlay(
+                                        Image(systemName: "app.badge")
+                                            .foregroundColor(.white)
+                                            .font(.system(size: 20))
+                                    )
+                            }
+                            .frame(width: 60, height: 60)
+                            .cornerRadius(12)
+                            .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                        } else {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 60, height: 60)
+                                .overlay(
+                                    Image(systemName: "app.badge")
+                                        .foregroundColor(.white)
+                                        .font(.system(size: 20))
+                                )
+                                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                        }
+                        
+                        // App Info
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(app.name)
+                                .font(.title3)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                                .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+                                .lineLimit(2)
+                            
+                            if let developer = app.developer {
+                                Text(developer)
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.9))
+                                    .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+                                    .lineLimit(1)
+                            }
+                            
+                            // Rating if available
+                            if let rating = app.rating, rating > 0 {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "star.fill")
+                                        .foregroundColor(.yellow)
+                                        .font(.caption)
+                                    
+                                    Text(String(format: "%.1f", rating))
+                                        .font(.caption)
+                                        .foregroundColor(.white.opacity(0.9))
+                                        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+                                }
+                            }
+                        }
+                        
+                        Spacer()
+                    }
+                    
+                    Spacer()
+                }
+                .padding(16)
+            }
+            .frame(width: cardSize.width, height: cardSize.height)
+            .cornerRadius(16)
+            .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Content View
 struct ContentView: View {
     var body: some View {
         TabView {
@@ -40,9 +477,6 @@ struct ContentView: View {
 
 struct HomeView: View {
     @StateObject private var apiService = APIService()
-    @State private var currentFeaturedIndex = 0
-    @State private var autoScrollTimer: Timer?
-    @State private var isAutoScrolling = true
     
     // Featured apps (top 5 apps or apps marked as featured)
     var featuredApps: [AppModel] {
@@ -68,6 +502,34 @@ struct HomeView: View {
     // Free apps
     var freeApps: [AppModel] {
         apiService.apps.filter { $0.is_free == true }.prefix(10).map { $0 }
+    }
+    
+    // New computed properties for additional sections
+    var trendingApps: [AppModel] {
+        apiService.apps
+            .filter { $0.rating_count != nil && $0.rating_count! > 100 }
+            .sorted { ($0.rating_count ?? 0) > ($1.rating_count ?? 0) }
+            .prefix(10)
+            .map { $0 }
+    }
+    
+    var newReleases: [AppModel] {
+        apiService.apps
+            .filter { $0.release_date != nil }
+            .sorted { 
+                let date1 = ISO8601DateFormatter().date(from: $0.release_date!) ?? Date.distantPast
+                let date2 = ISO8601DateFormatter().date(from: $1.release_date!) ?? Date.distantPast
+                return date1 > date2
+            }
+            .prefix(10)
+            .map { $0 }
+    }
+    
+    var premiumApps: [AppModel] {
+        apiService.apps
+            .filter { $0.is_free == false && $0.price != nil && $0.price != "0" }
+            .prefix(10)
+            .map { $0 }
     }
     
     var body: some View {
@@ -111,48 +573,112 @@ struct HomeView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
-                        VStack(spacing: 0) {
-                            // Featured Carousel
-                            if !featuredApps.isEmpty {
-                                FeaturedCarouselView(
-                                    apps: featuredApps,
-                                    currentIndex: $currentFeaturedIndex,
-                                    isAutoScrolling: $isAutoScrolling
-                                )
-                                .frame(height: 280)
+                        VStack(spacing: 24) {
+                            // Categories Section
+                            if !apiService.categories.isEmpty {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    // Section Header
+                                    HStack {
+                                        Text("Categories")
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                        
+                                        Spacer()
+                                        
+                                        NavigationLink("See All", destination: CategoriesView())
+                                            .font(.subheadline)
+                                            .foregroundColor(.blue)
+                                    }
+                                    .padding(.horizontal)
+                                    
+                                    // Horizontal Scrollable Categories
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 12) {
+                                            ForEach(apiService.categories) { category in
+                                                NavigationLink(destination: CategoryDetailView(category: category)) {
+                                                    Text(category.name)
+                                                        .font(.subheadline)
+                                                        .fontWeight(.medium)
+                                                        .foregroundColor(.primary)
+                                                        .padding(.horizontal, 16)
+                                                        .padding(.vertical, 8)
+                                                        .background(
+                                                            RoundedRectangle(cornerRadius: 20)
+                                                                .fill(Color(.systemGray6))
+                                                                .overlay(
+                                                                    RoundedRectangle(cornerRadius: 20)
+                                                                        .stroke(Color(.systemGray4), lineWidth: 0.5)
+                                                                )
+                                                        )
+                                                }
+                                                .buttonStyle(PlainButtonStyle())
+                                            }
+                                        }
+                                        .padding(.horizontal)
+                                    }
+                                }
                             }
                             
-                            // Category Sections
-                            VStack(spacing: 24) {
-                                // Recently Added Section
-                                if !recentlyAddedApps.isEmpty {
-                                    AppSectionView(
-                                        title: "Recently Added",
-                                        apps: recentlyAddedApps,
-                                        icon: "clock.fill"
-                                    )
-                                }
-                                
-                                // Top Rated Section
-                                if !topRatedApps.isEmpty {
-                                    AppSectionView(
-                                        title: "Top Rated",
-                                        apps: topRatedApps,
-                                        icon: "star.fill"
-                                    )
-                                }
-                                
-                                // Free Apps Section
-                                if !freeApps.isEmpty {
-                                    AppSectionView(
-                                        title: "Free Apps",
-                                        apps: freeApps,
-                                        icon: "gift.fill"
-                                    )
-                                }
+                            // Featured Apps Section
+                            if !featuredApps.isEmpty {
+                                FeaturedAppsView(apps: featuredApps)
                             }
-                            .padding(.top, 20)
+                            
+                            // New Releases Section
+                            if !newReleases.isEmpty {
+                                AppSectionView(
+                                    title: "New Releases",
+                                    apps: newReleases,
+                                    icon: "sparkles"
+                                )
+                            }
+                            
+                            // Trending Apps Section
+                            if !trendingApps.isEmpty {
+                                AppSectionView(
+                                    title: "Trending Now",
+                                    apps: trendingApps,
+                                    icon: "chart.line.uptrend.xyaxis"
+                                )
+                            }
+                            
+                            // Recently Added Section
+                            if !recentlyAddedApps.isEmpty {
+                                AppSectionView(
+                                    title: "Recently Added",
+                                    apps: recentlyAddedApps,
+                                    icon: "clock.fill"
+                                )
+                            }
+                            
+                            // Top Rated Section
+                            if !topRatedApps.isEmpty {
+                                AppSectionView(
+                                    title: "Top Rated",
+                                    apps: topRatedApps,
+                                    icon: "star.fill"
+                                )
+                            }
+                            
+                            // Premium Apps Section
+                            if !premiumApps.isEmpty {
+                                AppSectionView(
+                                    title: "Premium Apps",
+                                    apps: premiumApps,
+                                    icon: "crown.fill"
+                                )
+                            }
+                            
+                            // Free Apps Section
+                            if !freeApps.isEmpty {
+                                AppSectionView(
+                                    title: "Free Apps",
+                                    apps: freeApps,
+                                    icon: "gift.fill"
+                                )
+                            }
                         }
+                        .padding(.top, 20)
                     }
                 }
             }
@@ -161,274 +687,18 @@ struct HomeView: View {
             .refreshable {
                 await apiService.fetchApps()
             }
-            .onChange(of: apiService.apps.count) { oldCount, newCount in
-                if newCount > 0 {
-                    // Restart auto-scroll when apps are loaded
-                    stopAutoScroll()
-                    startAutoScroll()
-                }
-            }
             .onAppear {
                 Task {
                     await apiService.fetchApps()
-                    // Start auto-scroll after apps are loaded
-                    DispatchQueue.main.async {
-                        startAutoScroll()
-                    }
+                    await apiService.fetchCategories()
                 }
+                // Start real-time subscriptions
+                apiService.subscribeToRealTimeUpdates()
             }
             .onDisappear {
-                stopAutoScroll()
+                // Clean up real-time subscriptions
+                apiService.unsubscribeFromRealTimeUpdates()
             }
-        }
-    }
-    
-    private func startAutoScroll() {
-        guard featuredApps.count > 1 else { 
-            print("Auto-scroll not started: only \(featuredApps.count) featured apps")
-            return 
-        }
-        print("Starting auto-scroll with \(featuredApps.count) apps")
-        autoScrollTimer = Timer.scheduledTimer(withTimeInterval: 6.0, repeats: true) { _ in
-            if isAutoScrolling {
-                print("Auto-scrolling from index \(currentFeaturedIndex)")
-                DispatchQueue.main.async {
-                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                        currentFeaturedIndex = (currentFeaturedIndex + 1) % featuredApps.count
-                    }
-                }
-            } else {
-                print("Auto-scroll paused")
-            }
-        }
-    }
-    
-    private func stopAutoScroll() {
-        autoScrollTimer?.invalidate()
-        autoScrollTimer = nil
-    }
-}
-
-// Featured Carousel View
-struct FeaturedCarouselView: View {
-    let apps: [AppModel]
-    @Binding var currentIndex: Int
-    @Binding var isAutoScrolling: Bool
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            // App Store Style Carousel
-            TabView(selection: $currentIndex) {
-                ForEach(Array(apps.enumerated()), id: \.element.id) { index, app in
-                    AppStoreStyleCard(app: app)
-                        .tag(index)
-                        .gesture(
-                            DragGesture()
-                                .onChanged { _ in
-                                    // Pause auto-scroll during manual interaction
-                                    isAutoScrolling = false
-                                }
-                                .onEnded { _ in
-                                    // Resume auto-scroll after delay
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                        isAutoScrolling = true
-                                    }
-                                }
-                        )
-                }
-            }
-            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-            .frame(height: 280)
-            .onChange(of: currentIndex) { oldValue, newValue in
-                print("Carousel index changed to: \(newValue)")
-            }
-        }
-        .padding(.horizontal)
-    }
-}
-
-// App Store Style Card with Optimized Image Loading
-struct AppStoreStyleCard: View {
-    let app: AppModel
-    @State private var screenshotLoaded = false
-    @State private var iconLoaded = false
-    
-    var body: some View {
-        NavigationLink(destination: AppDetailView(app: app)) {
-            ZStack {
-            // Screenshot Background with Optimized Loading
-            if let screenshots = app.screenshots, !screenshots.isEmpty, let firstScreenshotUrl = URL(string: screenshots[0].url) {
-                OptimizedAsyncImage(
-                    url: firstScreenshotUrl,
-                    isLoaded: $screenshotLoaded
-                ) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    // Skeleton loading for screenshot
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color.gray.opacity(0.3),
-                                    Color.gray.opacity(0.1)
-                                ]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .overlay(
-                            ProgressView()
-                                .scaleEffect(1.2)
-                                .foregroundColor(.white)
-                        )
-                }
-                .clipped()
-                .cornerRadius(20)
-            } else {
-                // Fallback gradient background
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.blue.opacity(0.3),
-                                Color.purple.opacity(0.3)
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
-            
-            // App Store Style Dark Gradient Overlay
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.4),
-                    Color.black.opacity(0.1),
-                    Color.black.opacity(0.6)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .cornerRadius(20)
-            
-            // Content Overlay
-            VStack(alignment: .leading, spacing: 0) {
-                // App Icon Top-Left with Optimized Loading
-                HStack {
-                    OptimizedAppIcon(app: app, isLoaded: $iconLoaded)
-                    Spacer()
-                }
-                .padding(.top, 20)
-                .padding(.leading, 20)
-                
-                Spacer()
-                
-                // Text at Bottom (App Store Style)
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(app.name)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-                        .lineLimit(2)
-                    
-                    if let developer = app.developer {
-                        Text(developer)
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.9))
-                            .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-                            .lineLimit(1)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
-            }
-        }
-        .frame(height: 280)
-        .padding(.horizontal, 20      .buttonStyle(PlainButtonStyle())
-    }
-}
-
-// Optimized Async Image with Loading State
-struct OptimizedAsyncImage<Content: View, Placeholder: View>: View {
-    let url: URL
-    @Binding var isLoaded: Bool
-    let content: (Image) -> Content
-    let placeholder: () -> Placeholder
-    
-    init(
-        url: URL,
-        isLoaded: Binding<Bool>,
-        @ViewBuilder content: @escaping (Image) -> Content,
-        @ViewBuilder placeholder: @escaping () -> Placeholder
-    ) {
-        self.url = url
-        self._isLoaded = isLoaded
-        self.content = content
-        self.placeholder = placeholder
-    }
-    
-    var body: some View {
-        AsyncImage(url: url) { phase in
-            switch phase {
-            case .empty:
-                placeholder()
-            case .success(let image):
-                content(image)
-                    .onAppear {
-                        withAnimation(.easeIn(duration: 0.3)) {
-                            isLoaded = true
-                        }
-                    }
-            case .failure(_):
-                placeholder()
-            @unknown default:
-                placeholder()
-            }
-        }
-        .onAppear {
-            isLoaded = false
-        }
-    }
-}
-
-// Optimized App Icon with Loading State
-struct OptimizedAppIcon: View {
-    let app: AppModel
-    @Binding var isLoaded: Bool
-    
-    var body: some View {
-        if let iconUrl = app.icon_url, let url = URL(string: iconUrl) {
-            OptimizedAsyncImage(url: url, isLoaded: $isLoaded) { image in
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } placeholder: {
-                // Skeleton loading for app icon
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.gray.opacity(0.3))
-                    .overlay(
-                        ProgressView()
-                            .scaleEffect(0.8)
-                            .foregroundColor(.white)
-                    )
-            }
-            .frame(width: 80, height:80)
-            .cornerRadius(16)
-            .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
-        } else {
-            // Fallback app icon
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.gray.opacity(0.3))
-                .frame(width: 80, height: 80)
-                .overlay(
-                    Image(systemName: "app.badge")
-                        .foregroundColor(.white)
-                        .font(.system(size: 30))
-                )
-                .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
         }
     }
 }
@@ -1028,50 +1298,128 @@ struct SearchView: View {
     @StateObject private var apiService = APIService()
     @State private var searchText = ""
     @State private var searchResults: [AppModel] = []
+    @State private var searchHistory: [String] = []
+    @State private var isSearching = false
+    @State private var showSuggestions = false
+    
+    // Popular search terms for suggestions
+    private let popularSearches = ["Productivity", "Games", "Photo", "Music", "Social", "Utility", "Education", "Entertainment"]
     
     var body: some View {
         NavigationView {
-            VStack {
-                SearchBar(text: $searchText, onSubmit: performSearch)
+            VStack(spacing: 0) {
+                // Enhanced Search Bar
+                EnhancedSearchBar(
+                    text: $searchText,
+                    isSearching: $isSearching,
+                    showSuggestions: $showSuggestions,
+                    onSearch: performSearch,
+                    onClear: clearSearch
+                )
                 
                 if searchText.isEmpty {
+                    // Empty State with Suggestions
+                    ScrollView {
+                        VStack(spacing: 24) {
+                            // Search History
+                            if !searchHistory.isEmpty {
+                                SearchHistorySection(
+                                    history: searchHistory,
+                                    onTapHistory: { term in
+                                        searchText = term
+                                        performSearch()
+                                    },
+                                    onClearHistory: clearSearchHistory
+                                )
+                            }
+                            
+                            // Popular Searches
+                            PopularSearchesSection(
+                                searches: popularSearches,
+                                onTapSearch: { term in
+                                    searchText = term
+                                    performSearch()
+                                }
+                            )
+                            
+                            // Recent Apps
+                            RecentAppsSection(apps: Array(apiService.apps.prefix(6)))
+                        }
+                        .padding()
+                    }
+                } else if isSearching {
+                    // Loading State
                     VStack {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 50))
+                        ProgressView()
+                            .scaleEffect(1.2)
+                        Text("Searching...")
                             .foregroundColor(.secondary)
-                        Text("Search for apps")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                        Text("Enter keywords to find apps")
-                            .foregroundColor(.secondary)
+                            .padding(.top)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if searchResults.isEmpty {
-                    VStack {
+                    // No Results State
+                    VStack(spacing: 16) {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 50))
                             .foregroundColor(.secondary)
                         Text("No results found")
                             .font(.title2)
                             .fontWeight(.semibold)
-                        Text("Try different keywords")
+                        Text("Try different keywords or check your spelling")
                             .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                        
+                        // Suggestions for no results
+                        if !searchText.isEmpty {
+                            VStack(spacing: 8) {
+                                Text("Suggestions:")
+                                    .font(.headline)
+                                    .foregroundColor(.secondary)
+                                
+                                ForEach(generateSuggestions(), id: \.self) { suggestion in
+                                    Button(action: {
+                                        searchText = suggestion
+                                        performSearch()
+                                    }) {
+                                        Text(suggestion)
+                                            .foregroundColor(.blue)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(Color.blue.opacity(0.1))
+                                            .cornerRadius(8)
+                                    }
+                                }
+                            }
+                            .padding(.top)
+                        }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
+                    // Search Results
                     ScrollView {
                         LazyVStack(spacing: 16) {
+                            // Results Header
+                            HStack {
+                                Text("\(searchResults.count) result\(searchResults.count == 1 ? "" : "s")")
+                                    .font(.headline)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            .padding(.horizontal)
+                            
                             ForEach(searchResults) { app in
-                                AppCard(app: app)
+                                EnhancedAppCard(app: app, searchTerm: searchText)
                             }
                         }
-                        .padding()
+                        .padding(.vertical)
                     }
                 }
             }
             .navigationTitle("Search")
             .navigationBarTitleDisplayMode(.large)
             .onAppear {
+                loadSearchHistory()
                 Task {
                     await apiService.fetchApps()
                 }
@@ -1085,17 +1433,98 @@ struct SearchView: View {
             return
         }
         
-        searchResults = apiService.apps.filter { app in
-            app.name.localizedCaseInsensitiveContains(searchText) ||
-            app.description.localizedCaseInsensitiveContains(searchText) ||
-            (app.developer?.localizedCaseInsensitiveContains(searchText) ?? false)
+        isSearching = true
+        
+        // Simulate slight delay for better UX
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            searchResults = enhancedSearch(in: apiService.apps, for: searchText)
+            isSearching = false
+            
+            // Add to search history
+            addToSearchHistory(searchText)
         }
+    }
+    
+    private func clearSearch() {
+        searchText = ""
+        searchResults = []
+        showSuggestions = false
+    }
+    
+    private func enhancedSearch(in apps: [AppModel], for query: String) -> [AppModel] {
+        let searchTerms = query.lowercased().split(separator: " ")
+        
+        return apps.filter { app in
+            let appName = app.name.lowercased()
+            let appDescription = app.description.lowercased()
+            let appDeveloper = app.developer?.lowercased() ?? ""
+            
+            // Check if all search terms are found in any field
+            return searchTerms.allSatisfy { term in
+                appName.contains(term) ||
+                appDescription.contains(term) ||
+                appDeveloper.contains(term)
+            }
+        }.sorted { app1, app2 in
+            // Sort by relevance (exact matches first, then partial matches)
+            let queryLower = query.lowercased()
+            let exactMatch1 = app1.name.lowercased().contains(queryLower)
+            let exactMatch2 = app2.name.lowercased().contains(queryLower)
+            
+            if exactMatch1 != exactMatch2 {
+                return exactMatch1
+            }
+            
+            // If both are exact or both are partial, sort by rating
+            return (app1.rating ?? 0) > (app2.rating ?? 0)
+        }
+    }
+    
+    private func generateSuggestions() -> [String] {
+        let suggestions = [
+            "Try searching for '\(searchText)' in a different way",
+            "Check for typos in '\(searchText)'",
+            "Try a broader search term",
+            "Search by developer name"
+        ]
+        return suggestions
+    }
+    
+    // MARK: - Search History Management
+    private func loadSearchHistory() {
+        if let data = UserDefaults.standard.data(forKey: "SearchHistory"),
+           let history = try? JSONDecoder().decode([String].self, from: data) {
+            searchHistory = history
+        }
+    }
+    
+    private func addToSearchHistory(_ term: String) {
+        var history = searchHistory
+        history.removeAll { $0 == term } // Remove if exists
+        history.insert(term, at: 0) // Add to beginning
+        history = Array(history.prefix(10)) // Keep only last 10
+        
+        searchHistory = history
+        
+        if let data = try? JSONEncoder().encode(history) {
+            UserDefaults.standard.set(data, forKey: "SearchHistory")
+        }
+    }
+    
+    private func clearSearchHistory() {
+        searchHistory = []
+        UserDefaults.standard.removeObject(forKey: "SearchHistory")
     }
 }
 
-struct SearchBar: View {
+struct EnhancedSearchBar: View {
     @Binding var text: String
-    let onSubmit: () -> Void
+    @Binding var isSearching: Bool
+    @Binding var showSuggestions: Bool
+    let onSearch: () -> Void
+    let onClear: () -> Void
+    
+    @State private var searchTask: Task<Void, Never>?
     
     var body: some View {
         HStack {
@@ -1104,12 +1533,38 @@ struct SearchBar: View {
             
             TextField("Search apps...", text: $text)
                 .textFieldStyle(PlainTextFieldStyle())
-                .onSubmit(onSubmit)
+                .onSubmit(onSearch)
+                .onChange(of: text) { newValue in
+                    // Cancel previous search task
+                    searchTask?.cancel()
+                    
+                    if newValue.isEmpty {
+                        showSuggestions = false
+                        onClear()
+                    } else {
+                        showSuggestions = true
+                        
+                        // Debounced real-time search
+                        searchTask = Task {
+                            try? await Task.sleep(nanoseconds: 300_000_000) // 300ms delay
+                            
+                            if !Task.isCancelled {
+                                await MainActor.run {
+                                    onSearch()
+                                }
+                            }
+                        }
+                    }
+                }
             
-            if !text.isEmpty {
+            if isSearching {
+                ProgressView()
+                    .scaleEffect(0.8)
+                    .foregroundColor(.secondary)
+            } else if !text.isEmpty {
                 Button(action: {
                     text = ""
-                    onSubmit()
+                    onClear()
                 }) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.secondary)
@@ -1120,6 +1575,247 @@ struct SearchBar: View {
         .background(Color(.systemGray6))
         .cornerRadius(10)
         .padding(.horizontal)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+        )
+    }
+}
+
+struct SearchHistorySection: View {
+    let history: [String]
+    let onTapHistory: (String) -> Void
+    let onClearHistory: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Search History")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Button(action: onClearHistory) {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                }
+            }
+            .padding(.horizontal)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(history, id: \.self) { term in
+                        Button(action: { onTapHistory(term) }) {
+                            Text(term)
+                                .font(.subheadline)
+                                .foregroundColor(.blue)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(8)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+}
+
+struct PopularSearchesSection: View {
+    let searches: [String]
+    let onTapSearch: (String) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Popular Searches")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(searches, id: \.self) { term in
+                        Button(action: { onTapSearch(term) }) {
+                            Text(term)
+                                .font(.subheadline)
+                                .foregroundColor(.blue)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(8)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+}
+
+struct RecentAppsSection: View {
+    let apps: [AppModel]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Recent Searches")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(apps, id: \.id) { app in
+                        NavigationLink(destination: AppDetailView(app: app)) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                if let iconUrl = app.icon_url, let url = URL(string: iconUrl) {
+                                    AsyncImage(url: url) { image in
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                    } placeholder: {
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(Color.gray.opacity(0.2))
+                                    }
+                                    .frame(width: 60, height: 60)
+                                    .cornerRadius(12)
+                                } else {
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.gray.opacity(0.2))
+                                        .frame(width: 60, height: 60)
+                                        .overlay(
+                                            Image(systemName: "app.badge")
+                                                .foregroundColor(.gray)
+                                        )
+                                }
+                                Text(app.name)
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+}
+
+struct EnhancedAppCard: View {
+    let app: AppModel
+    let searchTerm: String
+    
+    var body: some View {
+        NavigationLink(destination: AppDetailView(app: app)) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
+                    // App Icon
+                    if let iconUrl = app.icon_url, let url = URL(string: iconUrl) {
+                        AsyncImage(url: url) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.gray.opacity(0.2))
+                        }
+                        .frame(width: 60, height: 60)
+                        .cornerRadius(12)
+                    } else {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(width: 60, height: 60)
+                            .overlay(
+                                Image(systemName: "app.badge")
+                                    .foregroundColor(.gray)
+                            )
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(app.name)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                            .lineLimit(2)
+                        
+                        if let developer = app.developer {
+                            Text(developer)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        HStack {
+                            if let rating = app.rating {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "star.fill")
+                                        .foregroundColor(.yellow)
+                                        .font(.caption)
+                                    Text(String(format: "%.1f", rating))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            
+                            if let price = app.price {
+                                Text(price == "0" ? "Free" : "$\(price)")
+                                    .font(.caption)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(price == "0" ? Color.green.opacity(0.2) : Color.blue.opacity(0.2))
+                                    .foregroundColor(price == "0" ? .green : .blue)
+                                    .cornerRadius(4)
+                            }
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    if app.is_featured == true {
+                        Image(systemName: "star.fill")
+                            .foregroundColor(.yellow)
+                            .font(.caption)
+                    }
+                }
+                
+                // App Description
+                Text(app.description)
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .lineLimit(3)
+                
+                // Screenshots
+                if let screenshots = app.screenshots, !screenshots.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(screenshots.prefix(3)) { screenshot in
+                                if let url = URL(string: screenshot.url) {
+                                    AsyncImage(url: url) { image in
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                    } placeholder: {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Color.gray.opacity(0.2))
+                                    }
+                                    .frame(width: 120, height: 80)
+                                    .cornerRadius(8)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .padding()
+            .background(Color(.systemBackground))
+            .cornerRadius(16)
+            .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

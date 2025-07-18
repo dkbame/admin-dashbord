@@ -13,17 +13,28 @@ class APIService: ObservableObject {
     @Published var categories: [Category] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    
+    // Cache for better performance
+    private var lastFetchTime: Date?
+    private let cacheValidityDuration: TimeInterval = 300 // 5 minutes
+    
+    // Real-time subscriptions
+    private var appsSubscription: RealtimeChannel?
+    private var categoriesSubscription: RealtimeChannel?
 
     func fetchApps() async {
         await MainActor.run {
             isLoading = true
             errorMessage = nil
         }
+        
         do {
-            // First, fetch apps without screenshots
+            // Use the optimized view for better performance
             let appsResponse = try await SupabaseManager.shared.client
-                .from("apps")
+                .from("ios_apps_view")
                 .select("*")
+                .eq("status", value: "ACTIVE") // Only fetch active apps
+                .order("created_at", ascending: false)
                 .execute()
             
             print("[DEBUG] fetchApps - Apps response status: \(appsResponse.status)")
@@ -71,7 +82,12 @@ class APIService: ObservableObject {
                                 is_free: app.is_free,
                                 is_featured: app.is_featured,
                                 created_at: app.created_at,
-                                updated_at: app.updated_at
+                                updated_at: app.updated_at,
+                                status: app.status,
+                                currency: app.currency,
+                                minimum_os_version: app.minimum_os_version,
+                                features: app.features,
+                                source: app.source
                             )
                             appsWithScreenshots.append(appWithScreenshots)
                         } else {
@@ -95,6 +111,7 @@ class APIService: ObservableObject {
                     await MainActor.run {
                         self.apps = finalApps
                         self.isLoading = false
+                        self.lastFetchTime = Date()
                     }
                 } catch let decodingError {
                     print("[DEBUG] JSON Decoding Error: \(decodingError)")
@@ -171,5 +188,169 @@ class APIService: ObservableObject {
                 self.isLoading = false
             }
         }
+    }
+    
+    // MARK: - Real-time Subscriptions
+    
+    func subscribeToRealTimeUpdates() {
+        // Subscribe to apps changes
+        appsSubscription = SupabaseManager.shared.client
+            .channel("apps_changes")
+            .on(
+                .postgresChanges(
+                    event: .all,
+                    schema: "public",
+                    table: "apps"
+                )
+            ) { [weak self] payload in
+                print("[DEBUG] Real-time apps update: \(payload)")
+                Task {
+                    await self?.handleAppsUpdate(payload)
+                }
+            }
+            .subscribe()
+        
+        // Subscribe to categories changes
+        categoriesSubscription = SupabaseManager.shared.client
+            .channel("categories_changes")
+            .on(
+                .postgresChanges(
+                    event: .all,
+                    schema: "public",
+                    table: "categories"
+                )
+            ) { [weak self] payload in
+                print("[DEBUG] Real-time categories update: \(payload)")
+                Task {
+                    await self?.handleCategoriesUpdate(payload)
+                }
+            }
+            .subscribe()
+    }
+    
+    func unsubscribeFromRealTimeUpdates() {
+        appsSubscription?.unsubscribe()
+        categoriesSubscription?.unsubscribe()
+        appsSubscription = nil
+        categoriesSubscription = nil
+    }
+    
+    private func handleAppsUpdate(_ payload: RealtimePostgresChangesPayload) async {
+        // Refresh apps data when changes occur
+        await fetchApps()
+    }
+    
+    private func handleCategoriesUpdate(_ payload: RealtimePostgresChangesPayload) async {
+        // Refresh categories data when changes occur
+        await fetchCategories()
+    }
+    
+    // MARK: - New Methods for Better Integration
+    
+    func fetchTrendingApps() async -> [AppModel] {
+        do {
+            let response = try await SupabaseManager.shared.client
+                .rpc("get_trending_apps", params: ["limit_count": 10])
+                .execute()
+            
+            if response.status == 200 {
+                let trendingApps = try JSONDecoder().decode([AppModel].self, from: response.data)
+                return trendingApps
+            }
+        } catch {
+            print("[DEBUG] fetchTrendingApps - Error: \(error.localizedDescription)")
+        }
+        return []
+    }
+    
+    func fetchNewReleases() async -> [AppModel] {
+        do {
+            let response = try await SupabaseManager.shared.client
+                .rpc("get_new_releases", params: ["limit_count": 10])
+                .execute()
+            
+            if response.status == 200 {
+                let newReleases = try JSONDecoder().decode([AppModel].self, from: response.data)
+                return newReleases
+            }
+        } catch {
+            print("[DEBUG] fetchNewReleases - Error: \(error.localizedDescription)")
+        }
+        return []
+    }
+    
+    func fetchFeaturedApps() async -> [AppModel] {
+        do {
+            let response = try await SupabaseManager.shared.client
+                .from("ios_apps_view")
+                .select("*")
+                .eq("status", value: "ACTIVE")
+                .eq("is_featured", value: true)
+                .order("created_at", ascending: false)
+                .limit(10)
+                .execute()
+            
+            if response.status == 200 {
+                let featuredApps = try JSONDecoder().decode([AppModel].self, from: response.data)
+                return featuredApps
+            }
+        } catch {
+            print("[DEBUG] fetchFeaturedApps - Error: \(error.localizedDescription)")
+        }
+        return []
+    }
+    
+    func fetchAppsByCategory(categoryId: String) async -> [AppModel] {
+        do {
+            let response = try await SupabaseManager.shared.client
+                .from("ios_apps_view")
+                .select("*")
+                .eq("status", value: "ACTIVE")
+                .eq("category_id", value: categoryId)
+                .order("created_at", ascending: false)
+                .execute()
+            
+            if response.status == 200 {
+                let categoryApps = try JSONDecoder().decode([AppModel].self, from: response.data)
+                return categoryApps
+            }
+        } catch {
+            print("[DEBUG] fetchAppsByCategory - Error: \(error.localizedDescription)")
+        }
+        return []
+    }
+    
+    func searchApps(query: String) async -> [AppModel] {
+        do {
+            let response = try await SupabaseManager.shared.client
+                .from("ios_apps_view")
+                .select("*")
+                .eq("status", value: "ACTIVE")
+                .or("name.ilike.%\(query)%,description.ilike.%\(query)%,developer.ilike.%\(query)%")
+                .order("created_at", ascending: false)
+                .limit(50)
+                .execute()
+            
+            if response.status == 200 {
+                let searchResults = try JSONDecoder().decode([AppModel].self, from: response.data)
+                return searchResults
+            }
+        } catch {
+            print("[DEBUG] searchApps - Error: \(error.localizedDescription)")
+        }
+        return []
+    }
+    
+    // MARK: - Cache Management
+    
+    func shouldRefreshData() -> Bool {
+        guard let lastFetch = lastFetchTime else { return true }
+        return Date().timeIntervalSince(lastFetch) > cacheValidityDuration
+    }
+    
+    func clearCache() {
+        lastFetchTime = nil
+        apps = []
+        categories = []
     }
 } 
