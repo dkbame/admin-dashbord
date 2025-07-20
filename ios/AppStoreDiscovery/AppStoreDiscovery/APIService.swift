@@ -18,9 +18,9 @@ class APIService: ObservableObject {
     private var lastFetchTime: Date?
     private let cacheValidityDuration: TimeInterval = 300 // 5 minutes
     
-    // Real-time subscriptions
-    private var appsSubscription: RealtimeChannel?
-    private var categoriesSubscription: RealtimeChannel?
+    // Real-time subscriptions - Temporarily disabled
+    // private var appsSubscription: RealtimeChannelV2?
+    // private var categoriesSubscription: RealtimeChannelV2?
 
     func fetchApps() async {
         await MainActor.run {
@@ -190,57 +190,24 @@ class APIService: ObservableObject {
         }
     }
     
-    // MARK: - Real-time Subscriptions
+    // MARK: - Real-time Subscriptions (Temporarily disabled due to API changes)
     
     func subscribeToRealTimeUpdates() {
-        // Subscribe to apps changes
-        appsSubscription = SupabaseManager.shared.client
-            .channel("apps_changes")
-            .on(
-                .postgresChanges(
-                    event: .all,
-                    schema: "public",
-                    table: "apps"
-                )
-            ) { [weak self] payload in
-                print("[DEBUG] Real-time apps update: \(payload)")
-                Task {
-                    await self?.handleAppsUpdate(payload)
-                }
-            }
-            .subscribe()
-        
-        // Subscribe to categories changes
-        categoriesSubscription = SupabaseManager.shared.client
-            .channel("categories_changes")
-            .on(
-                .postgresChanges(
-                    event: .all,
-                    schema: "public",
-                    table: "categories"
-                )
-            ) { [weak self] payload in
-                print("[DEBUG] Real-time categories update: \(payload)")
-                Task {
-                    await self?.handleCategoriesUpdate(payload)
-                }
-            }
-            .subscribe()
+        // TODO: Re-implement with current Supabase Swift SDK API
+        print("[DEBUG] Real-time subscriptions temporarily disabled")
     }
     
     func unsubscribeFromRealTimeUpdates() {
-        appsSubscription?.unsubscribe()
-        categoriesSubscription?.unsubscribe()
-        appsSubscription = nil
-        categoriesSubscription = nil
+        // TODO: Re-implement with current Supabase Swift SDK API
+        print("[DEBUG] Real-time unsubscriptions temporarily disabled")
     }
     
-    private func handleAppsUpdate(_ payload: RealtimePostgresChangesPayload) async {
+    private func handleAppsUpdate(_ payload: Any) async {
         // Refresh apps data when changes occur
         await fetchApps()
     }
     
-    private func handleCategoriesUpdate(_ payload: RealtimePostgresChangesPayload) async {
+    private func handleCategoriesUpdate(_ payload: Any) async {
         // Refresh categories data when changes occur
         await fetchCategories()
     }

@@ -46,7 +46,7 @@ interface App {
   developer: string
   description: string
   category_id: string
-  price: number
+  price: string | number | null
   currency: string
   is_on_mas: boolean
   mas_id?: string
@@ -425,11 +425,12 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
                   fullWidth
                   label="Price"
                   type="number"
-                  value={app.price}
-                  onChange={(e) => setApp({ ...app, price: parseFloat(e.target.value) })}
+                  value={app.price || ''}
+                  onChange={(e) => setApp({ ...app, price: e.target.value })}
                   InputProps={{
                     startAdornment: '$',
                   }}
+                  helperText="Set to 0 for free apps"
                 />
               </Grid>
               <Grid item xs={12} sm={6}>

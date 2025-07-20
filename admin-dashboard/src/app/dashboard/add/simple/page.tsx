@@ -66,7 +66,7 @@ export default function SimpleAddAppPage() {
             name: app.name,
             developer: app.developer,
             description: app.description || null,
-            price: parseFloat(app.price) || 0,
+            price: app.price || '0',
             website_url: app.website || null,
             download_url: app.downloadUrl || null,
             category_id: app.categoryId || null,

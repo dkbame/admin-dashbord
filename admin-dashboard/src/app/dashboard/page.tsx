@@ -20,7 +20,7 @@ interface App {
   name: string
   developer: string
   category: { name: string }
-  price: number
+  price: string | number | null
   is_on_mas: boolean
   status: string
   icon_url: string | null
@@ -89,7 +89,7 @@ export default function DashboardPage() {
       // Properly type the response data and handle price field
       const typedData = (data || []).map(item => ({
         ...item,
-        price: typeof item.price === 'number' ? item.price : 0,
+        price: item.price || '0',
         category: Array.isArray(item.category) ? item.category[0] : item.category
       })) as App[];
       
@@ -222,31 +222,11 @@ export default function DashboardPage() {
         .eq('id', appId)
 
       if (error) throw error
-
-      // Update local state
-      setApps(apps.map(app => 
-        app.id === appId 
-          ? { ...app, is_featured: !currentFeatured }
-          : app
-      ))
+      fetchApps()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update featured status')
     } finally {
       setUpdatingFeatured(null)
-    }
-  }
-
-  const toggleFree = async (appId: string, currentFree: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('apps')
-        .update({ is_free: !currentFree })
-        .eq('id', appId)
-
-      if (error) throw error
-      await fetchApps()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update free status')
     }
   }
 
@@ -313,7 +293,6 @@ export default function DashboardPage() {
                 <TableCell>Source</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Featured</TableCell>
-                <TableCell>Free</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -367,7 +346,18 @@ export default function DashboardPage() {
                   </TableCell>
                   <TableCell>{app.developer}</TableCell>
                   <TableCell>{app.category?.name || 'Uncategorized'}</TableCell>
-                  <TableCell>${typeof app.price === 'number' ? app.price.toFixed(2) : '0.00'}</TableCell>
+                  <TableCell>
+                    {app.price === '0' || app.price === '' || app.price === null || app.price === 0 ? (
+                      <Chip
+                        label="Free"
+                        color="success"
+                        size="small"
+                        sx={{ minWidth: 60 }}
+                      />
+                    ) : (
+                      <span>${String(app.price || '0.00')}</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Chip
                       label={app.is_on_mas ? 'Mac App Store' : 'Custom'}
@@ -397,21 +387,6 @@ export default function DashboardPage() {
                       }
                       label=""
                     />
-                  </TableCell>
-                  <TableCell>
-                    <IconButton
-                      size="small"
-                      onClick={() => toggleFree(app.id, !!app.is_free)}
-                      color={app.is_free ? 'success' : 'default'}
-                      sx={{ 
-                        '&:hover': { 
-                          backgroundColor: app.is_free ? 'success.main' : 'action.hover',
-                          color: app.is_free ? 'white' : 'inherit'
-                        } 
-                      }}
-                    >
-                      {app.is_free ? 'Free' : 'Paid'}
-                    </IconButton>
                   </TableCell>
                   <TableCell align="right">
                     {app.screenshots?.length > 0 && (
