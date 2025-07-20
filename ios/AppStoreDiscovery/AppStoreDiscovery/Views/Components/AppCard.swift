@@ -41,10 +41,12 @@ struct AppCard: View {
                         .foregroundColor(.primary)
                         .lineLimit(size.titleLineLimit)
                     
-                    Text(app.developer)
-                        .font(size.subtitleFont)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+                    if let developer = app.developer {
+                        Text(developer)
+                            .font(size.subtitleFont)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
                     
                     HStack {
                         PriceBadge(app: app, size: size)
@@ -255,9 +257,11 @@ struct FeaturedAppCard: View {
                         .lineLimit(2)
                         .foregroundColor(.primary)
                     
-                    Text(app.developer)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    if let developer = app.developer {
+                        Text(developer)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                     
                     HStack {
                         PriceBadge(app: app, size: .large)
@@ -298,10 +302,12 @@ struct CompactAppCard: View {
                         .lineLimit(1)
                         .foregroundColor(.primary)
                     
-                    Text(app.developer)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+                    if let developer = app.developer {
+                        Text(developer)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
                 }
                 
                 Spacer()
