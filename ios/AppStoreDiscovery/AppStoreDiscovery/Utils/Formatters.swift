@@ -13,7 +13,7 @@ struct DateFormatter {
     
     private let dateFormatter = Foundation.DateFormatter()
     
-    func formatDate(_ dateString: String?, style: DateFormatterStyle = .medium) -> String {
+    func formatDate(_ dateString: String?, style: DateFormatter.Style = .medium) -> String {
         guard let dateString = dateString else { return "Unknown" }
         
         // Try ISO format first

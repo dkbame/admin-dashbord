@@ -235,7 +235,7 @@ struct AppActionButtons: View {
                     .background(Color.blue)
                     .cornerRadius(12)
                 }
-
+            }
             
             // Secondary action buttons
             HStack(spacing: 12) {

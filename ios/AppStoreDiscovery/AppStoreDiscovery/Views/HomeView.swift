@@ -96,71 +96,7 @@ struct FeaturedAppsCarousel: View {
     }
 }
 
-// MARK: - Featured App Card
-struct FeaturedAppCard: View {
-    let app: AppModel
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let firstScreenshot = app.screenshots?.first {
-                HighResCardImage(url: firstScreenshot.url, size: CGSize(width: 280, height: 160))
-            } else {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(width: 280, height: 160)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(app.name)
-                    .font(.headline)
-                    .lineLimit(2)
-                
-                if let developer = app.developer {
-                    Text(developer)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    if app.is_free == true {
-                        Text("Free")
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.green.opacity(0.2))
-                            .foregroundColor(.green)
-                            .cornerRadius(8)
-                    } else {
-                        Text("$\(app.price ?? "0")")
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.blue.opacity(0.2))
-                            .foregroundColor(.blue)
-                            .cornerRadius(8)
-                    }
-                    
-                    Spacer()
-                    
-                    if let rating = app.rating {
-                        HStack(spacing: 2) {
-                            Image(systemName: "star.fill")
-                                .foregroundColor(.yellow)
-                                .font(.caption)
-                            Text(String(format: "%.1f", rating))
-                                .font(.caption)
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.bottom, 8)
-        }
-        .background(Color(.systemBackground))
-        .cornerRadius(16)
-        .shadow(radius: 4)
-    }
-}
+
 
 // MARK: - Categories Grid View
 struct CategoriesGridView: View {
@@ -282,62 +218,7 @@ struct FreeAppsSection: View {
     }
 }
 
-// MARK: - App Card
-struct AppCard: View {
-    let app: AppModel
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let iconUrl = app.icon_url {
-                AsyncImage(url: URL(string: iconUrl)) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                } placeholder: {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.gray.opacity(0.3))
-                }
-                .frame(width: 80, height: 80)
-                .cornerRadius(12)
-            } else {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(width: 80, height: 80)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(app.name)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .lineLimit(2)
-                
-                Text(app.developer)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                
-                if app.is_free == true {
-                    Text("Free")
-                        .font(.caption)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.green.opacity(0.2))
-                        .foregroundColor(.green)
-                        .cornerRadius(6)
-                } else {
-                    Text("$\(app.price ?? "0")")
-                        .font(.caption)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.blue.opacity(0.2))
-                        .foregroundColor(.blue)
-                        .cornerRadius(6)
-                }
-            }
-        }
-        .frame(width: 120)
-    }
-}
+
 
 #Preview {
     HomeView()

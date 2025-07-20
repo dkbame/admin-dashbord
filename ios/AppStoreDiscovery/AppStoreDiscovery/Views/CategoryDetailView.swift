@@ -352,7 +352,7 @@ struct DetailRow: View {
 
 #Preview {
     CategoryDetailView(
-        category: Category(id: "1", name: "Productivity", slug: "productivity"),
+        category: Category(id: "1", name: "Productivity", slug: "productivity", created_at: nil),
         apiService: APIService()
     )
 } 

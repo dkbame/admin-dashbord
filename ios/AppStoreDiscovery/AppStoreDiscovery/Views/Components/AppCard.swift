@@ -314,7 +314,7 @@ struct CompactAppCard: View {
     }
 }
 
-#Preview {
+#Preview("AppCard") {
     VStack(spacing: 20) {
         AppCard(app: AppModel.preview, size: .small)
         AppCard(app: AppModel.preview, size: .medium)
@@ -325,35 +325,4 @@ struct CompactAppCard: View {
     .padding()
 }
 
-// MARK: - Preview Extension
-extension AppModel {
-    static var preview: AppModel {
-        AppModel(
-            id: "1",
-            name: "Sample App",
-            description: "A sample app for preview",
-            developer: "Sample Developer",
-            price: "9.99",
-            category_id: "1",
-            icon_url: nil,
-            screenshots: [],
-            app_store_url: nil,
-            website_url: nil,
-            version: "1.0",
-            size: 1024 * 1024 * 50,
-            rating: 4.5,
-            rating_count: 100,
-            release_date: "2024-01-01",
-            last_updated: "2024-01-15",
-            is_free: false,
-            is_featured: true,
-            created_at: "2024-01-01T00:00:00Z",
-            updated_at: "2024-01-15T00:00:00Z",
-            status: "ACTIVE",
-            currency: "USD",
-            minimum_os_version: "12.0",
-            features: ["Feature 1", "Feature 2"],
-            source: "CUSTOM"
-        )
-    }
-} 
+ 
