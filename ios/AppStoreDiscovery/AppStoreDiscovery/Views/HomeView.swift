@@ -87,7 +87,7 @@ struct FeaturedAppsCarousel: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
                     ForEach(apps, id: \.id) { app in
-                        FeaturedAppCard(app: app)
+                        FeaturedAppCard(app: app, onTap: nil)
                     }
                 }
                 .padding(.horizontal)
