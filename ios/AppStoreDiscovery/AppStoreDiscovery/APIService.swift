@@ -23,6 +23,10 @@ class APIService: ObservableObject {
     private var cachedApps: [AppModel] = []
     private var cachedCategories: [Category] = []
     
+    // Task management to prevent cancellations
+    private var currentAppsTask: Task<Void, Never>?
+    private var currentCategoriesTask: Task<Void, Never>?
+    
     // Real-time subscriptions - Temporarily disabled
     // private var appsSubscription: RealtimeChannelV2?
     // private var categoriesSubscription: RealtimeChannelV2?
@@ -30,12 +34,34 @@ class APIService: ObservableObject {
     // MARK: - Enhanced App Fetching with Optimized Functions
     
     func fetchApps() async {
+        // Cancel any existing task
+        currentAppsTask?.cancel()
+        
+        currentAppsTask = Task {
+            await performFetchApps()
+        }
+        
+        await currentAppsTask?.value
+    }
+    
+    private func performFetchApps() async {
+        guard !Task.isCancelled else {
+            print("[DEBUG] fetchApps - Task was cancelled before starting")
+            return
+        }
+        
         await MainActor.run {
             isLoading = true
             errorMessage = nil
         }
         
         do {
+            guard !Task.isCancelled else {
+                print("[DEBUG] fetchApps - Task cancelled before API call")
+                await MainActor.run { isLoading = false }
+                return
+            }
+            
             // Use the optimized view for better performance
             let appsResponse = try await SupabaseManager.shared.client
                 .from("ios_apps_view")
@@ -165,15 +191,44 @@ class APIService: ObservableObject {
     }
 
     func fetchCategories() async {
+        // Cancel any existing task
+        currentCategoriesTask?.cancel()
+        
+        currentCategoriesTask = Task {
+            await performFetchCategories()
+        }
+        
+        await currentCategoriesTask?.value
+    }
+    
+    private func performFetchCategories() async {
+        guard !Task.isCancelled else {
+            print("[DEBUG] fetchCategories - Task was cancelled before starting")
+            return
+        }
+        
         await MainActor.run {
             isLoading = true
             errorMessage = nil
         }
+        
         do {
+            guard !Task.isCancelled else {
+                print("[DEBUG] fetchCategories - Task cancelled before API call")
+                await MainActor.run { isLoading = false }
+                return
+            }
+            
             let response = try await SupabaseManager.shared.client
                 .from("categories")
                 .select()
                 .execute()
+            
+            guard !Task.isCancelled else {
+                print("[DEBUG] fetchCategories - Task cancelled after API call")
+                await MainActor.run { isLoading = false }
+                return
+            }
             
             // Debug: Print the raw response data from Supabase
             print("[DEBUG] fetchCategories - Raw response data:")
@@ -182,22 +237,33 @@ class APIService: ObservableObject {
 
             if response.status == 200 {
                 let categories = try JSONDecoder().decode([Category].self, from: response.data)
-            await MainActor.run {
-                self.categories = categories
-                self.cachedCategories = categories
-                self.isLoading = false
-                self.isOffline = false
-            }
+                
+                guard !Task.isCancelled else {
+                    print("[DEBUG] fetchCategories - Task cancelled before updating UI")
+                    return
+                }
+                
+                await MainActor.run {
+                    self.categories = categories
+                    self.cachedCategories = categories
+                    self.isLoading = false
+                    self.isOffline = false
+                }
             } else {
                 let errorString = String(data: response.data, encoding: .utf8) ?? "Unknown error (status: \(response.status))"
                 print("[DEBUG] fetchCategories - Error: \(errorString)")
-            await MainActor.run {
+                await MainActor.run {
                     self.errorMessage = "Error: \(errorString)"
-                self.isLoading = false
-                self.loadFromCache()
-            }
+                    self.isLoading = false
+                    self.loadFromCache()
+                }
             }
         } catch {
+            guard !Task.isCancelled else {
+                print("[DEBUG] fetchCategories - Task cancelled during exception handling")
+                return
+            }
+            
             print("[DEBUG] fetchCategories - Exception: \(error.localizedDescription)")
             await MainActor.run {
                 self.errorMessage = "Error: \(error.localizedDescription)"

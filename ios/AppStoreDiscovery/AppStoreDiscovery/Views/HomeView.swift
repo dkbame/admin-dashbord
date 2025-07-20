@@ -134,27 +134,41 @@ struct HomeView: View {
     
     @MainActor
     private func refreshData() async {
+        // Prevent multiple refresh operations
+        guard !isRefreshing else { return }
+        
         isRefreshing = true
         
         // Add a small delay to make the refresh feel more natural
         try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
         
-        async let appsTask = apiService.fetchApps()
-        async let categoriesTask = apiService.fetchCategories()
-        
-        await appsTask
-        await categoriesTask
+        do {
+            // Load data sequentially to prevent race conditions
+            await apiService.fetchApps()
+            
+            // Only fetch categories if apps succeeded and task wasn't cancelled
+            if !Task.isCancelled {
+                await apiService.fetchCategories()
+            }
+        }
         
         isRefreshing = false
     }
     
     @MainActor
     private func loadInitialData() async {
-        async let appsTask = apiService.fetchApps()
-        async let categoriesTask = apiService.fetchCategories()
+        // Only load if we don't have data already
+        guard apiService.apps.isEmpty && apiService.categories.isEmpty else { return }
         
-        await appsTask
-        await categoriesTask
+        do {
+            // Load data sequentially to prevent race conditions
+            await apiService.fetchApps()
+            
+            // Only fetch categories if apps succeeded and task wasn't cancelled
+            if !Task.isCancelled {
+                await apiService.fetchCategories()
+            }
+        }
     }
 }
 
