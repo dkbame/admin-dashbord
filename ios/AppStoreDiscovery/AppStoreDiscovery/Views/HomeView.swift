@@ -10,7 +10,6 @@ import SwiftUI
 struct HomeView: View {
     @StateObject private var apiService = APIService()
     @State private var selectedCategoryId: String? = nil // nil means "All"
-    @State private var isRefreshing = false
     
     // Filtered apps based on selected category
     private var filteredApps: [AppModel] {
@@ -107,26 +106,6 @@ struct HomeView: View {
                     await loadInitialData()
                 }
             }
-            .overlay(
-                // Refresh indicator overlay
-                Group {
-                    if isRefreshing {
-                        VStack {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                            Text("Refreshing...")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(12)
-                        .background(Color(.systemBackground))
-                        .cornerRadius(12)
-                        .shadow(radius: 4)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .padding(.top, 60)
-                    }
-                }
-            )
         }
     }
     
@@ -134,25 +113,13 @@ struct HomeView: View {
     
     @MainActor
     private func refreshData() async {
-        // Prevent multiple refresh operations
-        guard !isRefreshing else { return }
+        // Load data sequentially to prevent race conditions
+        await apiService.fetchApps()
         
-        isRefreshing = true
-        
-        // Add a small delay to make the refresh feel more natural
-        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
-        
-        do {
-            // Load data sequentially to prevent race conditions
-            await apiService.fetchApps()
-            
-            // Only fetch categories if apps succeeded and task wasn't cancelled
-            if !Task.isCancelled {
-                await apiService.fetchCategories()
-            }
+        // Only fetch categories if apps succeeded and task wasn't cancelled
+        if !Task.isCancelled {
+            await apiService.fetchCategories()
         }
-        
-        isRefreshing = false
     }
     
     @MainActor
@@ -160,14 +127,12 @@ struct HomeView: View {
         // Only load if we don't have data already
         guard apiService.apps.isEmpty && apiService.categories.isEmpty else { return }
         
-        do {
-            // Load data sequentially to prevent race conditions
-            await apiService.fetchApps()
-            
-            // Only fetch categories if apps succeeded and task wasn't cancelled
-            if !Task.isCancelled {
-                await apiService.fetchCategories()
-            }
+        // Load data sequentially to prevent race conditions
+        await apiService.fetchApps()
+        
+        // Only fetch categories if apps succeeded and task wasn't cancelled
+        if !Task.isCancelled {
+            await apiService.fetchCategories()
         }
     }
 }
