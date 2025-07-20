@@ -91,6 +91,14 @@ struct FeaturedAppCard: View {
 // MARK: - Background Layered View
 struct BackgroundLayeredView: View {
     let app: AppModel
+    @State private var screenshotLoadState: ScreenshotLoadState = .loading
+    @State private var screenshotImage: UIImage?
+    
+    enum ScreenshotLoadState {
+        case loading
+        case loaded
+        case failed
+    }
     
     var body: some View {
         ZStack {
@@ -125,58 +133,74 @@ struct BackgroundLayeredView: View {
                 }
             }
             
-            // Screenshot as background element - with better handling of existing screenshots
+            // Screenshot as background element - with enhanced debugging
             if let screenshots = app.screenshots, !screenshots.isEmpty {
                 let firstScreenshot = screenshots.first!
+                
+                // Try to load screenshot with better error handling
                 AsyncImage(url: URL(string: firstScreenshot.url)) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 150, height: 100)
                         .blur(radius: 15)
-                        .opacity(0.4)
+                        .opacity(0.6) // Increased opacity to make it more visible
                         .scaleEffect(1.2)
                         .offset(x: -80, y: 60)
                         .rotationEffect(.degrees(-15))
+                        .onAppear {
+                            print("✅ Screenshot loaded successfully for '\(app.name)'")
+                            screenshotLoadState = .loaded
+                            screenshotImage = image.asUIImage()
+                        }
                 } placeholder: {
-                    // Enhanced placeholder that shows we're loading a real screenshot
+                    // Enhanced placeholder with debug info
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(.white.opacity(0.2))
+                        .fill(.white.opacity(0.3)) // More visible placeholder
                         .frame(width: 150, height: 100)
                         .overlay(
                             VStack(spacing: 4) {
                                 ProgressView()
                                     .scaleEffect(0.8)
                                     .tint(.white)
-                                Text("Loading...")
+                                Text("Loading Screenshot...")
                                     .font(.caption2)
-                                    .foregroundColor(.white.opacity(0.7))
+                                    .foregroundColor(.white.opacity(0.8))
+                                Text("URL: \(firstScreenshot.url.prefix(50))...")
+                                    .font(.caption2)
+                                    .foregroundColor(.white.opacity(0.6))
+                                    .multilineTextAlignment(.center)
                             }
                         )
                         .blur(radius: 15)
                         .offset(x: -80, y: 60)
                         .rotationEffect(.degrees(-15))
+                        .onAppear {
+                            print("🔄 Loading screenshot for '\(app.name)' from URL: \(firstScreenshot.url)")
+                            screenshotLoadState = .loading
+                        }
                 }
                 .onAppear {
-                    print("🖼️ FeaturedAppCard: Loading screenshot for '\(app.name)' from URL: \(firstScreenshot.url)")
+                    print("🖼️ FeaturedAppCard: Attempting to load screenshot for '\(app.name)'")
+                    print("📱 Screenshot URL: \(firstScreenshot.url)")
                 }
             } else {
                 // Fallback when no screenshots available - show app-specific content
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(.white.opacity(0.2))
+                    .fill(.white.opacity(0.3)) // More visible fallback
                     .frame(width: 150, height: 100)
                     .overlay(
                         VStack(spacing: 4) {
                             Image(systemName: "iphone.gen3")
-                                .foregroundColor(.white.opacity(0.7))
+                                .foregroundColor(.white.opacity(0.8))
                                 .font(.system(size: 24))
                             Text(app.name.prefix(1).uppercased())
                                 .font(.title2)
                                 .fontWeight(.bold)
-                                .foregroundColor(.white.opacity(0.8))
+                                .foregroundColor(.white.opacity(0.9))
                             Text("No Screenshots")
                                 .font(.caption2)
-                                .foregroundColor(.white.opacity(0.6))
+                                .foregroundColor(.white.opacity(0.7))
                         }
                     )
                     .blur(radius: 15)
@@ -184,8 +208,30 @@ struct BackgroundLayeredView: View {
                     .rotationEffect(.degrees(-15))
                     .onAppear {
                         print("⚠️ FeaturedAppCard: No screenshots found for '\(app.name)' (screenshots count: \(app.screenshots?.count ?? 0))")
+                        screenshotLoadState = .failed
                     }
             }
+            
+            // Debug overlay to show screenshot status
+            VStack {
+                HStack {
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Screenshot Status:")
+                            .font(.caption2)
+                            .foregroundColor(.white.opacity(0.8))
+                        Text(screenshotStatusText)
+                            .font(.caption2)
+                            .foregroundColor(screenshotStatusColor)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 2)
+                            .background(screenshotStatusColor.opacity(0.2))
+                            .cornerRadius(4)
+                    }
+                }
+                Spacer()
+            }
+            .padding(8)
             
             // Additional decorative elements
             Circle()
@@ -219,11 +265,54 @@ struct BackgroundLayeredView: View {
             print("📸 Screenshots count: \(app.screenshots?.count ?? 0)")
             if let screenshots = app.screenshots, !screenshots.isEmpty {
                 print("🖼️ First screenshot URL: \(screenshots.first!.url)")
+                
+                // Test the first screenshot URL to see if it's accessible
+                NetworkTest.shared.testScreenshotURL(screenshots.first!.url) { success, message in
+                    print("🔍 Screenshot URL test for '\(app.name)': \(success ? "✅" : "❌") \(message ?? "Unknown")")
+                }
             }
+        }
+    }
+    
+    private var screenshotStatusText: String {
+        switch screenshotLoadState {
+        case .loading:
+            return "Loading..."
+        case .loaded:
+            return "Loaded ✅"
+        case .failed:
+            return "Failed ❌"
+        }
+    }
+    
+    private var screenshotStatusColor: Color {
+        switch screenshotLoadState {
+        case .loading:
+            return .yellow
+        case .loaded:
+            return .green
+        case .failed:
+            return .red
         }
     }
 }
 
+// Extension to convert SwiftUI Image to UIImage for debugging
+extension Image {
+    func asUIImage() -> UIImage? {
+        let controller = UIHostingController(rootView: self)
+        let view = controller.view
+        
+        let targetSize = controller.view.intrinsicContentSize
+        view?.bounds = CGRect(origin: .zero, size: targetSize)
+        view?.backgroundColor = .clear
+        
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        return renderer.image { _ in
+            view?.drawHierarchy(in: controller.view.bounds, afterScreenUpdates: true)
+        }
+    }
+}
 
 
 #Preview {
