@@ -11,9 +11,9 @@ const nextConfig = {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   },
-  // Ensure proper static export for Netlify
-  trailingSlash: true,
-  output: 'standalone',
+  // Remove problematic settings for Netlify
+  // trailingSlash: true,
+  // output: 'standalone',
 }
 
 module.exports = nextConfig
