@@ -125,7 +125,7 @@ struct BackgroundLayeredView: View {
                 }
             }
             
-            // Screenshot as background element - with better fallback
+            // Screenshot as background element - with better handling of existing screenshots
             if let screenshots = app.screenshots, !screenshots.isEmpty {
                 let firstScreenshot = screenshots.first!
                 AsyncImage(url: URL(string: firstScreenshot.url)) { image in
@@ -139,27 +139,29 @@ struct BackgroundLayeredView: View {
                         .offset(x: -80, y: 60)
                         .rotationEffect(.degrees(-15))
                 } placeholder: {
-                    // Enhanced placeholder with app-themed content
+                    // Enhanced placeholder that shows we're loading a real screenshot
                     RoundedRectangle(cornerRadius: 8)
                         .fill(.white.opacity(0.2))
                         .frame(width: 150, height: 100)
                         .overlay(
                             VStack(spacing: 4) {
-                                Image(systemName: "iphone")
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                    .tint(.white)
+                                Text("Loading...")
+                                    .font(.caption2)
                                     .foregroundColor(.white.opacity(0.7))
-                                    .font(.system(size: 24))
-                                Text(app.name.prefix(1).uppercased())
-                                    .font(.title2)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.white.opacity(0.8))
                             }
                         )
                         .blur(radius: 15)
                         .offset(x: -80, y: 60)
                         .rotationEffect(.degrees(-15))
                 }
+                .onAppear {
+                    print("🖼️ FeaturedAppCard: Loading screenshot for '\(app.name)' from URL: \(firstScreenshot.url)")
+                }
             } else {
-                // Fallback when no screenshots available
+                // Fallback when no screenshots available - show app-specific content
                 RoundedRectangle(cornerRadius: 8)
                     .fill(.white.opacity(0.2))
                     .frame(width: 150, height: 100)
@@ -172,11 +174,17 @@ struct BackgroundLayeredView: View {
                                 .font(.title2)
                                 .fontWeight(.bold)
                                 .foregroundColor(.white.opacity(0.8))
+                            Text("No Screenshots")
+                                .font(.caption2)
+                                .foregroundColor(.white.opacity(0.6))
                         }
                     )
                     .blur(radius: 15)
                     .offset(x: -80, y: 60)
                     .rotationEffect(.degrees(-15))
+                    .onAppear {
+                        print("⚠️ FeaturedAppCard: No screenshots found for '\(app.name)' (screenshots count: \(app.screenshots?.count ?? 0))")
+                    }
             }
             
             // Additional decorative elements
@@ -206,6 +214,13 @@ struct BackgroundLayeredView: View {
         }
         .clipped()
         .cornerRadius(20)
+        .onAppear {
+            print("🎨 FeaturedAppCard: Rendering for app '\(app.name)'")
+            print("📸 Screenshots count: \(app.screenshots?.count ?? 0)")
+            if let screenshots = app.screenshots, !screenshots.isEmpty {
+                print("🖼️ First screenshot URL: \(screenshots.first!.url)")
+            }
+        }
     }
 }
 
