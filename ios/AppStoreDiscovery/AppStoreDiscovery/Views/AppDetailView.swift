@@ -29,7 +29,7 @@ struct AppDetailView: View {
                     }
                     
                     // App Description
-                    if let description = app.description {
+                    if !app.description.isEmpty {
                         AppDescriptionView(
                             description: description,
                             isExpanded: $showingFullDescription
@@ -73,7 +73,9 @@ struct AppDetailHeader: View {
                     .fontWeight(.bold)
                     .lineLimit(2)
                 
-                Text(app.developer)
+                if let developer = app.developer {
+                    Text(developer)
+                }
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 
@@ -133,7 +135,7 @@ struct ScreenshotsCarousel: View {
             // Screenshot captions
             if selectedIndex < screenshots.count {
                 let screenshot = screenshots[selectedIndex]
-                if !screenshot.caption.isEmpty {
+                if let caption = screenshot.caption, !caption.isEmpty {
                     Text(screenshot.caption)
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -344,7 +346,7 @@ struct AppDetailPreview: View {
                 Spacer()
             }
             
-            if let description = app.description {
+            if !app.description.isEmpty {
                 Text(description)
                     .font(.caption)
                     .foregroundColor(.secondary)
