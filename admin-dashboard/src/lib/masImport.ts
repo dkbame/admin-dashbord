@@ -176,21 +176,21 @@ export async function importFromMAS(url: string): Promise<MASApp | null> {
 
     // Prepare data for database insertion
     const appData = {
-      name: transformedApp.name,
-      developer: transformedApp.developer,
-      description: transformedApp.description,
-      price: transformedApp.price,
-      currency: transformedApp.currency,
-      category_id: categoryId, // Add category mapping
-      is_on_mas: true,
-      mas_id: transformedApp.id,
-      mas_url: url,
-      icon_url: transformedApp.icon,
-      minimum_os_version: transformedApp.minimumOSVersion,
-      last_updated: transformedApp.lastUpdated,
-      features: transformedApp.features,
-      status: 'ACTIVE',
-      source: 'MAS',
+        name: transformedApp.name,
+        developer: transformedApp.developer,
+        description: transformedApp.description,
+        price: transformedApp.price,
+        currency: transformedApp.currency,
+        category_id: categoryId, // Add category mapping
+        is_on_mas: true,
+        mas_id: transformedApp.id,
+        mas_url: url,
+        icon_url: transformedApp.icon,
+        minimum_os_version: transformedApp.minimumOSVersion,
+        last_updated: transformedApp.lastUpdated,
+        features: transformedApp.features,
+        status: 'ACTIVE',
+        source: 'MAS',
       // Add the missing fields
       version: transformedApp.version,
       size: transformedApp.size,
