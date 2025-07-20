@@ -7,6 +7,17 @@
 
 import Foundation
 
+// MARK: - String Extension for Regex
+extension String {
+    func matches(pattern: String) -> Bool {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return false
+        }
+        let range = NSRange(location: 0, length: self.count)
+        return regex.firstMatch(in: self, options: [], range: range) != nil
+    }
+}
+
 // MARK: - Date Formatter
 struct DateFormatter {
     static let shared = DateFormatter()
@@ -288,6 +299,61 @@ struct StatusFormatter {
             return "gray"
         default:
             return "gray"
+        }
+    }
+}
+
+// MARK: - Minimum OS Formatter
+struct MinimumOSFormatter {
+    static func formatMinimumOS(_ osVersion: String?) -> String {
+        guard let osVersion = osVersion, !osVersion.isEmpty else { return "Unknown" }
+        
+        // Common patterns for macOS versions
+        let lowercased = osVersion.lowercased()
+        
+        // Handle macOS version numbers
+        if lowercased.contains("macos") || lowercased.contains("os x") {
+            // Extract version number and format nicely
+            let versionPattern = try? NSRegularExpression(pattern: "(\\d+\\.\\d+)", options: [])
+            if let match = versionPattern?.firstMatch(in: osVersion, options: [], range: NSRange(location: 0, length: osVersion.count)) {
+                let versionRange = Range(match.range(at: 1), in: osVersion)!
+                let version = String(osVersion[versionRange])
+                return "macOS \(version)+"
+            }
+            return osVersion
+        }
+        
+        // Handle iOS version numbers
+        if lowercased.contains("ios") {
+            let versionPattern = try? NSRegularExpression(pattern: "(\\d+\\.\\d+)", options: [])
+            if let match = versionPattern?.firstMatch(in: osVersion, options: [], range: NSRange(location: 0, length: osVersion.count)) {
+                let versionRange = Range(match.range(at: 1), in: osVersion)!
+                let version = String(osVersion[versionRange])
+                return "iOS \(version)+"
+            }
+            return osVersion
+        }
+        
+        // Handle simple version numbers (assume macOS)
+        if osVersion.matches(pattern: "^\\d+\\.\\d+$") {
+            return "macOS \(osVersion)+"
+        }
+        
+        // Return as-is if no pattern matches
+        return osVersion
+    }
+    
+    static func getOSIcon(_ osVersion: String?) -> String {
+        guard let osVersion = osVersion else { return "questionmark.circle" }
+        
+        let lowercased = osVersion.lowercased()
+        
+        if lowercased.contains("macos") || lowercased.contains("os x") {
+            return "desktopcomputer"
+        } else if lowercased.contains("ios") {
+            return "iphone"
+        } else {
+            return "laptopcomputer"
         }
     }
 }
