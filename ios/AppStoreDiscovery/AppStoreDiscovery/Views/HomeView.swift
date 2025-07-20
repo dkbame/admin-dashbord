@@ -11,8 +11,6 @@ struct HomeView: View {
     @StateObject private var apiService = APIService()
     @State private var selectedCategory: Category?
     @State private var showingCategoryDetail = false
-    @State private var selectedApp: AppModel?
-    @State private var showingAppDetail = false
     
     var body: some View {
         NavigationView {
@@ -20,13 +18,7 @@ struct HomeView: View {
                 VStack(spacing: 20) {
                     // Featured Apps Carousel
                     if !apiService.apps.filter({ $0.is_featured == true }).isEmpty {
-                        FeaturedAppsCarousel(
-                            apps: apiService.apps.filter { $0.is_featured == true },
-                            onAppSelected: { app in
-                                selectedApp = app
-                                showingAppDetail = true
-                            }
-                        )
+                        FeaturedAppsCarousel(apps: apiService.apps.filter { $0.is_featured == true })
                     }
                     
                     // Categories Grid
@@ -40,13 +32,7 @@ struct HomeView: View {
                     
                     // Recently Added Apps
                     if !apiService.apps.isEmpty {
-                        RecentlyAddedSection(
-                            apps: Array(apiService.apps.prefix(6)),
-                            onAppSelected: { app in
-                                selectedApp = app
-                                showingAppDetail = true
-                            }
-                        )
+                        RecentlyAddedSection(apps: Array(apiService.apps.prefix(6)))
                     }
                     
                     // Top Rated Apps
@@ -56,13 +42,7 @@ struct HomeView: View {
                         .prefix(6)
                     
                     if !topRatedApps.isEmpty {
-                        TopRatedSection(
-                            apps: Array(topRatedApps),
-                            onAppSelected: { app in
-                                selectedApp = app
-                                showingAppDetail = true
-                            }
-                        )
+                        TopRatedSection(apps: Array(topRatedApps))
                     }
                     
                     // Free Apps
@@ -71,13 +51,7 @@ struct HomeView: View {
                         .prefix(6)
                     
                     if !freeApps.isEmpty {
-                        FreeAppsSection(
-                            apps: Array(freeApps),
-                            onAppSelected: { app in
-                                selectedApp = app
-                                showingAppDetail = true
-                            }
-                        )
+                        FreeAppsSection(apps: Array(freeApps))
                     }
                 }
                 .padding()
@@ -96,11 +70,6 @@ struct HomeView: View {
                     CategoryDetailView(category: category, apiService: apiService)
                 }
             }
-            .sheet(isPresented: $showingAppDetail) {
-                if let app = selectedApp {
-                    AppDetailView(app: app)
-                }
-            }
         }
     }
 }
@@ -108,7 +77,6 @@ struct HomeView: View {
 // MARK: - Featured Apps Carousel
 struct FeaturedAppsCarousel: View {
     let apps: [AppModel]
-    let onAppSelected: (AppModel) -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -119,9 +87,10 @@ struct FeaturedAppsCarousel: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
                     ForEach(apps, id: \.id) { app in
-                        FeaturedAppCard(app: app) {
-                            onAppSelected(app)
+                        NavigationLink(destination: AppDetailView(app: app)) {
+                            FeaturedAppCard(app: app, onTap: nil)
                         }
+                        .buttonStyle(PlainButtonStyle())
                     }
                 }
                 .padding(.horizontal)
@@ -129,8 +98,6 @@ struct FeaturedAppsCarousel: View {
         }
     }
 }
-
-
 
 // MARK: - Categories Grid View
 struct CategoriesGridView: View {
@@ -189,7 +156,6 @@ struct CategoryCard: View {
 // MARK: - Recently Added Section
 struct RecentlyAddedSection: View {
     let apps: [AppModel]
-    let onAppSelected: (AppModel) -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -200,9 +166,10 @@ struct RecentlyAddedSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
                     ForEach(apps, id: \.id) { app in
-                        AppCard(app: app) {
-                            onAppSelected(app)
+                        NavigationLink(destination: AppDetailView(app: app)) {
+                            AppCard(app: app)
                         }
+                        .buttonStyle(PlainButtonStyle())
                     }
                 }
                 .padding(.horizontal)
@@ -214,7 +181,6 @@ struct RecentlyAddedSection: View {
 // MARK: - Top Rated Section
 struct TopRatedSection: View {
     let apps: [AppModel]
-    let onAppSelected: (AppModel) -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -225,9 +191,10 @@ struct TopRatedSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
                     ForEach(apps, id: \.id) { app in
-                        AppCard(app: app) {
-                            onAppSelected(app)
+                        NavigationLink(destination: AppDetailView(app: app)) {
+                            AppCard(app: app)
                         }
+                        .buttonStyle(PlainButtonStyle())
                     }
                 }
                 .padding(.horizontal)
@@ -239,7 +206,6 @@ struct TopRatedSection: View {
 // MARK: - Free Apps Section
 struct FreeAppsSection: View {
     let apps: [AppModel]
-    let onAppSelected: (AppModel) -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -250,9 +216,10 @@ struct FreeAppsSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
                     ForEach(apps, id: \.id) { app in
-                        AppCard(app: app) {
-                            onAppSelected(app)
+                        NavigationLink(destination: AppDetailView(app: app)) {
+                            AppCard(app: app)
                         }
+                        .buttonStyle(PlainButtonStyle())
                     }
                 }
                 .padding(.horizontal)
@@ -260,8 +227,6 @@ struct FreeAppsSection: View {
         }
     }
 }
-
-
 
 #Preview {
     HomeView()

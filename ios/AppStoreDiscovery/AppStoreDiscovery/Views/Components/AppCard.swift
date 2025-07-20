@@ -234,6 +234,55 @@ enum AppCardSize {
 }
 
 // MARK: - App Card Variants
+struct FeaturedAppCard: View {
+    let app: AppModel
+    let onTap: (() -> Void)?
+    
+    var body: some View {
+        Button(action: {
+            onTap?()
+        }) {
+            VStack(alignment: .leading, spacing: 8) {
+                // Screenshot or Icon
+                if let firstScreenshot = app.screenshots?.first {
+                    HighResCardImage(url: firstScreenshot.url, size: CGSize(width: 280, height: 160))
+                } else {
+                    AppIconView(app: app, size: CGSize(width: 280, height: 160))
+                }
+                
+                // App Info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(app.name)
+                        .font(.headline)
+                        .lineLimit(2)
+                        .foregroundColor(.primary)
+                    
+                    if let developer = app.developer {
+                        Text(developer)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack {
+                        PriceBadge(app: app, size: .large)
+                        
+                        Spacer()
+                        
+                        if let rating = app.rating {
+                            RatingView(rating: rating, size: .large)
+                        }
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
+            }
+            .background(Color(.systemBackground))
+            .cornerRadius(16)
+            .shadow(radius: 4)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
 
 struct CompactAppCard: View {
     let app: AppModel
@@ -276,6 +325,7 @@ struct CompactAppCard: View {
         AppCard(app: AppModel.preview, size: .small)
         AppCard(app: AppModel.preview, size: .medium)
         AppCard(app: AppModel.preview, size: .large)
+        FeaturedAppCard(app: AppModel.preview, onTap: nil)
         CompactAppCard(app: AppModel.preview, onTap: nil)
     }
     .padding()
