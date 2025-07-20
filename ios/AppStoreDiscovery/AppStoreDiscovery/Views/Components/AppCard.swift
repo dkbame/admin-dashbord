@@ -1,0 +1,359 @@
+//
+//  AppCard.swift
+//  AppStoreDiscovery
+//
+//  Created by iMac on 13/7/2025.
+//
+
+import SwiftUI
+
+struct AppCard: View {
+    let app: AppModel
+    let size: AppCardSize
+    let showRating: Bool
+    let onTap: (() -> Void)?
+    
+    init(
+        app: AppModel,
+        size: AppCardSize = .medium,
+        showRating: Bool = true,
+        onTap: (() -> Void)? = nil
+    ) {
+        self.app = app
+        self.size = size
+        self.showRating = showRating
+        self.onTap = onTap
+    }
+    
+    var body: some View {
+        Button(action: {
+            onTap?()
+        }) {
+            VStack(alignment: .leading, spacing: size.spacing) {
+                // App Icon
+                AppIconView(app: app, size: size.iconSize)
+                
+                // App Info
+                VStack(alignment: .leading, spacing: size.infoSpacing) {
+                    Text(app.name)
+                        .font(size.titleFont)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                        .lineLimit(size.titleLineLimit)
+                    
+                    Text(app.developer)
+                        .font(size.subtitleFont)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                    
+                    HStack {
+                        PriceBadge(app: app, size: size)
+                        
+                        if showRating, let rating = app.rating {
+                            Spacer()
+                            RatingView(rating: rating, size: size)
+                        }
+                    }
+                }
+            }
+            .frame(width: size.width)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - App Icon View
+struct AppIconView: View {
+    let app: AppModel
+    let size: CGSize
+    
+    var body: some View {
+        if let iconUrl = app.icon_url {
+            AsyncImage(url: URL(string: iconUrl)) { image in
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } placeholder: {
+                RoundedRectangle(cornerRadius: size.width * 0.2)
+                    .fill(Color.gray.opacity(0.3))
+            }
+            .frame(width: size.width, height: size.height)
+            .cornerRadius(size.width * 0.2)
+        } else {
+            RoundedRectangle(cornerRadius: size.width * 0.2)
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: size.width, height: size.height)
+                .overlay(
+                    Text(app.name.prefix(1).uppercased())
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.gray)
+                )
+        }
+    }
+}
+
+// MARK: - Price Badge
+struct PriceBadge: View {
+    let app: AppModel
+    let size: AppCardSize
+    
+    var body: some View {
+        if app.is_free == true {
+            Text("Free")
+                .font(size.priceFont)
+                .padding(.horizontal, size.pricePadding)
+                .padding(.vertical, size.pricePadding / 2)
+                .background(Color.green.opacity(0.2))
+                .foregroundColor(.green)
+                .cornerRadius(size.priceCornerRadius)
+        } else {
+            Text("$\(app.price ?? "0")")
+                .font(size.priceFont)
+                .padding(.horizontal, size.pricePadding)
+                .padding(.vertical, size.pricePadding / 2)
+                .background(Color.blue.opacity(0.2))
+                .foregroundColor(.blue)
+                .cornerRadius(size.priceCornerRadius)
+        }
+    }
+}
+
+// MARK: - Rating View
+struct RatingView: View {
+    let rating: Double
+    let size: AppCardSize
+    
+    var body: some View {
+        HStack(spacing: 2) {
+            Image(systemName: "star.fill")
+                .foregroundColor(.yellow)
+                .font(size.ratingFont)
+            Text(String(format: "%.1f", rating))
+                .font(size.ratingFont)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+// MARK: - App Card Size
+enum AppCardSize {
+    case small
+    case medium
+    case large
+    
+    var width: CGFloat {
+        switch self {
+        case .small: return 100
+        case .medium: return 120
+        case .large: return 150
+        }
+    }
+    
+    var iconSize: CGSize {
+        switch self {
+        case .small: return CGSize(width: 60, height: 60)
+        case .medium: return CGSize(width: 80, height: 80)
+        case .large: return CGSize(width: 100, height: 100)
+        }
+    }
+    
+    var spacing: CGFloat {
+        switch self {
+        case .small: return 6
+        case .medium: return 8
+        case .large: return 12
+        }
+    }
+    
+    var infoSpacing: CGFloat {
+        switch self {
+        case .small: return 2
+        case .medium: return 4
+        case .large: return 6
+        }
+    }
+    
+    var titleFont: Font {
+        switch self {
+        case .small: return .caption
+        case .medium: return .subheadline
+        case .large: return .headline
+        }
+    }
+    
+    var subtitleFont: Font {
+        switch self {
+        case .small: return .caption2
+        case .medium: return .caption
+        case .large: return .subheadline
+        }
+    }
+    
+    var titleLineLimit: Int {
+        switch self {
+        case .small: return 1
+        case .medium: return 2
+        case .large: return 2
+        }
+    }
+    
+    var priceFont: Font {
+        switch self {
+        case .small: return .caption2
+        case .medium: return .caption
+        case .large: return .subheadline
+        }
+    }
+    
+    var pricePadding: CGFloat {
+        switch self {
+        case .small: return 4
+        case .medium: return 6
+        case .large: return 8
+        }
+    }
+    
+    var priceCornerRadius: CGFloat {
+        switch self {
+        case .small: return 4
+        case .medium: return 6
+        case .large: return 8
+        }
+    }
+    
+    var ratingFont: Font {
+        switch self {
+        case .small: return .caption2
+        case .medium: return .caption
+        case .large: return .subheadline
+        }
+    }
+}
+
+// MARK: - App Card Variants
+struct FeaturedAppCard: View {
+    let app: AppModel
+    let onTap: (() -> Void)?
+    
+    var body: some View {
+        Button(action: {
+            onTap?()
+        }) {
+            VStack(alignment: .leading, spacing: 8) {
+                // Screenshot or Icon
+                if let firstScreenshot = app.screenshots?.first {
+                    HighResCardImage(url: firstScreenshot.url, size: CGSize(width: 280, height: 160))
+                } else {
+                    AppIconView(app: app, size: CGSize(width: 280, height: 160))
+                }
+                
+                // App Info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(app.name)
+                        .font(.headline)
+                        .lineLimit(2)
+                        .foregroundColor(.primary)
+                    
+                    Text(app.developer)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    HStack {
+                        PriceBadge(app: app, size: .large)
+                        
+                        Spacer()
+                        
+                        if let rating = app.rating {
+                            RatingView(rating: rating, size: .large)
+                        }
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
+            }
+            .background(Color(.systemBackground))
+            .cornerRadius(16)
+            .shadow(radius: 4)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+struct CompactAppCard: View {
+    let app: AppModel
+    let onTap: (() -> Void)?
+    
+    var body: some View {
+        Button(action: {
+            onTap?()
+        }) {
+            HStack(spacing: 12) {
+                AppIconView(app: app, size: CGSize(width: 50, height: 50))
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(app.name)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                        .foregroundColor(.primary)
+                    
+                    Text(app.developer)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                
+                Spacer()
+                
+                PriceBadge(app: app, size: .small)
+            }
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+#Preview {
+    VStack(spacing: 20) {
+        AppCard(app: AppModel.preview, size: .small)
+        AppCard(app: AppModel.preview, size: .medium)
+        AppCard(app: AppModel.preview, size: .large)
+        FeaturedAppCard(app: AppModel.preview)
+        CompactAppCard(app: AppModel.preview)
+    }
+    .padding()
+}
+
+// MARK: - Preview Extension
+extension AppModel {
+    static var preview: AppModel {
+        AppModel(
+            id: "1",
+            name: "Sample App",
+            description: "A sample app for preview",
+            developer: "Sample Developer",
+            price: "9.99",
+            category_id: "1",
+            icon_url: nil,
+            screenshots: [],
+            app_store_url: nil,
+            website_url: nil,
+            version: "1.0",
+            size: 1024 * 1024 * 50,
+            rating: 4.5,
+            rating_count: 100,
+            release_date: "2024-01-01",
+            last_updated: "2024-01-15",
+            is_free: false,
+            is_featured: true,
+            created_at: "2024-01-01T00:00:00Z",
+            updated_at: "2024-01-15T00:00:00Z",
+            status: "ACTIVE",
+            currency: "USD",
+            minimum_os_version: "12.0",
+            features: ["Feature 1", "Feature 2"],
+            source: "CUSTOM"
+        )
+    }
+} 
