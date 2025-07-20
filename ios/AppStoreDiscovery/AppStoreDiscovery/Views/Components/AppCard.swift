@@ -319,7 +319,7 @@ struct CompactAppCard: View {
         AppCard(app: AppModel.preview, size: .small)
         AppCard(app: AppModel.preview, size: .medium)
         AppCard(app: AppModel.preview, size: .large)
-        FeaturedAppCard(app: AppModel.preview)
+        FeaturedAppCard(app: AppModel.preview, onTap: nil)
         CompactAppCard(app: AppModel.preview)
     }
     .padding()
