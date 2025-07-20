@@ -133,6 +133,9 @@ class APIService: ObservableObject {
                     for (index, app) in appsWithScreenshots.enumerated() {
                         print("[DEBUG] App \(index): \(app.name)")
                         print("[DEBUG] App \(index) screenshots count: \(app.screenshots?.count ?? 0)")
+                        print("[DEBUG] App \(index) rating: \(app.rating ?? 0)")
+                        print("[DEBUG] App \(index) rating_count: \(app.rating_count ?? 0)")
+                        print("[DEBUG] App \(index) is_free: \(app.is_free ?? false)")
                         if let screenshots = app.screenshots {
                             for (screenshotIndex, screenshot) in screenshots.enumerated() {
                                 print("[DEBUG] Screenshot \(screenshotIndex): \(screenshot.url)")

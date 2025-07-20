@@ -191,12 +191,15 @@ export async function importFromMAS(url: string): Promise<MASApp | null> {
         features: transformedApp.features,
         status: 'ACTIVE',
         source: 'MAS',
-      // Add the missing fields
-      version: transformedApp.version,
-      size: transformedApp.size,
-      rating: transformedApp.ratings.average,
-      rating_count: transformedApp.ratings.count,
-      release_date: transformedApp.releaseDate,
+        // Add the missing fields
+        version: transformedApp.version,
+        size: transformedApp.size,
+        rating: transformedApp.ratings.average,
+        rating_count: transformedApp.ratings.count,
+        release_date: transformedApp.releaseDate,
+        is_free: transformedApp.price === 0, // Calculate is_free based on price
+        app_store_url: url, // Add the Mac App Store URL
+        is_featured: false, // Default to not featured, can be changed manually later
     }
 
     console.log('Data being inserted into database:', appData)

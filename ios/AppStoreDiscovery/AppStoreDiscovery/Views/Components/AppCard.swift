@@ -64,6 +64,13 @@ struct AppCard: View {
                     if showRating, let rating = app.rating {
                         Spacer()
                         RatingView(rating: rating, size: size)
+                    } else {
+                        // Debug logging to understand why ratings aren't showing
+                        if showRating {
+                            // Rating is expected to show but app.rating is nil
+                            // You can add debug print here if needed
+                            // print("DEBUG: App \(app.name) - showRating: \(showRating), rating: \(app.rating)")
+                        }
                     }
                 }
             }
