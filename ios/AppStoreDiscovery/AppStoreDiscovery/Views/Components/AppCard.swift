@@ -26,41 +26,49 @@ struct AppCard: View {
     }
     
     var body: some View {
-        Button(action: {
-            onTap?()
-        }) {
-            VStack(alignment: .leading, spacing: size.spacing) {
-                // App Icon
-                AppIconView(app: app, size: size.iconSize)
+        Group {
+            if let onTap = onTap {
+                Button(action: onTap) {
+                    cardContent
+                }
+                .buttonStyle(PlainButtonStyle())
+            } else {
+                cardContent
+            }
+        }
+    }
+    
+    private var cardContent: some View {
+        VStack(alignment: .leading, spacing: size.spacing) {
+            // App Icon
+            AppIconView(app: app, size: size.iconSize)
+            
+            // App Info
+            VStack(alignment: .leading, spacing: size.infoSpacing) {
+                Text(app.name)
+                    .font(size.titleFont)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                    .lineLimit(size.titleLineLimit)
                 
-                // App Info
-                VStack(alignment: .leading, spacing: size.infoSpacing) {
-                    Text(app.name)
-                        .font(size.titleFont)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                        .lineLimit(size.titleLineLimit)
+                if let developer = app.developer {
+                    Text(developer)
+                        .font(size.subtitleFont)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                
+                HStack {
+                    PriceBadge(app: app, size: size)
                     
-                    if let developer = app.developer {
-                        Text(developer)
-                            .font(size.subtitleFont)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-                    
-                    HStack {
-                        PriceBadge(app: app, size: size)
-                        
-                        if showRating, let rating = app.rating {
-                            Spacer()
-                            RatingView(rating: rating, size: size)
-                        }
+                    if showRating, let rating = app.rating {
+                        Spacer()
+                        RatingView(rating: rating, size: size)
                     }
                 }
             }
-            .frame(width: size.width)
         }
-        .buttonStyle(PlainButtonStyle())
+        .frame(width: size.width)
     }
 }
 
@@ -239,48 +247,56 @@ struct FeaturedAppCard: View {
     let onTap: (() -> Void)?
     
     var body: some View {
-        Button(action: {
-            onTap?()
-        }) {
-            VStack(alignment: .leading, spacing: 8) {
-                // Screenshot or Icon
-                if let firstScreenshot = app.screenshots?.first {
-                    HighResCardImage(url: firstScreenshot.url, size: CGSize(width: 280, height: 160))
-                } else {
-                    AppIconView(app: app, size: CGSize(width: 280, height: 160))
+        Group {
+            if let onTap = onTap {
+                Button(action: onTap) {
+                    featuredCardContent
+                }
+                .buttonStyle(PlainButtonStyle())
+            } else {
+                featuredCardContent
+            }
+        }
+    }
+    
+    private var featuredCardContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Screenshot or Icon
+            if let firstScreenshot = app.screenshots?.first {
+                HighResCardImage(url: firstScreenshot.url, size: CGSize(width: 280, height: 160))
+            } else {
+                AppIconView(app: app, size: CGSize(width: 280, height: 160))
+            }
+            
+            // App Info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(app.name)
+                    .font(.headline)
+                    .lineLimit(2)
+                    .foregroundColor(.primary)
+                
+                if let developer = app.developer {
+                    Text(developer)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 
-                // App Info
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(app.name)
-                        .font(.headline)
-                        .lineLimit(2)
-                        .foregroundColor(.primary)
+                HStack {
+                    PriceBadge(app: app, size: .large)
                     
-                    if let developer = app.developer {
-                        Text(developer)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                    Spacer()
                     
-                    HStack {
-                        PriceBadge(app: app, size: .large)
-                        
-                        Spacer()
-                        
-                        if let rating = app.rating {
-                            RatingView(rating: rating, size: .large)
-                        }
+                    if let rating = app.rating {
+                        RatingView(rating: rating, size: .large)
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 8)
             }
-            .background(Color(.systemBackground))
-            .cornerRadius(16)
-            .shadow(radius: 4)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
         }
-        .buttonStyle(PlainButtonStyle())
+        .background(Color(.systemBackground))
+        .cornerRadius(16)
+        .shadow(radius: 4)
     }
 }
 
@@ -289,34 +305,42 @@ struct CompactAppCard: View {
     let onTap: (() -> Void)?
     
     var body: some View {
-        Button(action: {
-            onTap?()
-        }) {
-            HStack(spacing: 12) {
-                AppIconView(app: app, size: CGSize(width: 50, height: 50))
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(app.name)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                        .foregroundColor(.primary)
-                    
-                    if let developer = app.developer {
-                        Text(developer)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
+        Group {
+            if let onTap = onTap {
+                Button(action: onTap) {
+                    compactCardContent
                 }
-                
-                Spacer()
-                
-                PriceBadge(app: app, size: .small)
+                .buttonStyle(PlainButtonStyle())
+            } else {
+                compactCardContent
             }
-            .padding(.vertical, 4)
         }
-        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private var compactCardContent: some View {
+        HStack(spacing: 12) {
+            AppIconView(app: app, size: CGSize(width: 50, height: 50))
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(app.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                    .foregroundColor(.primary)
+                
+                if let developer = app.developer {
+                    Text(developer)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            
+            Spacer()
+            
+            PriceBadge(app: app, size: .small)
+        }
+        .padding(.vertical, 4)
     }
 }
 
