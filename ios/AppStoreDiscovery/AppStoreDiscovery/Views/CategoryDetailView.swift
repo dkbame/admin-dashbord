@@ -319,7 +319,7 @@ struct AppDetailsView: View {
     
     private func formatDate(_ dateString: String?) -> String {
         guard let dateString = dateString else { return "Unknown" }
-        let formatter = DateFormatter()
+        let formatter = Foundation.DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         if let date = formatter.date(from: dateString) {
             formatter.dateStyle = .medium
