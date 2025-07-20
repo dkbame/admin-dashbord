@@ -477,50 +477,20 @@ struct ContentView: View {
 
 struct HomeView: View {
     @StateObject private var apiService = APIService()
+    @State private var featuredApps: [AppModel] = []
+    @State private var trendingApps: [AppModel] = []
+    @State private var newReleases: [AppModel] = []
+    @State private var freeApps: [AppModel] = []
     
-    // Featured apps (top 5 apps or apps marked as featured)
-    var featuredApps: [AppModel] {
-        let apps = apiService.apps
-        let featured = apps.filter { $0.is_featured == true }
-        return featured.isEmpty ? Array(apps.prefix(5)) : featured
-    }
-    
-    // Recently added apps (last 10 apps)
+    // Computed properties for sections that use local data
     var recentlyAddedApps: [AppModel] {
         Array(apiService.apps.prefix(10))
     }
     
-    // Top rated apps (sorted by rating)
     var topRatedApps: [AppModel] {
         apiService.apps
             .filter { $0.rating != nil && $0.rating! > 0 }
             .sorted { ($0.rating ?? 0) > ($1.rating ?? 0) }
-            .prefix(10)
-            .map { $0 }
-    }
-    
-    // Free apps
-    var freeApps: [AppModel] {
-        apiService.apps.filter { $0.is_free == true }.prefix(10).map { $0 }
-    }
-    
-    // New computed properties for additional sections
-    var trendingApps: [AppModel] {
-        apiService.apps
-            .filter { $0.rating_count != nil && $0.rating_count! > 100 }
-            .sorted { ($0.rating_count ?? 0) > ($1.rating_count ?? 0) }
-            .prefix(10)
-            .map { $0 }
-    }
-    
-    var newReleases: [AppModel] {
-        apiService.apps
-            .filter { $0.release_date != nil }
-            .sorted { 
-                let date1 = ISO8601DateFormatter().date(from: $0.release_date!) ?? Date.distantPast
-                let date2 = ISO8601DateFormatter().date(from: $1.release_date!) ?? Date.distantPast
-                return date1 > date2
-            }
             .prefix(10)
             .map { $0 }
     }
@@ -556,6 +526,18 @@ struct HomeView: View {
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
                             .padding()
+                        
+                        if apiService.isOffline {
+                            Button("Retry") {
+                                Task {
+                                    await apiService.refreshData()
+                                }
+                            }
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                        }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if apiService.apps.isEmpty {
@@ -678,6 +660,51 @@ struct HomeView: View {
                                 )
                             }
                         }
+                        .padding(.bottom, 20)
+                    }
+                }
+            }
+            .navigationTitle("App Store Discovery")
+            .navigationBarTitleDisplayMode(.large)
+            .refreshable {
+                await loadOptimizedData()
+            }
+            .onAppear {
+                Task {
+                    await loadOptimizedData()
+                }
+            }
+            .overlay(
+                // Offline indicator
+                VStack {
+                    if apiService.isOffline {
+                        HStack {
+                            Image(systemName: "wifi.slash")
+                                .foregroundColor(.orange)
+                            Text("Offline Mode - Using cached data")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(8)
+                        .padding(.top, 8)
+                    }
+                    Spacer()
+                }
+            )
+                            }
+                            
+                            // Free Apps Section
+                            if !freeApps.isEmpty {
+                                AppSectionView(
+                                    title: "Free Apps",
+                                    apps: freeApps,
+                                    icon: "gift.fill"
+                                )
+                            }
+                        }
                         .padding(.top, 20)
                     }
                 }
@@ -685,12 +712,11 @@ struct HomeView: View {
             .navigationTitle("Discover")
             .navigationBarTitleDisplayMode(.large)
             .refreshable {
-                await apiService.fetchApps()
+                await loadOptimizedData()
             }
             .onAppear {
                 Task {
-                    await apiService.fetchApps()
-                    await apiService.fetchCategories()
+                    await loadOptimizedData()
                 }
                 // Start real-time subscriptions
                 apiService.subscribeToRealTimeUpdates()
@@ -699,6 +725,31 @@ struct HomeView: View {
                 // Clean up real-time subscriptions
                 apiService.unsubscribeFromRealTimeUpdates()
             }
+        }
+    }
+    
+    // MARK: - Optimized Data Loading
+    
+    private func loadOptimizedData() async {
+        // Load basic data first
+        await apiService.fetchApps()
+        await apiService.fetchCategories()
+        
+        // Load optimized sections in parallel
+        async let featured = apiService.fetchFeaturedApps()
+        async let trending = apiService.fetchTrendingApps()
+        async let newReleases = apiService.fetchNewReleases()
+        async let freeApps = apiService.fetchFreeApps()
+        
+        // Wait for all to complete
+        let (featuredResult, trendingResult, newReleasesResult, freeAppsResult) = await (featured, trending, newReleases, freeApps)
+        
+        // Update UI on main thread
+        await MainActor.run {
+            self.featuredApps = featuredResult
+            self.trendingApps = trendingResult
+            self.newReleases = newReleasesResult
+            self.freeApps = freeAppsResult
         }
     }
 }
