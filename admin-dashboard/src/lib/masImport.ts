@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 
-interface MASApp {
+export interface MASApp {
   id: string
   name: string
   developer: string
@@ -17,10 +17,72 @@ interface MASApp {
     average: number
     count: number
   }
-  // Add missing fields
   version: string
   size: number
   releaseDate: string
+}
+
+// Function to scrape ratings from App Store page
+async function scrapeAppStoreRatings(url: string): Promise<{ average: number, count: number }> {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch App Store page: ${response.status}`)
+    }
+
+    const html = await response.text()
+    
+    let average = 0
+    let count = 0
+    
+    // 1. Try to extract from JSON-LD structured data (most reliable)
+    const jsonLdMatch = html.match(/"aggregateRating":\s*{[^}]*"ratingValue"\s*:\s*([0-9.]+)[^}]*"reviewCount"\s*:\s*(\d+)/i)
+    if (jsonLdMatch) {
+      average = parseFloat(jsonLdMatch[1])
+      count = parseInt(jsonLdMatch[2])
+      console.log('Extracted from JSON-LD:', { average, count })
+    }
+    
+    // 2. Fallback: Extract from figure caption pattern like "4.6 • 151 Ratings"
+    if (average === 0 || count === 0) {
+      const captionMatch = html.match(/(\d+\.?\d*)\s*[•·]\s*(\d+)\s+Rating/i)
+      if (captionMatch) {
+        average = average || parseFloat(captionMatch[1])
+        count = count || parseInt(captionMatch[2])
+        console.log('Extracted from caption:', { average, count })
+      }
+    }
+    
+    // 3. Fallback: Extract from "X out of 5" pattern
+    if (average === 0) {
+      const ratingMatch = html.match(/(\d+\.?\d*)\s+out\s+of\s+5/i)
+      if (ratingMatch) {
+        average = parseFloat(ratingMatch[1])
+        console.log('Extracted rating from "out of 5":', average)
+      }
+    }
+    
+    // 4. Fallback: Extract count from standalone "X Ratings" pattern
+    if (count === 0) {
+      const countMatch = html.match(/(\d+)\s+Rating/i)
+      if (countMatch) {
+        count = parseInt(countMatch[1])
+        console.log('Extracted count from "Ratings":', count)
+      }
+    }
+    
+    console.log(`Final scraped ratings: ${average} stars, ${count} ratings`)
+    
+    return { average, count }
+  } catch (error) {
+    console.error('Error scraping App Store ratings:', error)
+    return { average: 0, count: 0 }
+  }
 }
 
 // Category mapping from iTunes to our database categories
@@ -124,6 +186,20 @@ export async function importFromMAS(url: string): Promise<MASApp | null> {
 
     const app = data.results[0]
 
+    // Scrape ratings from the actual App Store page since iTunes API doesn't provide them for Mac apps
+    let scrapedRating = { average: 0, count: 0 }
+    try {
+      console.log('Scraping ratings from App Store page:', url)
+      const scrapedData = await scrapeAppStoreRatings(url)
+      if (scrapedData.average > 0) {
+        scrapedRating = scrapedData
+        console.log('Successfully scraped ratings:', scrapedRating)
+      }
+    } catch (scrapeError) {
+      console.warn('Failed to scrape ratings from App Store page:', scrapeError)
+      // Continue with iTunes API data (which will be 0 for Mac apps)
+    }
+
     console.log('iTunes app data:', {
       trackId: app.trackId,
       trackName: app.trackName,
@@ -132,6 +208,10 @@ export async function importFromMAS(url: string): Promise<MASApp | null> {
       fileSizeBytes: app.fileSizeBytes,
       averageUserRating: app.averageUserRating,
       userRatingCount: app.userRatingCount,
+      // Add more detailed rating logging
+      averageUserRatingForCurrentVersion: app.averageUserRatingForCurrentVersion,
+      userRatingCountForCurrentVersion: app.userRatingCountForCurrentVersion,
+      trackViewUrl: app.trackViewUrl,
       releaseDate: app.releaseDate,
       currentVersionReleaseDate: app.currentVersionReleaseDate,
       price: app.price,
@@ -163,8 +243,8 @@ export async function importFromMAS(url: string): Promise<MASApp | null> {
       lastUpdated: app.currentVersionReleaseDate,
       features: app.features || [],
       ratings: {
-        average: app.averageUserRating || 0,
-        count: app.userRatingCount || 0,
+        average: scrapedRating.average > 0 ? scrapedRating.average : (app.averageUserRatingForCurrentVersion || app.averageUserRating || 0),
+        count: scrapedRating.count > 0 ? scrapedRating.count : (app.userRatingCountForCurrentVersion || app.userRatingCount || 0),
       },
       // Add missing fields
       version: app.version || '',
@@ -173,6 +253,16 @@ export async function importFromMAS(url: string): Promise<MASApp | null> {
     }
 
     console.log('Transformed app data:', transformedApp)
+
+    // Debug rating transformation specifically
+    console.log('Rating transformation debug:', {
+      originalRating: app.averageUserRating,
+      originalCount: app.userRatingCount,
+      currentVersionRating: app.averageUserRatingForCurrentVersion,
+      currentVersionCount: app.userRatingCountForCurrentVersion,
+      finalRating: transformedApp.ratings.average,
+      finalCount: transformedApp.ratings.count
+    })
 
     // Prepare data for database insertion
     const appData = {
@@ -203,6 +293,14 @@ export async function importFromMAS(url: string): Promise<MASApp | null> {
     }
 
     console.log('Data being inserted into database:', appData)
+
+    // Debug database rating insertion specifically
+    console.log('Database rating insertion debug:', {
+      rating: appData.rating,
+      rating_count: appData.rating_count,
+      is_free: appData.is_free,
+      price: appData.price
+    })
 
     // Save to Supabase with proper error handling
     const { data: savedApp, error } = await supabase.from('apps').insert([appData]).select()
