@@ -137,17 +137,18 @@ struct BackgroundLayeredView: View {
             if let screenshots = app.screenshots, !screenshots.isEmpty {
                 let firstScreenshot = screenshots.first!
                 
-                // Try to load screenshot with better error handling - DEBUG VERSION
+                // Load the first screenshot with better error handling
                 AsyncImage(url: URL(string: firstScreenshot.url)) { image in
+                    // Successfully loaded screenshot
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(width: 350, height: 250) // Even larger for debugging
-                        .blur(radius: 3) // Minimal blur for maximum visibility
-                        .opacity(0.9) // Very high opacity
-                        .scaleEffect(1.0) // No scaling
-                        .offset(x: 0, y: 0) // Center position
-                        .rotationEffect(.degrees(0)) // No rotation
+                        .frame(width: 350, height: 250)
+                        .blur(radius: 3)
+                        .opacity(0.9)
+                        .scaleEffect(1.0)
+                        .offset(x: 0, y: 0)
+                        .rotationEffect(.degrees(0))
                         .overlay(
                             // Debug border to see the image bounds
                             RoundedRectangle(cornerRadius: 0)
@@ -160,27 +161,9 @@ struct BackgroundLayeredView: View {
                             screenshotImage = image.asUIImage()
                         }
                 } placeholder: {
-                    // Enhanced placeholder with debug info
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(.white.opacity(0.3)) // More visible placeholder
-                        .frame(width: 300, height: 200) // Match the loaded image size
-                        .overlay(
-                            VStack(spacing: 4) {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                    .tint(.white)
-                                Text("Loading Screenshot...")
-                                    .font(.caption2)
-                                    .foregroundColor(.white.opacity(0.8))
-                                Text("URL: \(firstScreenshot.url.prefix(50))...")
-                                    .font(.caption2)
-                                    .foregroundColor(.white.opacity(0.6))
-                                    .multilineTextAlignment(.center)
-                            }
-                        )
-                        .blur(radius: 8) // Match the loaded image blur
-                        .offset(x: 0, y: 0) // Center position
-                        .rotationEffect(.degrees(0)) // No rotation
+                    // Very subtle placeholder that doesn't interfere with the design
+                    Color.clear
+                        .frame(width: 350, height: 250)
                         .onAppear {
                             print("🔄 Loading screenshot for '\(app.name)' from URL: \(firstScreenshot.url)")
                             screenshotLoadState = .loading
@@ -193,8 +176,8 @@ struct BackgroundLayeredView: View {
             } else {
                 // Fallback when no screenshots available - show app-specific content
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(.white.opacity(0.3)) // More visible fallback
-                    .frame(width: 300, height: 200) // Match the loaded image size
+                    .fill(.white.opacity(0.3))
+                    .frame(width: 300, height: 200)
                     .overlay(
                         VStack(spacing: 4) {
                             Image(systemName: "iphone.gen3")
@@ -209,9 +192,9 @@ struct BackgroundLayeredView: View {
                                 .foregroundColor(.white.opacity(0.7))
                         }
                     )
-                    .blur(radius: 8) // Match the loaded image blur
-                    .offset(x: 0, y: 0) // Center position
-                    .rotationEffect(.degrees(0)) // No rotation
+                    .blur(radius: 8)
+                    .offset(x: 0, y: 0)
+                    .rotationEffect(.degrees(0))
                     .onAppear {
                         print("⚠️ FeaturedAppCard: No screenshots found for '\(app.name)' (screenshots count: \(app.screenshots?.count ?? 0))")
                         screenshotLoadState = .failed
