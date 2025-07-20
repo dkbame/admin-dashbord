@@ -29,164 +29,121 @@ class APIService: ObservableObject {
         }
         
         do {
-            // Use the optimized view for better performance
-            let appsResponse = try await SupabaseManager.shared.client
-                .from("ios_apps_view")
-                .select("*")
-                .eq("status", value: "ACTIVE") // Only fetch active apps
+            let { data, error } = await SupabaseManager.shared.client
+                .from("apps")
+                .select("""
+                    *,
+                    category:categories!apps_category_id_fkey (
+                        id,
+                        name,
+                        slug
+                    ),
+                    screenshots:screenshots!fk_app (
+                        id,
+                        url,
+                        caption,
+                        display_order
+                    )
+                """)
+                .eq("status", "ACTIVE")
                 .order("created_at", ascending: false)
-                .execute()
             
-            print("[DEBUG] fetchApps - Apps response status: \(appsResponse.status)")
+            if let error = error {
+                throw error
+            }
             
-            if appsResponse.status == 200 {
-                do {
-                    let apps = try JSONDecoder().decode([AppModel].self, from: appsResponse.data)
-                    
-                    // Now fetch screenshots for each app
-                    var appsWithScreenshots: [AppModel] = []
-                    
-                    for app in apps {
-                        let screenshotsResponse = try await SupabaseManager.shared.client
-                            .from("screenshots")
-                            .select("*")
-                            .eq("app_id", value: app.id)
-                            .order("display_order")
-                            .execute()
-                        
-                        print("[DEBUG] Screenshots for app \(app.name) (ID: \(app.id)):")
-                        print("[DEBUG] Screenshots response status: \(screenshotsResponse.status)")
-                        
-                        if screenshotsResponse.status == 200 {
-                            let screenshots = try JSONDecoder().decode([Screenshot].self, from: screenshotsResponse.data)
-                            print("[DEBUG] Found \(screenshots.count) screenshots for \(app.name)")
-                            
-                            // Create a new app model with screenshots
-                            let appWithScreenshots = AppModel(
-                                id: app.id,
-                                name: app.name,
-                                description: app.description,
-                                developer: app.developer,
-                                price: app.price,
-                                category_id: app.category_id,
-                                icon_url: app.icon_url,
-                                screenshots: screenshots,
-                                app_store_url: app.app_store_url,
-                                website_url: app.website_url,
-                                version: app.version,
-                                size: app.size,
-                                rating: app.rating,
-                                rating_count: app.rating_count,
-                                release_date: app.release_date,
-                                last_updated: app.last_updated,
-                                is_free: app.is_free,
-                                is_featured: app.is_featured,
-                                created_at: app.created_at,
-                                updated_at: app.updated_at,
-                                status: app.status,
-                                currency: app.currency,
-                                minimum_os_version: app.minimum_os_version,
-                                features: app.features,
-                                source: app.source
-                            )
-                            appsWithScreenshots.append(appWithScreenshots)
-                        } else {
-                            print("[DEBUG] Failed to fetch screenshots for \(app.name)")
-                            appsWithScreenshots.append(app)
-                        }
+            await MainActor.run {
+                if let data = data {
+                    do {
+                        let apps = try data.map { try $0.decode(AppModel.self) }
+                        self.apps = apps
+                    } catch {
+                        self.errorMessage = "Failed to decode apps: \(error.localizedDescription)"
                     }
-                    
-                    // Debug: Check screenshots for each app
-                    for (index, app) in appsWithScreenshots.enumerated() {
-                        print("[DEBUG] App \(index): \(app.name)")
-                        print("[DEBUG] App \(index) screenshots count: \(app.screenshots?.count ?? 0)")
-                        if let screenshots = app.screenshots {
-                            for (screenshotIndex, screenshot) in screenshots.enumerated() {
-                                print("[DEBUG] Screenshot \(screenshotIndex): \(screenshot.url)")
-                            }
-                        }
-                    }
-                    
-                    let finalApps = appsWithScreenshots
-                    await MainActor.run {
-                        self.apps = finalApps
-                        self.isLoading = false
-                        self.lastFetchTime = Date()
-                    }
-                } catch let decodingError {
-                    print("[DEBUG] JSON Decoding Error: \(decodingError)")
-                    if let decodingError = decodingError as? DecodingError {
-                        switch decodingError {
-                        case .keyNotFound(let key, let context):
-                            print("[DEBUG] Missing key: \(key.stringValue) at path: \(context.codingPath)")
-                        case .typeMismatch(let type, let context):
-                            print("[DEBUG] Type mismatch: expected \(type) at path: \(context.codingPath)")
-                        case .valueNotFound(let type, let context):
-                            print("[DEBUG] Value not found: expected \(type) at path: \(context.codingPath)")
-                        case .dataCorrupted(let context):
-                            print("[DEBUG] Data corrupted at path: \(context.codingPath)")
-                        @unknown default:
-                            print("[DEBUG] Unknown decoding error")
-                        }
-                    }
-                    await MainActor.run {
-                        self.errorMessage = "Decoding Error: \(decodingError.localizedDescription)"
-                        self.isLoading = false
-                    }
+                } else {
+                    self.apps = []
                 }
-            } else {
-                let errorString = String(data: appsResponse.data, encoding: .utf8) ?? "Unknown error (status: \(appsResponse.status))"
-                print("[DEBUG] fetchApps - Error: \(errorString)")
-                await MainActor.run {
-                    self.errorMessage = "Error: \(errorString)"
-                    self.isLoading = false
-                }
+                self.isLoading = false
             }
         } catch {
-            print("[DEBUG] fetchApps - Exception: \(error.localizedDescription)")
             await MainActor.run {
-                self.errorMessage = "Error: \(error.localizedDescription)"
+                self.errorMessage = error.localizedDescription
                 self.isLoading = false
             }
         }
     }
-
-    func fetchCategories() async {
-        await MainActor.run {
-            isLoading = true
-            errorMessage = nil
-        }
+    
+    func fetchInAppPurchases(for appId: String) async -> [InAppPurchase] {
         do {
-            let response = try await SupabaseManager.shared.client
-                .from("categories")
-                .select()
-                .execute()
+            let { data, error } = await SupabaseManager.shared.client
+                .from("in_app_purchases")
+                .select("*")
+                .eq("app_id", appId)
+                .order("display_order")
             
-            // Debug: Print the raw response data from Supabase
-            print("[DEBUG] fetchCategories - Raw response data:")
-            print(String(data: response.data, encoding: .utf8) ?? "No data or not UTF-8")
-            print("[DEBUG] fetchCategories - Status: \(response.status)")
-
-            if response.status == 200 {
-                let categories = try JSONDecoder().decode([Category].self, from: response.data)
-            await MainActor.run {
-                self.categories = categories
-                self.isLoading = false
+            if let error = error {
+                throw error
             }
-            } else {
-                let errorString = String(data: response.data, encoding: .utf8) ?? "Unknown error (status: \(response.status))"
-                print("[DEBUG] fetchCategories - Error: \(errorString)")
-            await MainActor.run {
-                    self.errorMessage = "Error: \(errorString)"
-                self.isLoading = false
+            
+            if let data = data {
+                return try data.map { try $0.decode(InAppPurchase.self) }
             }
+            
+            return []
+        } catch {
+            print("Error fetching in-app purchases: \(error)")
+            return []
+        }
+    }
+    
+    func fetchCategories() async {
+        do {
+            let { data, error } = await SupabaseManager.shared.client
+                .from("categories")
+                .select("*")
+                .order("name")
+            
+            if let error = error {
+                throw error
+            }
+            
+            await MainActor.run {
+                if let data = data {
+                    do {
+                        let categories = try data.map { try $0.decode(Category.self) }
+                        self.categories = categories
+                    } catch {
+                        self.errorMessage = "Failed to decode categories: \(error.localizedDescription)"
+                    }
+                } else {
+                    self.categories = []
+                }
             }
         } catch {
-            print("[DEBUG] fetchCategories - Exception: \(error.localizedDescription)")
             await MainActor.run {
-                self.errorMessage = "Error: \(error.localizedDescription)"
-                self.isLoading = false
+                self.errorMessage = error.localizedDescription
             }
+        }
+    }
+    
+    func fetchFeaturedApps() async -> [AppModel] {
+        return apps.filter { $0.isFeatured == true }
+    }
+    
+    func fetchFreeApps() async -> [AppModel] {
+        return apps.filter { $0.isFree == true }
+    }
+    
+    func fetchAppsByCategory(_ categoryId: String) async -> [AppModel] {
+        return apps.filter { $0.category?.id == categoryId }
+    }
+    
+    func searchApps(query: String) async -> [AppModel] {
+        let lowercasedQuery = query.lowercased()
+        return apps.filter { app in
+            app.name.lowercased().contains(lowercasedQuery) ||
+            app.developer.lowercased().contains(lowercasedQuery) ||
+            (app.description?.lowercased().contains(lowercasedQuery) ?? false)
         }
     }
     
@@ -210,114 +167,5 @@ class APIService: ObservableObject {
     private func handleCategoriesUpdate(_ payload: Any) async {
         // Refresh categories data when changes occur
         await fetchCategories()
-    }
-    
-    // MARK: - New Methods for Better Integration
-    
-    func fetchTrendingApps() async -> [AppModel] {
-        do {
-            let response = try await SupabaseManager.shared.client
-                .rpc("get_trending_apps", params: ["limit_count": 10])
-                .execute()
-            
-            if response.status == 200 {
-                let trendingApps = try JSONDecoder().decode([AppModel].self, from: response.data)
-                return trendingApps
-            }
-        } catch {
-            print("[DEBUG] fetchTrendingApps - Error: \(error.localizedDescription)")
-        }
-        return []
-    }
-    
-    func fetchNewReleases() async -> [AppModel] {
-        do {
-            let response = try await SupabaseManager.shared.client
-                .rpc("get_new_releases", params: ["limit_count": 10])
-                .execute()
-            
-            if response.status == 200 {
-                let newReleases = try JSONDecoder().decode([AppModel].self, from: response.data)
-                return newReleases
-            }
-        } catch {
-            print("[DEBUG] fetchNewReleases - Error: \(error.localizedDescription)")
-        }
-        return []
-    }
-    
-    func fetchFeaturedApps() async -> [AppModel] {
-        do {
-            let response = try await SupabaseManager.shared.client
-                .from("ios_apps_view")
-                .select("*")
-                .eq("status", value: "ACTIVE")
-                .eq("is_featured", value: true)
-                .order("created_at", ascending: false)
-                .limit(10)
-                .execute()
-            
-            if response.status == 200 {
-                let featuredApps = try JSONDecoder().decode([AppModel].self, from: response.data)
-                return featuredApps
-            }
-        } catch {
-            print("[DEBUG] fetchFeaturedApps - Error: \(error.localizedDescription)")
-        }
-        return []
-    }
-    
-    func fetchAppsByCategory(categoryId: String) async -> [AppModel] {
-        do {
-            let response = try await SupabaseManager.shared.client
-                .from("ios_apps_view")
-                .select("*")
-                .eq("status", value: "ACTIVE")
-                .eq("category_id", value: categoryId)
-                .order("created_at", ascending: false)
-                .execute()
-            
-            if response.status == 200 {
-                let categoryApps = try JSONDecoder().decode([AppModel].self, from: response.data)
-                return categoryApps
-            }
-        } catch {
-            print("[DEBUG] fetchAppsByCategory - Error: \(error.localizedDescription)")
-        }
-        return []
-    }
-    
-    func searchApps(query: String) async -> [AppModel] {
-        do {
-            let response = try await SupabaseManager.shared.client
-                .from("ios_apps_view")
-                .select("*")
-                .eq("status", value: "ACTIVE")
-                .or("name.ilike.%\(query)%,description.ilike.%\(query)%,developer.ilike.%\(query)%")
-                .order("created_at", ascending: false)
-                .limit(50)
-                .execute()
-            
-            if response.status == 200 {
-                let searchResults = try JSONDecoder().decode([AppModel].self, from: response.data)
-                return searchResults
-            }
-        } catch {
-            print("[DEBUG] searchApps - Error: \(error.localizedDescription)")
-        }
-        return []
-    }
-    
-    // MARK: - Cache Management
-    
-    func shouldRefreshData() -> Bool {
-        guard let lastFetch = lastFetchTime else { return true }
-        return Date().timeIntervalSince(lastFetch) > cacheValidityDuration
-    }
-    
-    func clearCache() {
-        lastFetchTime = nil
-        apps = []
-        categories = []
     }
 } 

@@ -27,6 +27,9 @@ interface App {
   screenshots: Screenshot[]
   is_featured: boolean | null
   is_free: boolean | null
+  has_in_app_purchases: boolean | null
+  pricing_model: 'FREE' | 'PAID' | 'FREE_WITH_IAP' | 'FREEMIUM' | 'SUBSCRIPTION' | null
+  in_app_purchase_summary: string | null
 }
 
 export default function DashboardPage() {
@@ -60,6 +63,9 @@ export default function DashboardPage() {
           icon_url,
           is_featured,
           is_free,
+          has_in_app_purchases,
+          pricing_model,
+          in_app_purchase_summary,
           screenshots:screenshots!fk_app (
             id,
             url,
@@ -348,14 +354,36 @@ export default function DashboardPage() {
                   <TableCell>{app.category?.name || 'Uncategorized'}</TableCell>
                   <TableCell>
                     {app.price === '0' || app.price === '' || app.price === null || app.price === 0 ? (
-                      <Chip
-                        label="Free"
-                        color="success"
-                        size="small"
-                        sx={{ minWidth: 60 }}
-                      />
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        <Chip
+                          label="Free"
+                          color="success"
+                          size="small"
+                          sx={{ minWidth: 60 }}
+                        />
+                        {app.has_in_app_purchases && (
+                          <Chip
+                            label="IAP"
+                            color="warning"
+                            size="small"
+                            variant="outlined"
+                            sx={{ minWidth: 60, fontSize: '0.7rem' }}
+                          />
+                        )}
+                      </Box>
                     ) : (
-                      <span>${String(app.price || '0.00')}</span>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        <span>${String(app.price || '0.00')}</span>
+                        {app.has_in_app_purchases && (
+                          <Chip
+                            label="IAP"
+                            color="warning"
+                            size="small"
+                            variant="outlined"
+                            sx={{ minWidth: 60, fontSize: '0.7rem' }}
+                          />
+                        )}
+                      </Box>
                     )}
                   </TableCell>
                   <TableCell>
@@ -405,6 +433,21 @@ export default function DashboardPage() {
                     >
                       <Edit fontSize="small" />
                     </IconButton>
+                    {app.has_in_app_purchases && (
+                      <IconButton
+                        size="small"
+                        href={`/dashboard/iap/${app.id}`}
+                        sx={{ mr: 1, '&:hover': { color: 'warning.main' } }}
+                      >
+                        <Chip
+                          label="IAP"
+                          size="small"
+                          color="warning"
+                          variant="outlined"
+                          sx={{ fontSize: '0.7rem', cursor: 'pointer' }}
+                        />
+                      </IconButton>
+                    )}
                     <IconButton 
                       size="small" 
                       color="error"
