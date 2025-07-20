@@ -673,51 +673,6 @@ struct HomeView: View {
                 Task {
                     await loadOptimizedData()
                 }
-            }
-            .overlay(
-                // Offline indicator
-                VStack {
-                    if apiService.isOffline {
-                        HStack {
-                            Image(systemName: "wifi.slash")
-                                .foregroundColor(.orange)
-                            Text("Offline Mode - Using cached data")
-                                .font(.caption)
-                                .foregroundColor(.orange)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.orange.opacity(0.1))
-                        .cornerRadius(8)
-                        .padding(.top, 8)
-                    }
-                    Spacer()
-                }
-            )
-                            }
-                            
-                            // Free Apps Section
-                            if !freeApps.isEmpty {
-                                AppSectionView(
-                                    title: "Free Apps",
-                                    apps: freeApps,
-                                    icon: "gift.fill"
-                                )
-                            }
-                        }
-                        .padding(.bottom, 20)
-                    }
-                }
-            }
-            .navigationTitle("App Store Discovery")
-            .navigationBarTitleDisplayMode(.large)
-            .refreshable {
-                await loadOptimizedData()
-            }
-            .onAppear {
-                Task {
-                    await loadOptimizedData()
-                }
                 // Start real-time subscriptions
                 apiService.subscribeToRealTimeUpdates()
             }
