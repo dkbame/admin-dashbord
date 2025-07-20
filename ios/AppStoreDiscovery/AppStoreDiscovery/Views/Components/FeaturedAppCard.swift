@@ -133,72 +133,59 @@ struct BackgroundLayeredView: View {
                 }
             }
             
-            // Screenshot as background element - with enhanced debugging
+            // Screenshot as background element - always use first screenshot for featured apps
             if let screenshots = app.screenshots, !screenshots.isEmpty {
                 let firstScreenshot = screenshots.first!
                 
-                // Load the first screenshot with better error handling
-                AsyncImage(url: URL(string: firstScreenshot.url)) { image in
-                    // Successfully loaded screenshot
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 350, height: 250)
-                        .blur(radius: 3)
-                        .opacity(0.9)
-                        .scaleEffect(1.0)
-                        .offset(x: 0, y: 0)
-                        .rotationEffect(.degrees(0))
-                        .overlay(
-                            // Debug border to see the image bounds
-                            RoundedRectangle(cornerRadius: 0)
-                                .stroke(Color.red, lineWidth: 2)
-                        )
-                        .onAppear {
-                            print("✅ Screenshot loaded successfully for '\(app.name)'")
-                            print("🖼️ Image size: \(image.asUIImage()?.size ?? CGSize.zero)")
-                            screenshotLoadState = .loaded
-                            screenshotImage = image.asUIImage()
-                        }
-                } placeholder: {
-                    // Very subtle placeholder that doesn't interfere with the design
-                    Color.clear
-                        .frame(width: 350, height: 250)
-                        .onAppear {
-                            print("🔄 Loading screenshot for '\(app.name)' from URL: \(firstScreenshot.url)")
-                            screenshotLoadState = .loading
-                        }
+                // Load the first screenshot directly
+                AsyncImage(url: URL(string: firstScreenshot.url)) { phase in
+                    switch phase {
+                    case .success(let image):
+                        // Successfully loaded screenshot
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 350, height: 250)
+                            .blur(radius: 3)
+                            .opacity(0.9)
+                            .scaleEffect(1.0)
+                            .offset(x: 0, y: 0)
+                            .rotationEffect(.degrees(0))
+                            .overlay(
+                                // Debug border to see the image bounds
+                                RoundedRectangle(cornerRadius: 0)
+                                    .stroke(Color.red, lineWidth: 2)
+                            )
+                            .onAppear {
+                                print("✅ Screenshot loaded successfully for '\(app.name)'")
+                                screenshotLoadState = .loaded
+                            }
+                    case .failure(_):
+                        // Failed to load screenshot
+                        Color.clear
+                            .frame(width: 350, height: 250)
+                            .onAppear {
+                                print("❌ Failed to load screenshot for '\(app.name)'")
+                                screenshotLoadState = .failed
+                            }
+                    case .empty:
+                        // Loading state
+                        Color.clear
+                            .frame(width: 350, height: 250)
+                            .onAppear {
+                                print("🔄 Loading screenshot for '\(app.name)'")
+                                screenshotLoadState = .loading
+                            }
+                    @unknown default:
+                        Color.clear
+                            .frame(width: 350, height: 250)
+                    }
                 }
                 .onAppear {
-                    print("🖼️ FeaturedAppCard: Attempting to load screenshot for '\(app.name)'")
+                    print("🖼️ FeaturedAppCard: Loading first screenshot for '\(app.name)'")
                     print("📱 Screenshot URL: \(firstScreenshot.url)")
+                    screenshotLoadState = .loading
                 }
-            } else {
-                // Fallback when no screenshots available - show app-specific content
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.white.opacity(0.3))
-                    .frame(width: 300, height: 200)
-                    .overlay(
-                        VStack(spacing: 4) {
-                            Image(systemName: "iphone.gen3")
-                                .foregroundColor(.white.opacity(0.8))
-                                .font(.system(size: 24))
-                            Text(app.name.prefix(1).uppercased())
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white.opacity(0.9))
-                            Text("No Screenshots")
-                                .font(.caption2)
-                                .foregroundColor(.white.opacity(0.7))
-                        }
-                    )
-                    .blur(radius: 8)
-                    .offset(x: 0, y: 0)
-                    .rotationEffect(.degrees(0))
-                    .onAppear {
-                        print("⚠️ FeaturedAppCard: No screenshots found for '\(app.name)' (screenshots count: \(app.screenshots?.count ?? 0))")
-                        screenshotLoadState = .failed
-                    }
             }
             
             // Debug overlay to show screenshot status
