@@ -185,6 +185,38 @@ struct AppModel: Identifiable, Codable {
         rating_count = tempRatingCount
     }
     
+    // Preview data for SwiftUI previews
+    static let preview = AppModel(
+        id: "preview-1",
+        name: "Sample App",
+        description: "This is a sample app for preview purposes. It demonstrates the app detail view with various features and information.",
+        developer: "Sample Developer",
+        price: "0",
+        category_id: "1",
+        icon_url: nil,
+        screenshots: [
+            Screenshot(id: "1", url: "https://example.com/screenshot1.jpg", caption: "Main screen", display_order: 1),
+            Screenshot(id: "2", url: "https://example.com/screenshot2.jpg", caption: "Settings", display_order: 2)
+        ],
+        app_store_url: "https://apps.apple.com/app/sample",
+        website_url: "https://example.com",
+        version: "1.0.0",
+        size: 52428800, // 50MB
+        rating: 4.5,
+        rating_count: 1234,
+        release_date: "2024-01-15",
+        last_updated: "2024-01-15T10:30:00.000000Z",
+        is_free: true,
+        is_featured: true,
+        created_at: "2024-01-15T10:30:00.000000Z",
+        updated_at: "2024-01-15T10:30:00.000000Z",
+        status: "ACTIVE",
+        currency: "USD",
+        minimum_os_version: "iOS 14.0",
+        features: ["Feature 1", "Feature 2", "Feature 3"],
+        source: "manual"
+    )
+    
     // Manual initializer for creating AppModel instances
     init(id: String, name: String, description: String, developer: String?, price: String?, category_id: String, icon_url: String?, screenshots: [Screenshot]?, app_store_url: String?, website_url: String?, version: String?, size: Int?, rating: Double?, rating_count: Int?, release_date: String?, last_updated: String?, is_free: Bool?, is_featured: Bool?, created_at: String?, updated_at: String?, status: String?, currency: String?, minimum_os_version: String?, features: [String]?, source: String?) {
         self.id = id

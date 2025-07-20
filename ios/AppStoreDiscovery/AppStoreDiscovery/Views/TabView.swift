@@ -94,8 +94,8 @@ struct SearchView: View {
         }
         return apiService.apps.filter { app in
             app.name.localizedCaseInsensitiveContains(searchText) ||
-            app.developer.localizedCaseInsensitiveContains(searchText) ||
-            (app.description?.localizedCaseInsensitiveContains(searchText) ?? false)
+            (app.developer?.localizedCaseInsensitiveContains(searchText) ?? false) ||
+            app.description.localizedCaseInsensitiveContains(searchText)
         }
     }
     

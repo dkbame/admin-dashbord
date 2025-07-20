@@ -235,24 +235,7 @@ struct AppActionButtons: View {
                     .background(Color.blue)
                     .cornerRadius(12)
                 }
-            } else if let downloadUrl = app.download_url, !downloadUrl.isEmpty {
-                Button(action: {
-                    if let url = URL(string: downloadUrl) {
-                        UIApplication.shared.open(url)
-                    }
-                }) {
-                    HStack {
-                        Image(systemName: "arrow.down.circle.fill")
-                        Text("Download")
-                    }
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.green)
-                    .cornerRadius(12)
-                }
-            }
+
             
             // Secondary action buttons
             HStack(spacing: 12) {
@@ -277,7 +260,8 @@ struct AppActionButtons: View {
                 
                 Button(action: {
                     // TODO: Implement share functionality
-                    let shareText = "Check out \(app.name) by \(app.developer)"
+                    let developerName = app.developer ?? "Unknown Developer"
+                    let shareText = "Check out \(app.name) by \(developerName)"
                     let activityVC = UIActivityViewController(
                         activityItems: [shareText],
                         applicationActivities: nil
@@ -341,9 +325,11 @@ struct AppDetailPreview: View {
                         .font(.headline)
                         .lineLimit(2)
                     
-                    Text(app.developer)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    if let developer = app.developer {
+                        Text(developer)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                     
                     HStack {
                         PriceBadge(app: app, size: .small)

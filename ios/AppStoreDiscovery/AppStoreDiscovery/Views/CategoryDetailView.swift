@@ -110,10 +110,12 @@ struct AppListRow: View {
                         .foregroundColor(.primary)
                         .lineLimit(2)
                     
-                    Text(app.developer)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+                    if let developer = app.developer {
+                        Text(developer)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
                     
                     HStack {
                         if app.is_free == true {
@@ -164,45 +166,7 @@ struct AppListRow: View {
     }
 }
 
-// MARK: - App Detail View
-struct AppDetailView: View {
-    let app: AppModel
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // App Header
-                    AppHeaderView(app: app)
-                    
-                    // Screenshots
-                    if let screenshots = app.screenshots, !screenshots.isEmpty {
-                        ScreenshotsView(screenshots: screenshots)
-                    }
-                    
-                    // App Description
-                    if let description = app.description {
-                        DescriptionView(description: description)
-                    }
-                    
-                    // App Details
-                    AppDetailsView(app: app)
-                }
-                .padding()
-            }
-            .navigationTitle(app.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
+
 
 // MARK: - App Header View
 struct AppHeaderView: View {
@@ -235,9 +199,11 @@ struct AppHeaderView: View {
                     .fontWeight(.bold)
                     .lineLimit(2)
                 
-                Text(app.developer)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                if let developer = app.developer {
+                    Text(developer)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
                 
                 HStack {
                     if app.is_free == true {
@@ -286,7 +252,7 @@ struct ScreenshotsView: View {
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(screenshots.sorted(by: { $0.display_order < $1.display_order }), id: \.id) { screenshot in
+                    ForEach(screenshots.sorted(by: { ($0.display_order ?? 0) < ($1.display_order ?? 0) }), id: \.id) { screenshot in
                         AsyncImage(url: URL(string: screenshot.url)) { image in
                             image
                                 .resizable()

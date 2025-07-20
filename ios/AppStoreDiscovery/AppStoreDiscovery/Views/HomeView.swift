@@ -115,9 +115,11 @@ struct FeaturedAppCard: View {
                     .font(.headline)
                     .lineLimit(2)
                 
-                Text(app.developer)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                if let developer = app.developer {
+                    Text(developer)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 
                 HStack {
                     if app.is_free == true {
