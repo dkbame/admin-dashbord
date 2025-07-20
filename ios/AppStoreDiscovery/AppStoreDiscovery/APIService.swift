@@ -213,7 +213,7 @@ class APIService: ObservableObject {
     func fetchTrendingApps() async -> [AppModel] {
         do {
             let response = try await SupabaseManager.shared.client
-                .rpc("get_trending_apps", params: ["limit_count": 10])
+                .rpc("get_trending_apps")
                 .execute()
             
             if response.status == 200 {
@@ -229,7 +229,7 @@ class APIService: ObservableObject {
     func fetchNewReleases() async -> [AppModel] {
         do {
             let response = try await SupabaseManager.shared.client
-                .rpc("get_new_releases", params: ["limit_count": 10])
+                .rpc("get_new_releases")
                 .execute()
             
             if response.status == 200 {
@@ -279,7 +279,12 @@ class APIService: ObservableObject {
     func searchApps(query: String) async -> [AppModel] {
         do {
             let response = try await SupabaseManager.shared.client
-                .rpc("search_apps", params: ["search_term": query, "limit_count": 20])
+                .from("ios_apps_view")
+                .select("*")
+                .eq("status", value: "ACTIVE")
+                .or("name.ilike.%\(query)%,description.ilike.%\(query)%,developer.ilike.%\(query)%")
+                .order("created_at", ascending: false)
+                .limit(20)
                 .execute()
             
             if response.status == 200 {
@@ -359,5 +364,4 @@ struct CategoryStats: Codable, Identifiable {
     let total_ratings: Int?
     let free_app_count: Int
     let featured_app_count: Int
-} 
-} 
+}
