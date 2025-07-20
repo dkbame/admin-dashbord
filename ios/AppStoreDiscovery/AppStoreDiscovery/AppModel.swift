@@ -89,7 +89,7 @@ struct AppModel: Identifiable, Codable {
     
     var formattedReleaseDate: String {
         guard let releaseDate = release_date else { return "Unknown" }
-        let formatter = DateFormatter()
+        let formatter = Foundation.DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         if let date = formatter.date(from: releaseDate) {
             formatter.dateStyle = .medium
@@ -100,7 +100,7 @@ struct AppModel: Identifiable, Codable {
     
     var formattedLastUpdated: String {
         guard let lastUpdated = last_updated else { return "Unknown" }
-        let formatter = DateFormatter()
+        let formatter = Foundation.DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'"
         if let date = formatter.date(from: lastUpdated) {
             formatter.dateStyle = .medium
