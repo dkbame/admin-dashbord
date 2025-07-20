@@ -82,6 +82,33 @@ struct CategoriesView: View {
     }
 }
 
+// MARK: - Category Card
+struct CategoryCard: View {
+    let category: Category
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.blue.opacity(0.1))
+                    .frame(height: 80)
+                    .overlay(
+                        Image(systemName: "folder.fill")
+                            .font(.title)
+                            .foregroundColor(.blue)
+                    )
+                
+                Text(category.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
 // MARK: - Search View
 struct SearchView: View {
     let apiService: APIService
