@@ -1,22 +1,6 @@
--- Seed data for categories
-INSERT INTO categories (name, slug) VALUES
-  ('Productivity', 'productivity'),
-  ('Development', 'development'),
-  ('Design', 'design'),
-  ('Utilities', 'utilities'),
-  ('Entertainment', 'entertainment'),
-  ('Education', 'education'),
-  ('Business', 'business'),
-  ('Graphics & Design', 'graphics-design'),
-  ('Video & Audio', 'video-audio'),
-  ('Social Networking', 'social-networking'),
-  ('Games', 'games'),
-  ('Health & Fitness', 'health-fitness'),
-  ('Lifestyle', 'lifestyle'),
-  ('Finance', 'finance'),
-  ('Reference', 'reference');
+-- Add sample apps and screenshots with real, accessible URLs
 
--- Seed data for sample apps
+-- Sample apps
 INSERT INTO apps (name, description, developer, category_id, price, currency, icon_url, website_url, minimum_os_version, features, source, status, is_featured, is_free) VALUES
   (
     'Notion',
@@ -67,7 +51,7 @@ INSERT INTO apps (name, description, developer, category_id, price, currency, ic
     true
   );
 
--- Seed data for screenshots (using real, accessible image URLs)
+-- Sample screenshots with real, accessible image URLs
 INSERT INTO screenshots (app_id, url, caption, display_order) VALUES
   -- Notion screenshots
   (
