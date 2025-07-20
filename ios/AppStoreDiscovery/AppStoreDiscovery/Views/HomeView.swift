@@ -10,6 +10,7 @@ import SwiftUI
 struct HomeView: View {
     @StateObject private var apiService = APIService()
     @State private var selectedCategoryId: String? = nil // nil means "All"
+    @State private var isRefreshing = false
     
     // Filtered apps based on selected category
     private var filteredApps: [AppModel] {
@@ -39,31 +40,59 @@ struct HomeView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 24) {
+                LazyVStack(spacing: 24) {
                     // Categories Horizontal Slider
                     CategoriesPillSlider(
                         categories: apiService.categories,
                         selectedCategoryId: $selectedCategoryId
                     )
                     
-                    // Featured Apps Carousel
-                    if !featuredApps.isEmpty {
-                        FeaturedAppsCarousel(apps: Array(featuredApps.prefix(6)))
-                    }
-                    
-                    // Recently Added Apps
-                    if !filteredApps.isEmpty {
-                        RecentlyAddedSection(apps: Array(filteredApps.prefix(6)))
-                    }
-                    
-                    // Top Rated Apps
-                    if !topRatedApps.isEmpty {
-                        TopRatedSection(apps: Array(topRatedApps.prefix(6)))
-                    }
-                    
-                    // Free Apps
-                    if !freeApps.isEmpty {
-                        FreeAppsSection(apps: Array(freeApps.prefix(6)))
+                    // Loading state
+                    if apiService.isLoading && apiService.apps.isEmpty {
+                        ProgressView("Loading apps...")
+                            .frame(maxWidth: .infinity, minHeight: 200)
+                    } else {
+                        // Featured Apps Carousel
+                        if !featuredApps.isEmpty {
+                            FeaturedAppsCarousel(apps: Array(featuredApps.prefix(6)))
+                        }
+                        
+                        // Recently Added Apps
+                        if !filteredApps.isEmpty {
+                            RecentlyAddedSection(apps: Array(filteredApps.prefix(6)))
+                        }
+                        
+                        // Top Rated Apps
+                        if !topRatedApps.isEmpty {
+                            TopRatedSection(apps: Array(topRatedApps.prefix(6)))
+                        }
+                        
+                        // Free Apps
+                        if !freeApps.isEmpty {
+                            FreeAppsSection(apps: Array(freeApps.prefix(6)))
+                        }
+                        
+                        // Empty state
+                        if filteredApps.isEmpty && !apiService.isLoading {
+                            VStack(spacing: 16) {
+                                Image(systemName: "apps.iphone")
+                                    .font(.system(size: 60))
+                                    .foregroundColor(.gray)
+                                
+                                Text("No apps found")
+                                    .font(.title2)
+                                    .fontWeight(.semibold)
+                                
+                                if selectedCategoryId != nil {
+                                    Text("Try selecting a different category or 'All'")
+                                        .font(.body)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 200)
+                            .padding()
+                        }
                     }
                 }
                 .padding(.horizontal)
@@ -71,14 +100,61 @@ struct HomeView: View {
             }
             .navigationTitle("Discover Apps")
             .refreshable {
-                await apiService.fetchApps()
-                await apiService.fetchCategories()
+                await refreshData()
             }
             .task {
-                await apiService.fetchApps()
-                await apiService.fetchCategories()
+                if apiService.apps.isEmpty {
+                    await loadInitialData()
+                }
             }
+            .overlay(
+                // Refresh indicator overlay
+                Group {
+                    if isRefreshing {
+                        VStack {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                            Text("Refreshing...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(12)
+                        .background(Color(.systemBackground))
+                        .cornerRadius(12)
+                        .shadow(radius: 4)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .padding(.top, 60)
+                    }
+                }
+            )
         }
+    }
+    
+    // MARK: - Data Loading Functions
+    
+    @MainActor
+    private func refreshData() async {
+        isRefreshing = true
+        
+        // Add a small delay to make the refresh feel more natural
+        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+        
+        async let appsTask = apiService.fetchApps()
+        async let categoriesTask = apiService.fetchCategories()
+        
+        await appsTask
+        await categoriesTask
+        
+        isRefreshing = false
+    }
+    
+    @MainActor
+    private func loadInitialData() async {
+        async let appsTask = apiService.fetchApps()
+        async let categoriesTask = apiService.fetchCategories()
+        
+        await appsTask
+        await categoriesTask
     }
 }
 
