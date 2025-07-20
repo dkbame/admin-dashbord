@@ -31,7 +31,7 @@ struct AppDetailView: View {
                     // App Description
                     if !app.description.isEmpty {
                         AppDescriptionView(
-                            description: description,
+                            description: app.description,
                             isExpanded: $showingFullDescription
                         )
                     }
@@ -75,9 +75,9 @@ struct AppDetailHeader: View {
                 
                 if let developer = app.developer {
                     Text(developer)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
                 
                 HStack {
                     PriceBadge(app: app, size: .large)
@@ -136,7 +136,7 @@ struct ScreenshotsCarousel: View {
             if selectedIndex < screenshots.count {
                 let screenshot = screenshots[selectedIndex]
                 if let caption = screenshot.caption, !caption.isEmpty {
-                    Text(screenshot.caption)
+                    Text(caption)
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -347,7 +347,7 @@ struct AppDetailPreview: View {
             }
             
             if !app.description.isEmpty {
-                Text(description)
+                Text(app.description)
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .lineLimit(3)
