@@ -87,14 +87,32 @@ export default function AddAppPage() {
     setSuccess(null)
 
     try {
-      const result = await importFromMAS(masUrl)
-      if (!result) {
-        throw new Error('Failed to import app')
+      // Validate URL format before importing
+      if (!masUrl.trim()) {
+        throw new Error('Please enter a Mac App Store URL')
       }
-      setSuccess('App imported successfully')
+
+      const urlPattern = /^https:\/\/apps\.apple\.com\/[a-z]{2}\/app\/[^\/]+\/id\d+/
+      if (!urlPattern.test(masUrl.trim())) {
+        throw new Error('Invalid Mac App Store URL format. Please use a URL like: https://apps.apple.com/us/app/app-name/id123456789')
+      }
+
+      // Show progress message
+      setSuccess('Importing app data...')
+
+      const result = await importFromMAS(masUrl.trim())
+      if (!result) {
+        throw new Error('Failed to import app - no data returned')
+      }
+
+      setSuccess(`Successfully imported "${result.name}" by ${result.developer}`)
       setMasUrl('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to import app')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to import app'
+      setError(errorMessage)
+      
+      // Clear any previous success message
+      setSuccess(null)
     } finally {
       setLoading(false)
     }
@@ -107,33 +125,64 @@ export default function AddAppPage() {
     setSuccess(null)
 
     try {
-      // Validate required fields
-      if (!customApp.name || !customApp.developer) {
-        throw new Error('App name and developer are required')
+      // Enhanced validation
+      if (!customApp.name.trim()) {
+        throw new Error('App name is required')
       }
+      
+      if (!customApp.developer.trim()) {
+        throw new Error('Developer name is required')
+      }
+
+      // Validate URLs if provided
+      if (customApp.website && !isValidUrl(customApp.website)) {
+        throw new Error('Please enter a valid website URL')
+      }
+
+      if (customApp.downloadUrl && !isValidUrl(customApp.downloadUrl)) {
+        throw new Error('Please enter a valid download URL')
+      }
+
+      // Validate price
+      const price = parseFloat(customApp.price)
+      if (customApp.price && (isNaN(price) || price < 0)) {
+        throw new Error('Please enter a valid price (0 or greater)')
+      }
+
+      // Show progress message
+      setSuccess('Creating app...')
 
       // Create app record first to get the ID
       const { data: app, error: appError } = await supabase
         .from('apps')
         .insert([
           {
-            name: customApp.name,
-            developer: customApp.developer,
-            description: customApp.description || null,
-            price: parseFloat(customApp.price) || 0,
-            website_url: customApp.website || null,
-            download_url: customApp.downloadUrl || null,
+            name: customApp.name.trim(),
+            developer: customApp.developer.trim(),
+            description: customApp.description.trim() || null,
+            price: price || 0,
+            website_url: customApp.website.trim() || null,
+            download_url: customApp.downloadUrl.trim() || null,
             category_id: customApp.categoryId || null,
             is_on_mas: false,
             status: 'ACTIVE',
             source: 'CUSTOM',
+            is_free: price === 0,
           },
         ])
         .select()
 
       if (appError) {
         console.error('App creation error:', appError)
-        throw new Error(appError.message || 'Failed to create app')
+        
+        // Handle specific database errors
+        if (appError.code === '23505') {
+          throw new Error('An app with this name already exists')
+        } else if (appError.code === '23502') {
+          throw new Error('Required fields are missing')
+        } else {
+          throw new Error(appError.message || 'Failed to create app')
+        }
       }
 
       if (!app || app.length === 0) {
@@ -145,6 +194,7 @@ export default function AddAppPage() {
       // Upload icon if provided
       if (iconFile) {
         try {
+          setSuccess('Uploading icon...')
           const iconUrl = await uploadImage(iconFile, 'icons', appId)
           if (iconUrl) {
             await supabase
@@ -161,6 +211,7 @@ export default function AddAppPage() {
       // Upload screenshots if provided
       if (screenshotFiles.length > 0) {
         try {
+          setSuccess('Uploading screenshots...')
           const screenshotUrls = await uploadMultipleImages(
             screenshotFiles,
             'screenshots',
@@ -180,7 +231,9 @@ export default function AddAppPage() {
         }
       }
 
-      setSuccess('App submitted successfully')
+      setSuccess(`Successfully created "${customApp.name}" by ${customApp.developer}`)
+      
+      // Reset form
       setCustomApp({
         name: '',
         developer: '',
@@ -193,10 +246,21 @@ export default function AddAppPage() {
       setIconFile(null)
       setScreenshotFiles([])
     } catch (err) {
-      console.error('Submit error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to submit app')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to submit app'
+      setError(errorMessage)
+      setSuccess(null)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Helper function to validate URLs
+  const isValidUrl = (url: string): boolean => {
+    try {
+      new URL(url)
+      return true
+    } catch {
+      return false
     }
   }
 

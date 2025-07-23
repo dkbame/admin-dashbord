@@ -128,25 +128,62 @@ async function getCategoryId(categoryName: string): Promise<string | null> {
 
 export async function importFromMAS(url: string): Promise<MASApp | null> {
   try {
+    // Enhanced URL validation
+    if (!url || typeof url !== 'string') {
+      throw new Error('URL is required')
+    }
+
+    // Validate URL format
+    const urlPattern = /^https:\/\/apps\.apple\.com\/[a-z]{2}\/app\/[^\/]+\/id\d+/
+    if (!urlPattern.test(url)) {
+      throw new Error('Invalid Mac App Store URL format. Expected: https://apps.apple.com/.../id[number]')
+    }
+
     // Extract app ID from URL
     const appId = url.match(/id(\d+)/)?.[1]
     if (!appId) {
-      throw new Error('Invalid Mac App Store URL')
+      throw new Error('Could not extract app ID from URL')
     }
 
     console.log('Importing app with ID:', appId)
 
+    // Check if app already exists
+    const { data: existingApp, error: checkError } = await supabase
+      .from('apps')
+      .select('id, name, mas_id')
+      .eq('mas_id', appId)
+      .single()
+
+    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.error('Error checking for existing app:', checkError)
+      throw new Error('Failed to check for existing app')
+    }
+
+    if (existingApp) {
+      throw new Error(`App "${existingApp.name}" already exists in the database`)
+    }
+
     // Fetch app data from iTunes API via backend proxy to avoid CORS
     const response = await fetch(`/api/itunes?id=${appId}`)
+    
+    if (!response.ok) {
+      throw new Error(`iTunes API request failed: ${response.status} ${response.statusText}`)
+    }
+    
     const data = await response.json()
 
     console.log('Raw iTunes API response:', JSON.stringify(data, null, 2))
 
-    if (!data.results?.[0]) {
-      throw new Error('App not found')
+    if (!data.results || data.results.length === 0) {
+      throw new Error('App not found in iTunes database')
     }
 
     const app = data.results[0]
+
+    // Validate required fields
+    if (!app.trackName || !app.artistName) {
+      throw new Error('App data is incomplete: missing name or developer')
+    }
 
     // Scrape ratings from the actual App Store page since iTunes API doesn't provide them for Mac apps
     let scrapedRating = { average: 0, count: 0 }
@@ -269,7 +306,17 @@ export async function importFromMAS(url: string): Promise<MASApp | null> {
 
     if (error) {
       console.error('Database error:', error)
-      throw new Error(`Database error: ${error.message}`)
+      
+      // Handle specific database errors
+      if (error.code === '23505') { // Unique constraint violation
+        throw new Error('This app already exists in the database')
+      } else if (error.code === '23502') { // Not null violation
+        throw new Error('Required app data is missing')
+      } else if (error.code === '23503') { // Foreign key violation
+        throw new Error('Invalid category reference')
+      } else {
+        throw new Error(`Database error: ${error.message}`)
+      }
     }
 
     if (!savedApp || savedApp.length === 0) {
@@ -296,6 +343,8 @@ export async function importFromMAS(url: string): Promise<MASApp | null> {
         if (screenshotError) {
           console.error('Error saving screenshots:', screenshotError)
           // Don't throw error for screenshots, app is still saved
+        } else {
+          console.log(`Successfully saved ${screenshotsToInsert.length} screenshots`)
         }
       } catch (screenshotErr) {
         console.error('Error processing screenshots:', screenshotErr)
