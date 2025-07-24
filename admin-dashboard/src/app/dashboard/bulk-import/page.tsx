@@ -101,9 +101,9 @@ export default function BulkImportPage() {
     developer: '',
     limit: 50,
     qualityFilter: {
-      minRating: 3.5,
-      minReviews: 50,
-      excludeGames: true
+      minRating: 2.0, // Lower threshold - many good apps have 2-3 star ratings
+      minReviews: 5,  // Much lower - many apps have few reviews
+      excludeGames: false // Include games too
     },
     batchSize: 10,
     delay: 2000
@@ -302,15 +302,29 @@ export default function BulkImportPage() {
 
   const applyQualityFilters = async (apps: Array<{id: string, url: string, name: string, developer: string}>) => {
     const filtered: Array<{id: string, url: string, name: string, developer: string}> = []
+    let checked = 0
+    let passedRating = 0
+    let passedReviews = 0
+    let passedCategory = 0
+
+    console.log(`Applying quality filters to ${apps.length} apps...`)
+    console.log(`Quality criteria: minRating=${config.qualityFilter.minRating}, minReviews=${config.qualityFilter.minReviews}, excludeGames=${config.qualityFilter.excludeGames}`)
 
     for (const app of apps) {
       try {
+        checked++
         // Fetch detailed app data to check quality
         const response = await fetch(`/api/itunes?id=${app.id}`)
-        if (!response.ok) continue
+        if (!response.ok) {
+          console.log(`App ${app.id}: API response not ok (${response.status})`)
+          continue
+        }
 
         const data = await response.json()
-        if (!data.results || data.results.length === 0) continue
+        if (!data.results || data.results.length === 0) {
+          console.log(`App ${app.id}: No results from API`)
+          continue
+        }
 
         const appData = data.results[0]
         
@@ -319,20 +333,30 @@ export default function BulkImportPage() {
         const reviews = appData.userRatingCount || 0
         const category = appData.primaryGenreName || ''
         
-        if (rating >= config.qualityFilter.minRating &&
-            reviews >= config.qualityFilter.minReviews &&
-            (!config.qualityFilter.excludeGames || category !== 'Games')) {
+        const ratingPass = rating >= config.qualityFilter.minRating
+        const reviewsPass = reviews >= config.qualityFilter.minReviews
+        const categoryPass = !config.qualityFilter.excludeGames || category !== 'Games'
+        
+        if (ratingPass) passedRating++
+        if (reviewsPass) passedReviews++
+        if (categoryPass) passedCategory++
+        
+        if (ratingPass && reviewsPass && categoryPass) {
+          console.log(`App ${app.id} (${appData.trackName}): PASSED - Rating: ${rating}, Reviews: ${reviews}, Category: ${category}`)
           filtered.push({
             ...app,
             name: appData.trackName,
             developer: appData.artistName
           })
+        } else {
+          console.log(`App ${app.id} (${appData.trackName}): FAILED - Rating: ${rating} (need ${config.qualityFilter.minRating}), Reviews: ${reviews} (need ${config.qualityFilter.minReviews}), Category: ${category}`)
         }
       } catch (err) {
         console.error(`Error checking quality for app ${app.id}:`, err)
       }
     }
 
+    console.log(`Quality filter results: ${checked} checked, ${passedRating} passed rating, ${passedReviews} passed reviews, ${passedCategory} passed category, ${filtered.length} total passed`)
     return filtered
   }
 
