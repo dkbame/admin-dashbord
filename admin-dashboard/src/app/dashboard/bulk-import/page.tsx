@@ -70,6 +70,28 @@ interface ImportConfig {
   delay: number
 }
 
+interface iTunesApp {
+  trackId: number
+  trackName: string
+  artistName: string
+  trackViewUrl: string
+  artworkUrl512?: string
+  artworkUrl100?: string
+  averageUserRating?: number
+  userRatingCount?: number
+  price?: number
+  currency?: string
+  primaryGenreName?: string
+  minimumOsVersion?: string
+  version?: string
+  fileSizeBytes?: string
+  releaseDate?: string
+  currentVersionReleaseDate?: string
+  features?: string[]
+  screenshotUrls?: string[]
+  description?: string
+}
+
 export default function BulkImportPage() {
   const [config, setConfig] = useState<ImportConfig>({
     importType: 'charts',
@@ -139,14 +161,16 @@ export default function BulkImportPage() {
       }
 
       if (appsToImport.length === 0) {
-        throw new Error('No apps found to import')
+        const error = new Error('No apps found to import')
+        throw error
       }
 
       // Apply quality filters
       const filteredApps = await applyQualityFilters(appsToImport)
       
       if (filteredApps.length === 0) {
-        throw new Error('No apps meet the quality criteria')
+        const error = new Error('No apps meet the quality criteria')
+        throw error
       }
 
       setSuccess(`Found ${filteredApps.length} apps to import. Starting import...`)
@@ -154,7 +178,7 @@ export default function BulkImportPage() {
       // Import apps in batches
       await importAppsInBatches(filteredApps)
 
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Import failed'
       setError(errorMessage)
     } finally {
@@ -232,8 +256,8 @@ export default function BulkImportPage() {
   const parseUrlList = () => {
     const urls = urlList.split('\n').filter(url => url.trim())
     return urls.map(url => {
-      const match = url.match(/id(\d+)/)
-      const id = match ? match[1] : 'unknown'
+      const match: RegExpMatchArray | null = url.match(/id(\d+)/)
+      const id: string = match ? match[1] : 'unknown'
       return {
         id,
         url: url.trim(),
