@@ -177,7 +177,14 @@ export default function BulkImportPage() {
       await importAppsInBatches(filteredApps)
 
     } catch (err: unknown) {
-      const errorMessage = typeof err === 'string' ? err : err instanceof Error ? err.message : 'Import failed'
+      let errorMessage: string
+      if (typeof err === 'string') {
+        errorMessage = err
+      } else if (err instanceof Error) {
+        errorMessage = (err as Error).message
+      } else {
+        errorMessage = 'Import failed'
+      }
       setError(errorMessage)
     } finally {
       setIsImporting(false)
@@ -322,12 +329,20 @@ export default function BulkImportPage() {
             masUrl: app.url
           }])
         } catch (err: unknown) {
+          let errorMessage: string
+          if (typeof err === 'string') {
+            errorMessage = err
+          } else if (err instanceof Error) {
+            errorMessage = (err as Error).message
+          } else {
+            errorMessage = 'Import failed'
+          }
           setResults(prev => [...prev, {
             id: app.id,
             name: app.name,
             developer: app.developer,
             status: 'error',
-            message: typeof err === 'string' ? err : err instanceof Error ? err.message : 'Import failed',
+            message: errorMessage,
             masUrl: app.url
           }])
         }
