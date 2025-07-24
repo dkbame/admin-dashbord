@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     // Check if app exists
     const { data: existingApp, error: checkError } = await supabase
       .from('apps')
-      .select('id, name')
+      .select('id, name, developer, status')
       .eq('id', appId)
       .single()
 
@@ -30,6 +30,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Check for related records that might prevent deletion
+    const { data: screenshots, error: screenshotsError } = await supabase
+      .from('screenshots')
+      .select('id')
+      .eq('app_id', appId)
+
+    const { data: ratings, error: ratingsError } = await supabase
+      .from('ratings')
+      .select('id')
+      .eq('app_id', appId)
+
+    const { data: collectionApps, error: collectionAppsError } = await supabase
+      .from('collection_apps')
+      .select('id')
+      .eq('app_id', appId)
+
+    const { data: customMetadata, error: customMetadataError } = await supabase
+      .from('custom_metadata')
+      .select('id')
+      .eq('app_id', appId)
+
+    console.log('Related records check:', {
+      screenshots: screenshots?.length || 0,
+      ratings: ratings?.length || 0,
+      collectionApps: collectionApps?.length || 0,
+      customMetadata: customMetadata?.length || 0
+    })
+
     // Attempt deletion
     const { data, error } = await supabase
       .from('apps')
@@ -41,7 +69,12 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       return NextResponse.json(
-        { error: 'Delete failed', details: error },
+        { 
+          error: 'Delete failed', 
+          details: error,
+          errorCode: error.code,
+          errorMessage: error.message
+        },
         { status: 500 }
       )
     }
@@ -49,17 +82,34 @@ export async function POST(request: NextRequest) {
     // Verify deletion
     const { data: verifyApp, error: verifyError } = await supabase
       .from('apps')
-      .select('id')
+      .select('id, name')
       .eq('id', appId)
       .single()
 
     console.log('Verification:', { verifyApp, verifyError })
 
+    // Get total app count before and after
+    const { count: totalApps } = await supabase
+      .from('apps')
+      .select('*', { count: 'exact', head: true })
+
     return NextResponse.json({
-      success: true,
+      success: !verifyApp, // true if app was actually deleted
       deletedApp: existingApp,
       deleteResult: data,
-      verification: { verifyApp, verifyError }
+      verification: { verifyApp, verifyError },
+      relatedRecords: {
+        screenshots: screenshots?.length || 0,
+        ratings: ratings?.length || 0,
+        collectionApps: collectionApps?.length || 0,
+        customMetadata: customMetadata?.length || 0
+      },
+      totalApps,
+      errorDetails: error ? {
+        code: (error as any).code,
+        message: (error as any).message,
+        details: (error as any).details
+      } : null
     })
 
   } catch (error) {
