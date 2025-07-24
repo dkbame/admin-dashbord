@@ -1,7 +1,7 @@
 'use client'
 
 import { Box, AppBar, Toolbar, Typography, Drawer, List, ListItemButton, ListItemIcon, ListItemText, IconButton, Button } from '@mui/material'
-import { Apps, Add, Category, Settings, Menu as MenuIcon, LightMode, DarkMode, Logout, AdminPanelSettings, FeaturedPlayList, Collections } from '@mui/icons-material'
+import { Apps, Add, Category, Settings, Menu as MenuIcon, LightMode, DarkMode, Logout, AdminPanelSettings, FeaturedPlayList, Collections, CloudDownload as BulkImportIcon } from '@mui/icons-material'
 import { useState } from 'react'
 import Link from 'next/link'
 import { useTheme } from '@/components/ThemeProvider'
@@ -49,6 +49,14 @@ export default function DashboardLayout({
               <Add />
             </ListItemIcon>
             <ListItemText primary="Add App" primaryTypographyProps={{ fontWeight: 500 }} />
+          </ListItemButton>
+        </Link>
+        <Link href="/dashboard/bulk-import" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <ListItemButton sx={{ borderRadius: 2, mb: 1 }}>
+            <ListItemIcon>
+              <BulkImportIcon />
+            </ListItemIcon>
+            <ListItemText primary="Bulk Import" primaryTypographyProps={{ fontWeight: 500 }} />
           </ListItemButton>
         </Link>
         <Link href="/dashboard/categories" style={{ textDecoration: 'none', color: 'inherit' }}>
