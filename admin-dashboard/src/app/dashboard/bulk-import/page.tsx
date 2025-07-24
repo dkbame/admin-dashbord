@@ -247,19 +247,51 @@ export default function BulkImportPage() {
   }
 
   const getCategoryApps = async () => {
-    if (!config.category) return []
+    if (!config.category) {
+      console.log('No category selected')
+      return []
+    }
 
+    console.log(`Searching for category: ${config.category}`)
+    
+    // Improve search terms for better results
+    let searchTerm = config.category
+    if (config.category === 'Graphics & Design') {
+      searchTerm = 'design graphics'
+    } else if (config.category === 'Video & Audio') {
+      searchTerm = 'video audio'
+    } else if (config.category === 'Social Networking') {
+      searchTerm = 'social network'
+    } else if (config.category === 'Health & Fitness') {
+      searchTerm = 'health fitness'
+    }
+    
+    console.log(`Using search term: ${searchTerm}`)
+    
     try {
-      const response = await fetch(`/api/itunes/search?term=${config.category}&entity=macSoftware&limit=${config.limit}`)
-      if (!response.ok) return []
+      const response = await fetch(`/api/itunes/search?term=${encodeURIComponent(searchTerm)}&entity=macSoftware&limit=${config.limit}`)
+      console.log(`Category search response status: ${response.status}`)
+      
+      if (!response.ok) {
+        console.error(`Category search failed: ${response.status} ${response.statusText}`)
+        return []
+      }
 
       const data = await response.json()
-      return data.results?.map((app: any) => ({
+      console.log(`Category search results:`, {
+        resultCount: data.resultCount,
+        results: data.results?.length || 0
+      })
+      
+      const apps = data.results?.map((app: any) => ({
         id: app.trackId.toString(),
         url: app.trackViewUrl,
         name: app.trackName,
         developer: app.artistName
       })) || []
+      
+      console.log(`Mapped ${apps.length} category apps`)
+      return apps
     } catch (err) {
       console.error('Error fetching category apps:', err)
       return []
