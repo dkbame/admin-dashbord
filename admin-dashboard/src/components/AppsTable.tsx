@@ -76,6 +76,8 @@ interface FilterState {
   featured: string
 }
 
+// Note: VirtualizedAppsTable is available for performance optimization with large datasets
+// Import it when needed: import VirtualizedAppsTable from './VirtualizedAppsTable'
 export default function AppsTable({ 
   apps, 
   onEdit, 

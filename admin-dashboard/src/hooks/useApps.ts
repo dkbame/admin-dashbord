@@ -88,60 +88,9 @@ export function useApps() {
     }
   }
 
-  // Real-time subscription setup
+  // Simple fetch on mount (real-time subscriptions can be added later)
   useEffect(() => {
-    // Initial fetch
     fetchApps()
-
-    // Set up real-time subscription
-    const channel = supabase
-      .channel('apps-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'apps'
-        },
-        (payload) => {
-          console.log('Real-time apps change:', payload)
-          
-          // Handle different types of changes
-          switch (payload.eventType) {
-            case 'INSERT':
-              // New app added - refresh the list
-              fetchApps()
-              break
-            case 'UPDATE':
-              // App updated - refresh the list
-              fetchApps()
-              break
-            case 'DELETE':
-              // App deleted - refresh the list
-              fetchApps()
-              break
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'screenshots'
-        },
-        (payload) => {
-          console.log('Real-time screenshots change:', payload)
-          // Refresh apps when screenshots change
-          fetchApps()
-        }
-      )
-      .subscribe()
-
-    // Cleanup subscription on unmount
-    return () => {
-      supabase.removeChannel(channel)
-    }
   }, [])
 
   const toggleFeatured = async (appId: string, currentFeatured: boolean) => {
@@ -152,7 +101,7 @@ export function useApps() {
         .eq('id', appId)
 
       if (error) throw error
-      // No need to manually fetch - real-time subscription will handle it
+      await fetchApps() // Refresh the list
     } catch (err) {
       console.error('Error toggling featured status:', err)
       setError(err instanceof Error ? err.message : 'Failed to update featured status')
@@ -167,7 +116,7 @@ export function useApps() {
         .eq('id', appId)
 
       if (error) throw error
-      // No need to manually fetch - real-time subscription will handle it
+      await fetchApps() // Refresh the list
     } catch (err) {
       console.error('Error deleting app:', err)
       setError(err instanceof Error ? err.message : 'Failed to delete app')
