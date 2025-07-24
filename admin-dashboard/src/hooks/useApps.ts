@@ -110,16 +110,27 @@ export function useApps() {
 
   const deleteApp = async (appId: string) => {
     try {
-      const { error } = await supabase
+      console.log('Attempting to delete app with ID:', appId)
+      
+      const { data, error } = await supabase
         .from('apps')
         .delete()
         .eq('id', appId)
+        .select()
 
-      if (error) throw error
+      console.log('Delete response:', { data, error })
+
+      if (error) {
+        console.error('Supabase delete error:', error)
+        throw error
+      }
+
+      console.log('App deleted successfully:', data)
       await fetchApps() // Refresh the list
     } catch (err) {
       console.error('Error deleting app:', err)
       setError(err instanceof Error ? err.message : 'Failed to delete app')
+      throw err // Re-throw to let the calling component handle it
     }
   }
 
