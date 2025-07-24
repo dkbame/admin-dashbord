@@ -174,7 +174,12 @@ export default function BulkImportPage() {
       console.log(`After quality filtering: ${filteredApps.length} apps`)
       
       if (filteredApps.length === 0) {
-        throw 'No apps meet the quality criteria'
+        // Provide more helpful error message
+        const ratingMsg = config.qualityFilter.minRating > 0 ? ` (min rating: ${config.qualityFilter.minRating})` : ''
+        const reviewsMsg = config.qualityFilter.minReviews > 0 ? ` (min reviews: ${config.qualityFilter.minReviews})` : ''
+        const gamesMsg = config.qualityFilter.excludeGames ? ' (games excluded)' : ''
+        
+        throw `No apps meet the quality criteria${ratingMsg}${reviewsMsg}${gamesMsg}. Try lowering the minimum rating or review count.`
       }
 
       setSuccess(`Found ${filteredApps.length} apps to import. Starting import...`)
@@ -596,6 +601,7 @@ export default function BulkImportPage() {
                           }
                         })}
                         inputProps={{ min: 0, max: 5, step: 0.1 }}
+                        helperText="Note: Most macOS apps have rating 0. Use 0 to include all apps."
                       />
                     </Grid>
                     <Grid item xs={6}>
