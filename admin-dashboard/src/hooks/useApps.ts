@@ -112,6 +112,25 @@ export function useApps() {
     try {
       console.log('Attempting to delete app with ID:', appId)
       
+      // First, let's check if the app exists before deletion
+      const { data: existingApp, error: checkError } = await supabase
+        .from('apps')
+        .select('id, name')
+        .eq('id', appId)
+        .single()
+
+      console.log('App exists check:', { existingApp, checkError })
+
+      if (checkError) {
+        console.error('Error checking if app exists:', checkError)
+        throw new Error('App not found')
+      }
+
+      if (!existingApp) {
+        throw new Error('App not found')
+      }
+
+      // Now attempt the deletion
       const { data, error } = await supabase
         .from('apps')
         .delete()
@@ -126,6 +145,21 @@ export function useApps() {
       }
 
       console.log('App deleted successfully:', data)
+      
+      // Verify the app was actually deleted
+      const { data: verifyApp, error: verifyError } = await supabase
+        .from('apps')
+        .select('id')
+        .eq('id', appId)
+        .single()
+
+      console.log('Verification after delete:', { verifyApp, verifyError })
+
+      if (!verifyError && verifyApp) {
+        console.warn('App still exists after deletion attempt')
+        throw new Error('App was not deleted successfully')
+      }
+
       await fetchApps() // Refresh the list
     } catch (err) {
       console.error('Error deleting app:', err)
