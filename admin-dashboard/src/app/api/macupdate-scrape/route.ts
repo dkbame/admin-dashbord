@@ -16,7 +16,7 @@ interface MacUpdateApp {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const pageLimit = parseInt(searchParams.get('pageLimit') || '20')
+    const pageLimit = Math.min(parseInt(searchParams.get('pageLimit') || '5'), 10) // Limit to 10 pages max
     const minRating = parseFloat(searchParams.get('minRating') || '0')
     const priceFilter = searchParams.get('priceFilter') || 'all' // 'free', 'paid', 'all'
     const category = searchParams.get('category') || 'all'
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     const allApps: MacUpdateApp[] = []
     const seenAppNames = new Set<string>()
 
-    // Scrape multiple pages
+    // Scrape multiple pages with faster approach
     for (let page = 1; page <= pageLimit; page++) {
       try {
         console.log(`Scraping MacUpdate page ${page}/${pageLimit}`)
@@ -81,8 +81,10 @@ export async function GET(request: NextRequest) {
 
         console.log(`Page ${page}: Found ${pageApps.length} apps, ${allApps.length} total unique apps`)
 
-        // Rate limiting - be respectful
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        // Reduced rate limiting - faster for Netlify
+        if (page < pageLimit) {
+          await new Promise(resolve => setTimeout(resolve, 200)) // 200ms instead of 1000ms
+        }
 
       } catch (error) {
         console.error(`Error scraping page ${page}:`, error)

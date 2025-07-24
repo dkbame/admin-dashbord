@@ -98,7 +98,7 @@ const MACUPDATE_CATEGORIES = [
 
 export default function MacUpdateImportPage() {
   const [config, setConfig] = useState<ImportConfig>({
-    pageLimit: 20,
+    pageLimit: 5,
     minRating: 0,
     priceFilter: 'all',
     category: 'All',
@@ -308,8 +308,8 @@ export default function MacUpdateImportPage() {
                 value={config.pageLimit}
                 onChange={(e) => setConfig({ ...config, pageLimit: parseInt(e.target.value) })}
                 sx={{ mb: 2 }}
-                inputProps={{ min: 1, max: 100 }}
-                helperText="Number of MacUpdate pages to scrape (max 100)"
+                inputProps={{ min: 1, max: 10 }}
+                helperText="Number of MacUpdate pages to scrape (max 10 for Netlify timeout)"
               />
 
               <TextField
