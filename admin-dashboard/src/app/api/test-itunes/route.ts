@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   try {
-    // Test with a simple search
-    const testUrl = 'https://itunes.apple.com/search?term=productivity&entity=macSoftware&limit=5&country=us&media=software'
+    // Test with a simple search for macOS apps specifically
+    const testUrl = 'https://itunes.apple.com/search?term=macOS productivity&entity=macSoftware&limit=5&country=us&media=software&device=mac'
     
     console.log('Testing iTunes API with URL:', testUrl)
     

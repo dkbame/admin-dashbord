@@ -90,6 +90,8 @@ interface iTunesApp {
   features?: string[]
   screenshotUrls?: string[]
   description?: string
+  kind?: string
+  bundleId?: string
 }
 
 export default function BulkImportPage() {
@@ -217,8 +219,18 @@ export default function BulkImportPage() {
             id: app.trackId?.toString() || 'unknown',
             url: app.trackViewUrl || '',
             name: app.trackName || 'Unknown',
-            developer: app.artistName || 'Unknown'
-          })).filter((app: {id: string, url: string, name: string, developer: string}) => app.id !== 'unknown' && app.url)
+            developer: app.artistName || 'Unknown',
+            kind: app.kind || '',
+            bundleId: app.bundleId || ''
+          })).filter((app: {id: string, url: string, name: string, developer: string, kind: string, bundleId: string}) => {
+            // Ensure it's a valid macOS app
+            const isValidMacApp = app.id !== 'unknown' && 
+                                 app.url && 
+                                 (app.kind === 'mac-software' || 
+                                  app.bundleId.includes('.mac') ||
+                                  app.name.toLowerCase().includes('mac'))
+            return isValidMacApp
+          })
           
           console.log(`Found ${chartApps.length} valid apps from ${chart}`)
           apps.push(...chartApps)

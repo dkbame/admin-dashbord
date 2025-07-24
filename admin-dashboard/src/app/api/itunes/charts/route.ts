@@ -34,19 +34,20 @@ export async function GET(request: NextRequest) {
 
     // Use direct search approach for better reliability
     const searchTerms = {
-      'topfreeapplications': 'free mac apps',
-      'toppaidapplications': 'paid mac apps',
-      'topgrossingapplications': 'popular mac apps'
+      'topfreeapplications': 'macOS free software',
+      'toppaidapplications': 'macOS paid software',
+      'topgrossingapplications': 'macOS popular software'
     }
 
-    const searchTerm = searchTerms[chart as keyof typeof searchTerms] || 'mac apps'
+    const searchTerm = searchTerms[chart as keyof typeof searchTerms] || 'macOS software'
     
     const itunesUrl = new URL('https://itunes.apple.com/search')
     itunesUrl.searchParams.set('term', searchTerm)
-    itunesUrl.searchParams.set('entity', entity)
+    itunesUrl.searchParams.set('entity', 'macSoftware')
     itunesUrl.searchParams.set('limit', limit)
     itunesUrl.searchParams.set('country', country)
     itunesUrl.searchParams.set('media', 'software')
+    itunesUrl.searchParams.set('device', 'mac')
 
     console.log('Fetching iTunes apps:', itunesUrl.toString())
 
@@ -68,8 +69,26 @@ export async function GET(request: NextRequest) {
       results: data.results?.length || 0
     })
 
+    // Filter to ensure we only get macOS apps
+    const macApps = (data.results || []).filter((app: any) => {
+      // Check if it's a macOS app by looking at the bundleId, kind, or trackName
+      const isMacApp = app.kind === 'mac-software' || 
+                      app.bundleId?.includes('.mac') ||
+                      app.trackName?.toLowerCase().includes('mac') ||
+                      app.primaryGenreName === 'Productivity' ||
+                      app.primaryGenreName === 'Developer Tools' ||
+                      app.primaryGenreName === 'Graphics & Design'
+      
+      return isMacApp
+    })
+
+    console.log('Filtered macOS apps:', {
+      original: data.results?.length || 0,
+      filtered: macApps.length
+    })
+
     return NextResponse.json({
-      results: data.results || []
+      results: macApps
     })
 
   } catch (error) {
