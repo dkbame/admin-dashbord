@@ -37,7 +37,7 @@ import {
   CloudDownload,
   ExpandMore,
   CheckCircle,
-  Error,
+  Error as ErrorIcon,
   Warning,
   Info,
   PlayArrow,
@@ -562,7 +562,7 @@ export default function BulkImportPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'success': return <CheckCircle color="success" />
-      case 'error': return <Error color="error" />
+      case 'error': return <ErrorIcon color="error" />
       case 'skipped': return <Warning color="warning" />
       default: return <Info color="info" />
     }
@@ -823,7 +823,7 @@ export default function BulkImportPage() {
                       variant="outlined"
                     />
                     <Chip
-                      icon={<Error />}
+                      icon={<ErrorIcon />}
                       label={`${errorCount} Errors`}
                       color="error"
                       variant="outlined"
