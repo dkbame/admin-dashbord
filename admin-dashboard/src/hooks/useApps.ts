@@ -170,6 +170,33 @@ export function useApps() {
     }
   }
 
+  // Separate function for single app deletion (simplified)
+  const deleteSingleApp = async (appId: string) => {
+    try {
+      console.log('Single delete: Attempting to delete app with ID:', appId)
+      
+      // Simple delete without complex verification
+      const { error } = await supabase
+        .from('apps')
+        .delete()
+        .eq('id', appId)
+
+      if (error) {
+        console.error('Single delete error:', error)
+        throw error
+      }
+
+      console.log('Single delete: App deleted successfully')
+      
+      // Simple refresh
+      await fetchApps()
+    } catch (err) {
+      console.error('Single delete error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to delete app')
+      throw err
+    }
+  }
+
   const clearError = () => {
     setError(null)
   }
@@ -182,6 +209,7 @@ export function useApps() {
     fetchApps,
     toggleFeatured,
     deleteApp,
+    deleteSingleApp,
     clearError
   }
 } 

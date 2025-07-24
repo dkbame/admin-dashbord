@@ -42,6 +42,7 @@ export default function DashboardPage() {
     fetchApps, 
     toggleFeatured, 
     deleteApp, 
+    deleteSingleApp,
     clearError,
     lastUpdate
   } = useApps()
@@ -77,7 +78,7 @@ export default function DashboardPage() {
     setDeleteError(null)
     
     try {
-      await deleteApp(appToDelete.id)
+      await deleteSingleApp(appToDelete.id)
       setDeleteDialogOpen(false)
       setAppToDelete(null)
     } catch (err) {
