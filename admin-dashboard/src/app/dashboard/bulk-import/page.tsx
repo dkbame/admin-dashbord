@@ -198,23 +198,39 @@ export default function BulkImportPage() {
 
     for (const chart of charts) {
       try {
+        console.log(`Fetching chart: ${chart}`)
         const response = await fetch(`/api/itunes/charts?chart=${chart}&entity=macSoftware&limit=${config.limit}`)
-        if (!response.ok) continue
+        
+        if (!response.ok) {
+          console.error(`Failed to fetch ${chart}:`, response.status, response.statusText)
+          continue
+        }
 
         const data = await response.json()
-        if (data.results) {
-          apps.push(...data.results.map((app: any) => ({
-            id: app.trackId.toString(),
-            url: app.trackViewUrl,
-            name: app.trackName,
-            developer: app.artistName
-          })))
+        console.log(`Chart ${chart} response:`, {
+          resultCount: data.resultCount,
+          results: data.results?.length || 0
+        })
+        
+        if (data.results && data.results.length > 0) {
+          const chartApps = data.results.map((app: iTunesApp) => ({
+            id: app.trackId?.toString() || 'unknown',
+            url: app.trackViewUrl || '',
+            name: app.trackName || 'Unknown',
+            developer: app.artistName || 'Unknown'
+          })).filter((app: {id: string, url: string, name: string, developer: string}) => app.id !== 'unknown' && app.url)
+          
+          console.log(`Found ${chartApps.length} valid apps from ${chart}`)
+          apps.push(...chartApps)
+        } else {
+          console.log(`No results found for chart: ${chart}`)
         }
       } catch (err) {
         console.error(`Error fetching ${chart}:`, err)
       }
     }
 
+    console.log(`Total apps found: ${apps.length}`)
     return apps
   }
 
