@@ -78,10 +78,29 @@ export default function DashboardPage() {
     setDeleteError(null)
     
     try {
-      await deleteSingleApp(appToDelete.id)
+      console.log('UI Delete: Using direct API call for app:', appToDelete.id)
+      
+      // Use direct API call instead of complex hook logic
+      const response = await fetch(`/api/direct-delete?appId=${appToDelete.id}`, {
+        method: 'DELETE'
+      })
+      
+      const result = await response.json()
+      console.log('UI Delete: API response:', result)
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Delete failed')
+      }
+      
+      console.log('UI Delete: Success, refreshing apps...')
+      
+      // Simple refresh after successful deletion
+      await fetchApps()
+      
       setDeleteDialogOpen(false)
       setAppToDelete(null)
     } catch (err) {
+      console.error('UI Delete: Error:', err)
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete app')
     } finally {
       setDeleting(false)
