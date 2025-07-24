@@ -422,12 +422,12 @@ export default function AppCollections({ apps }: AppCollectionsProps) {
               <FormControl fullWidth>
                 <InputLabel>Featured Status</InputLabel>
                 <Select
-                  value={collectionForm.is_featured}
+                  value={collectionForm.is_featured.toString()}
                   label="Featured Status"
-                  onChange={(e) => setCollectionForm({ ...collectionForm, is_featured: e.target.value as boolean })}
+                  onChange={(e) => setCollectionForm({ ...collectionForm, is_featured: e.target.value === 'true' })}
                 >
-                  <MenuItem value={false}>Not Featured</MenuItem>
-                  <MenuItem value={true}>Featured</MenuItem>
+                  <MenuItem value="true">Featured</MenuItem>
+                  <MenuItem value="false">Not Featured</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
