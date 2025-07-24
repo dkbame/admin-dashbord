@@ -82,40 +82,43 @@ const categoryMapping: { [key: string]: string } = {
 
 async function getCategoryId(categoryName: string): Promise<string | null> {
   try {
-    // First try exact match
-    let { data, error } = await supabase
+    // Get all categories and match locally to avoid URL encoding issues
+    const { data: allCategories, error } = await supabase
       .from('categories')
-      .select('id')
-      .eq('name', categoryName)
-      .single()
+      .select('id, name')
 
-    if (data) {
-      return data.id
+    if (error) {
+      console.error('Error fetching categories:', error)
+      return null
+    }
+
+    if (!allCategories) {
+      return null
+    }
+
+    // First try exact match
+    const exactMatch = allCategories.find(cat => cat.name === categoryName)
+    if (exactMatch) {
+      return exactMatch.id
     }
 
     // Try mapped category
     const mappedCategory = categoryMapping[categoryName]
     if (mappedCategory) {
-      const { data: mappedData, error: mappedError } = await supabase
-        .from('categories')
-        .select('id')
-        .eq('name', mappedCategory)
-        .single()
-
-      if (mappedData) {
-        return mappedData.id
+      const mappedMatch = allCategories.find(cat => cat.name === mappedCategory)
+      if (mappedMatch) {
+        return mappedMatch.id
       }
     }
 
     // Try partial match (case insensitive)
-    const { data: partialData, error: partialError } = await supabase
-      .from('categories')
-      .select('id')
-      .ilike('name', `%${categoryName}%`)
-      .single()
+    const partialMatch = allCategories.find(cat => 
+      cat.name.toLowerCase().includes(categoryName.toLowerCase()) ||
+      categoryName.toLowerCase().includes(cat.name.toLowerCase())
+    )
 
-    if (partialData) {
-      return partialData.id
+    if (partialMatch) {
+      return partialMatch.id
     }
 
     // If no match found, return null (app will be uncategorized)
