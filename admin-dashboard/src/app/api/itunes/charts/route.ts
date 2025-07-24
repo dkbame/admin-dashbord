@@ -32,14 +32,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Use broader search terms for better results
-    const searchTerms = {
-      'topfreeapplications': 'mac app',
-      'toppaidapplications': 'mac software',
-      'topgrossingapplications': 'productivity'
+    // For Mac App Store, we need to scrape the actual charts since iTunes API doesn't provide Mac charts
+    // Let's use a more targeted search approach for better results
+    let searchTerm = 'mac app'
+    let priceFilter = ''
+    
+    if (chart === 'topfreeapplications') {
+      searchTerm = 'mac app free'
+      priceFilter = 'free'
+    } else if (chart === 'toppaidapplications') {
+      searchTerm = 'mac app paid'
+      priceFilter = 'paid'
+    } else if (chart === 'topgrossingapplications') {
+      searchTerm = 'mac productivity'
     }
-
-    const searchTerm = searchTerms[chart as keyof typeof searchTerms] || 'mac'
     
     const itunesUrl = new URL('https://itunes.apple.com/search')
     itunesUrl.searchParams.set('term', searchTerm)
@@ -68,7 +74,7 @@ export async function GET(request: NextRequest) {
       results: data.results?.length || 0
     })
 
-    // Filter to ensure we only get macOS apps
+    // Filter to ensure we only get macOS apps and apply price filtering
     const macApps = (data.results || []).filter((app: any) => {
       // Check for iOS-specific indicators
       const isDefinitelyiOS = app.kind === 'software' || // iOS apps have kind="software"
@@ -83,7 +89,15 @@ export async function GET(request: NextRequest) {
       // Only include true macOS apps (kind should be 'mac-software')
       const isMacApp = app.kind === 'mac-software'
       
-      return isMacApp && !isDefinitelyiOS
+      // Apply price filtering
+      let priceMatches = true
+      if (priceFilter === 'free') {
+        priceMatches = app.price === 0 || app.price === undefined
+      } else if (priceFilter === 'paid') {
+        priceMatches = app.price > 0
+      }
+      
+      return isMacApp && !isDefinitelyiOS && priceMatches
     })
 
     console.log('Filtered macOS apps:', {
