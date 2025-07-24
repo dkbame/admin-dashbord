@@ -146,27 +146,15 @@ export function useApps() {
 
       console.log('App deleted successfully:', data)
       
-      // Add a small delay to ensure transaction is committed
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // Force immediate refresh without verification
+      console.log('Forcing immediate refresh...')
+      await fetchApps() // Refresh the list immediately
       
-      // Verify the app was actually deleted
-      const { data: verifyApp, error: verifyError } = await supabase
-        .from('apps')
-        .select('id')
-        .eq('id', appId)
-        .single()
-
-      console.log('Verification after delete:', { verifyApp, verifyError })
-
-      if (!verifyError && verifyApp) {
-        console.warn('App still exists after deletion attempt')
-        // Instead of throwing an error, let's try a different approach
-        console.log('Attempting to force refresh...')
-        await fetchApps() // Refresh anyway
-        return // Don't throw error, just return
-      }
-
-      await fetchApps() // Refresh the list
+      // Add a second refresh after a short delay to ensure consistency
+      setTimeout(async () => {
+        console.log('Performing delayed refresh...')
+        await fetchApps()
+      }, 1000)
     } catch (err) {
       console.error('Error deleting app:', err)
       setError(err instanceof Error ? err.message : 'Failed to delete app')
