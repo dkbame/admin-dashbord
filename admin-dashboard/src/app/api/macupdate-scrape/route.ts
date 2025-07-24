@@ -44,6 +44,8 @@ export async function GET(request: NextRequest) {
           url += `&category=${encodeURIComponent(category)}`
         }
 
+        console.log('Scraping URL:', url)
+
         const response = await fetch(url, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -63,9 +65,12 @@ export async function GET(request: NextRequest) {
         }
 
         const html = await response.text()
+        console.log(`Received HTML length: ${html.length} characters`)
         
         // Extract apps from the page
         const pageApps = extractAppsFromHtml(html)
+        
+        console.log(`Extracted ${pageApps.length} apps from page ${page}`)
         
         // Filter and deduplicate
         for (const app of pageApps) {
@@ -113,76 +118,116 @@ export async function GET(request: NextRequest) {
 function extractAppsFromHtml(html: string): MacUpdateApp[] {
   const apps: MacUpdateApp[] = []
   
-  // Look for app entries in the HTML
-  // MacUpdate app entries typically have a specific structure
-  const appPattern = /<div[^>]*class="[^"]*app[^"]*"[^>]*>([\s\S]*?)<\/div>/gi
-  let match
+  // Try multiple patterns to find app entries
+  const patterns = [
+    // Pattern 1: Look for app names in h3 tags
+    /<h3[^>]*>([^<]+)<\/h3>/gi,
+    // Pattern 2: Look for app names in strong tags
+    /<strong[^>]*>([^<]+)<\/strong>/gi,
+    // Pattern 3: Look for app names in links
+    /<a[^>]*href="[^"]*\/app\/[^"]*"[^>]*>([^<]+)<\/a>/gi,
+    // Pattern 4: Look for app names in divs with specific classes
+    /<div[^>]*class="[^"]*app[^"]*"[^>]*>([\s\S]*?)<\/div>/gi
+  ]
 
-  while ((match = appPattern.exec(html)) !== null) {
-    const appHtml = match[1]
-    
-    try {
-      const app = parseAppFromHtml(appHtml)
-      if (app) {
-        apps.push(app)
+  for (const pattern of patterns) {
+    let match
+    while ((match = pattern.exec(html)) !== null) {
+      try {
+        const appName = match[1].trim()
+        
+        // Skip if it's not a valid app name
+        if (!appName || appName.length < 2 || appName.includes('MacUpdate') || appName.includes('©')) {
+          continue
+        }
+
+        // Try to extract additional data around this app name
+        const appData = extractAppDataAroundName(html, appName)
+        if (appData) {
+          apps.push(appData)
+        }
+      } catch (error) {
+        console.error('Error parsing app from pattern:', error)
+        continue
       }
-    } catch (error) {
-      console.error('Error parsing app HTML:', error)
-      continue
     }
   }
 
-  return apps
+  // Remove duplicates based on name
+  const uniqueApps = apps.filter((app, index, self) => 
+    index === self.findIndex(a => a.name.toLowerCase() === app.name.toLowerCase())
+  )
+
+  console.log(`Found ${apps.length} total apps, ${uniqueApps.length} unique apps`)
+  return uniqueApps
 }
 
-function parseAppFromHtml(appHtml: string): MacUpdateApp | null {
+function extractAppDataAroundName(html: string, appName: string): MacUpdateApp | null {
   try {
-    // Extract app name
-    const nameMatch = appHtml.match(/<h3[^>]*>([^<]+)<\/h3>/i)
-    const name = nameMatch ? nameMatch[1].trim() : ''
+    // Find the context around the app name
+    const nameIndex = html.indexOf(appName)
+    if (nameIndex === -1) return null
 
-    if (!name) return null
+    // Get a chunk of HTML around the app name
+    const start = Math.max(0, nameIndex - 500)
+    const end = Math.min(html.length, nameIndex + 1000)
+    const context = html.substring(start, end)
 
-    // Extract rating
-    const ratingMatch = appHtml.match(/(\d+\.?\d*)\s*\/\s*5/i)
-    const rating = ratingMatch ? parseFloat(ratingMatch[1]) : 0
+    // Extract rating from context
+    let rating = 0
+    const ratingMatch = context.match(/(\d+\.?\d*)\s*\/\s*5/i)
+    if (ratingMatch) {
+      rating = parseFloat(ratingMatch[1])
+    }
 
     // Extract review count
-    const reviewMatch = appHtml.match(/(\d+)\s*reviews?/i)
-    const reviewCount = reviewMatch ? parseInt(reviewMatch[1]) : 0
+    let reviewCount = 0
+    const reviewMatch = context.match(/(\d+)\s*reviews?/i)
+    if (reviewMatch) {
+      reviewCount = parseInt(reviewMatch[1])
+    }
 
     // Extract price
-    const priceMatch = appHtml.match(/(Free|\$\d+\.?\d*)/i)
-    const price = priceMatch ? priceMatch[1] : 'Unknown'
+    let price = 'Unknown'
+    const priceMatch = context.match(/(Free|\$\d+\.?\d*)/i)
+    if (priceMatch) {
+      price = priceMatch[1]
+    }
 
     // Extract version
-    const versionMatch = appHtml.match(/Version\s*([\d\.]+)/i)
-    const version = versionMatch ? versionMatch[1] : ''
+    let version = ''
+    const versionMatch = context.match(/Version\s*([\d\.]+)/i)
+    if (versionMatch) {
+      version = versionMatch[1]
+    }
 
     // Extract description
-    const descMatch = appHtml.match(/<p[^>]*>([^<]+)<\/p>/i)
-    const description = descMatch ? descMatch[1].trim() : ''
+    let description = ''
+    const descMatch = context.match(/<p[^>]*>([^<]+)<\/p>/i)
+    if (descMatch) {
+      description = descMatch[1].trim()
+    }
 
     // Extract MacUpdate URL
-    const urlMatch = appHtml.match(/href="([^"]*\/app\/[^"]*)"/i)
-    const macUpdateUrl = urlMatch ? `https://www.macupdate.com${urlMatch[1]}` : ''
-
-    // Extract category (this might be in a different part of the page)
-    const category = 'Unknown' // We'll need to extract this from the page structure
+    let macUpdateUrl = ''
+    const urlMatch = context.match(/href="([^"]*\/app\/[^"]*)"/i)
+    if (urlMatch) {
+      macUpdateUrl = `https://www.macupdate.com${urlMatch[1]}`
+    }
 
     return {
-      name,
+      name: appName,
       rating,
       reviewCount,
       price,
-      category,
+      category: 'Unknown',
       description,
       version,
       macUpdateUrl
     }
 
   } catch (error) {
-    console.error('Error parsing app HTML:', error)
+    console.error('Error extracting app data:', error)
     return null
   }
 }
