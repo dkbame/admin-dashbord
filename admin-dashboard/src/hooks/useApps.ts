@@ -58,6 +58,7 @@ export function useApps() {
 
       console.log('Supabase apps data:', data)
       console.log('Supabase apps error:', error)
+      console.log('Apps count from database:', data?.length || 0)
 
       if (error) {
         console.error('Supabase query error:', error)
@@ -78,6 +79,7 @@ export function useApps() {
       })) as App[]
       
       console.log('Processed apps data:', typedData)
+      console.log('Final apps count to set in state:', typedData.length)
       setApps(typedData)
       setLastUpdate(new Date())
     } catch (err) {
@@ -155,6 +157,12 @@ export function useApps() {
         console.log('Performing delayed refresh...')
         await fetchApps()
       }, 1000)
+      
+      // Add a third refresh after a longer delay to handle any caching issues
+      setTimeout(async () => {
+        console.log('Performing final refresh to clear any cache...')
+        await fetchApps()
+      }, 2000)
     } catch (err) {
       console.error('Error deleting app:', err)
       setError(err instanceof Error ? err.message : 'Failed to delete app')
