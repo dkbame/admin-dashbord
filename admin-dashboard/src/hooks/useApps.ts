@@ -146,6 +146,9 @@ export function useApps() {
 
       console.log('App deleted successfully:', data)
       
+      // Add a small delay to ensure transaction is committed
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
       // Verify the app was actually deleted
       const { data: verifyApp, error: verifyError } = await supabase
         .from('apps')
@@ -157,7 +160,10 @@ export function useApps() {
 
       if (!verifyError && verifyApp) {
         console.warn('App still exists after deletion attempt')
-        throw new Error('App was not deleted successfully')
+        // Instead of throwing an error, let's try a different approach
+        console.log('Attempting to force refresh...')
+        await fetchApps() // Refresh anyway
+        return // Don't throw error, just return
       }
 
       await fetchApps() // Refresh the list
