@@ -369,6 +369,21 @@ export default function BulkImportPage() {
 
         const appData = data.results[0]
         
+        // Try to get actual ratings from App Store web scraping
+        let scrapedRating = 0
+        let scrapedReviews = 0
+        try {
+          const scrapeResponse = await fetch(`/api/scrape-app-rating?id=${app.id}`)
+          if (scrapeResponse.ok) {
+            const scrapeData = await scrapeResponse.json()
+            scrapedRating = scrapeData.rating || 0
+            scrapedReviews = scrapeData.reviewCount || 0
+            console.log(`App ${app.id} scraped ratings:`, { rating: scrapedRating, reviews: scrapedReviews })
+          }
+        } catch (scrapeError) {
+          console.log(`App ${app.id}: Failed to scrape ratings:`, scrapeError)
+        }
+        
         // Debug: Log the full app data to see what we're getting
         console.log(`App ${app.id} raw data:`, {
           trackName: appData.trackName,
@@ -381,11 +396,13 @@ export default function BulkImportPage() {
           price: appData.price
         })
         
-        // Apply quality filters - try multiple rating fields
-        const rating = appData.averageUserRating || 
-                      appData.averageUserRatingForCurrentVersion || 0
-        const reviews = appData.userRatingCount || 
-                       appData.userRatingCountForCurrentVersion || 0
+        // Apply quality filters - use scraped ratings if available, fallback to iTunes API
+        const rating = scrapedRating > 0 ? scrapedRating : 
+                      (appData.averageUserRating || 
+                       appData.averageUserRatingForCurrentVersion || 0)
+        const reviews = scrapedReviews > 0 ? scrapedReviews : 
+                       (appData.userRatingCount || 
+                        appData.userRatingCountForCurrentVersion || 0)
         const category = appData.primaryGenreName || ''
         
         const ratingPass = rating >= config.qualityFilter.minRating
