@@ -454,18 +454,26 @@ export default function BulkImportPage() {
           }])
         } catch (err: unknown) {
           let errorMessage: string
+          let status: 'success' | 'error' | 'skipped' = 'error'
+          
           if (typeof err === 'string') {
             errorMessage = err
           } else if (err instanceof Error) {
             errorMessage = (err as Error).message
+            // Check if this is an "already exists" error
+            if (errorMessage.includes('already exists in the database')) {
+              status = 'skipped'
+              errorMessage = 'App already exists - skipped'
+            }
           } else {
             errorMessage = 'Import failed'
           }
+          
           setResults(prev => [...prev, {
             id: app.id,
             name: app.name,
             developer: app.developer,
-            status: 'error',
+            status,
             message: errorMessage,
             masUrl: app.url
           }])
@@ -508,6 +516,9 @@ export default function BulkImportPage() {
   const successCount = results.filter(r => r.status === 'success').length
   const errorCount = results.filter(r => r.status === 'error').length
   const skippedCount = results.filter(r => r.status === 'skipped').length
+  
+  // Show summary if we have results
+  const showSummary = results.length > 0
 
   return (
     <Box>
@@ -524,6 +535,15 @@ export default function BulkImportPage() {
       {success && (
         <Alert severity="success" sx={{ mb: 2 }}>
           {success}
+        </Alert>
+      )}
+
+      {/* Import Summary */}
+      {showSummary && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            <strong>Import Summary:</strong> {successCount} imported, {skippedCount} skipped (already exist), {errorCount} failed
+          </Typography>
         </Alert>
       )}
 
