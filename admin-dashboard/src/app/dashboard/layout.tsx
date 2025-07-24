@@ -1,7 +1,7 @@
 'use client'
 
 import { Box, AppBar, Toolbar, Typography, Drawer, List, ListItemButton, ListItemIcon, ListItemText, IconButton, Button } from '@mui/material'
-import { Apps, Add, Category, Settings, Menu as MenuIcon, LightMode, DarkMode, Logout, AdminPanelSettings, FeaturedPlayList } from '@mui/icons-material'
+import { Apps, Add, Category, Settings, Menu as MenuIcon, LightMode, DarkMode, Logout, AdminPanelSettings, FeaturedPlayList, Collections } from '@mui/icons-material'
 import { useState } from 'react'
 import Link from 'next/link'
 import { useTheme } from '@/components/ThemeProvider'
@@ -73,6 +73,14 @@ export default function DashboardLayout({
               <FeaturedPlayList />
             </ListItemIcon>
             <ListItemText primary="Section Management" primaryTypographyProps={{ fontWeight: 500 }} />
+          </ListItemButton>
+        </Link>
+        <Link href="/dashboard/collections" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <ListItemButton sx={{ borderRadius: 2, mb: 1 }}>
+            <ListItemIcon>
+              <Collections />
+            </ListItemIcon>
+            <ListItemText primary="Collections" primaryTypographyProps={{ fontWeight: 500 }} />
           </ListItemButton>
         </Link>
       </List>

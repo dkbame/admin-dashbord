@@ -28,6 +28,7 @@ export function useApps() {
   const [apps, setApps] = useState<App[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
 
   const fetchApps = async () => {
     try {
@@ -78,6 +79,7 @@ export function useApps() {
       
       console.log('Processed apps data:', typedData)
       setApps(typedData)
+      setLastUpdate(new Date())
     } catch (err) {
       console.error('Error in fetchApps:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch apps')
@@ -85,6 +87,62 @@ export function useApps() {
       setLoading(false)
     }
   }
+
+  // Real-time subscription setup
+  useEffect(() => {
+    // Initial fetch
+    fetchApps()
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('apps-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'apps'
+        },
+        (payload) => {
+          console.log('Real-time apps change:', payload)
+          
+          // Handle different types of changes
+          switch (payload.eventType) {
+            case 'INSERT':
+              // New app added - refresh the list
+              fetchApps()
+              break
+            case 'UPDATE':
+              // App updated - refresh the list
+              fetchApps()
+              break
+            case 'DELETE':
+              // App deleted - refresh the list
+              fetchApps()
+              break
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'screenshots'
+        },
+        (payload) => {
+          console.log('Real-time screenshots change:', payload)
+          // Refresh apps when screenshots change
+          fetchApps()
+        }
+      )
+      .subscribe()
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
 
   const toggleFeatured = async (appId: string, currentFeatured: boolean) => {
     try {
@@ -94,7 +152,7 @@ export function useApps() {
         .eq('id', appId)
 
       if (error) throw error
-      await fetchApps() // Refresh the list
+      // No need to manually fetch - real-time subscription will handle it
     } catch (err) {
       console.error('Error toggling featured status:', err)
       setError(err instanceof Error ? err.message : 'Failed to update featured status')
@@ -103,66 +161,31 @@ export function useApps() {
 
   const deleteApp = async (appId: string) => {
     try {
-      console.log('Attempting to delete app with ID:', appId)
-      
-      // First, verify the app exists
-      const { data: existingApp, error: fetchError } = await supabase
+      const { error } = await supabase
         .from('apps')
-        .select('id, name')
+        .delete()
         .eq('id', appId)
-        .single()
-      
-      if (fetchError) {
-        console.error('Error fetching app before deletion:', fetchError)
-        throw new Error('App not found')
-      }
-      
-      // Delete the app using the SQL function (bypasses RLS)
-      const { error: sqlError } = await supabase.rpc('delete_app_by_id', { target_app_id: appId })
-      
-      if (sqlError) {
-        console.error('SQL function delete failed:', sqlError)
-        
-        // Fallback to regular delete method
-        const { error: deleteError } = await supabase
-          .from('apps')
-          .delete()
-          .eq('id', appId)
-        
-        if (deleteError) {
-          throw new Error(`Both SQL function and regular delete failed. SQL: ${sqlError.message}, Regular: ${deleteError.message}`)
-        }
-      }
 
-      // Verify the app was actually deleted
-      const { data: deletedApp } = await supabase
-        .from('apps')
-        .select('id')
-        .eq('id', appId)
-      
-      if (deletedApp && deletedApp.length > 0) {
-        throw new Error('App was not deleted from database - possible RLS or constraint issue')
-      }
-
-      console.log('App deleted successfully, refreshing list...')
-      await fetchApps()
+      if (error) throw error
+      // No need to manually fetch - real-time subscription will handle it
     } catch (err) {
-      console.error('Error in deleteApp:', err)
-      throw err
+      console.error('Error deleting app:', err)
+      setError(err instanceof Error ? err.message : 'Failed to delete app')
     }
   }
 
-  useEffect(() => {
-    fetchApps()
-  }, [])
+  const clearError = () => {
+    setError(null)
+  }
 
   return {
     apps,
     loading,
     error,
+    lastUpdate,
     fetchApps,
     toggleFeatured,
     deleteApp,
-    clearError: () => setError(null)
+    clearError
   }
 } 

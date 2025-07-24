@@ -8,6 +8,7 @@ import AdminStatus from '@/components/AdminStatus'
 import AppsTable from '@/components/AppsTable'
 import DeleteConfirmationDialog from '@/components/DeleteConfirmationDialog'
 import DashboardAnalytics from '@/components/DashboardAnalytics'
+import RealtimeNotifications from '@/components/RealtimeNotifications'
 import { useApps } from '@/hooks/useApps'
 import { AppListItem } from '@/types/app'
 
@@ -41,7 +42,8 @@ export default function DashboardPage() {
     fetchApps, 
     toggleFeatured, 
     deleteApp, 
-    clearError 
+    clearError,
+    lastUpdate
   } = useApps()
   
   const [tabValue, setTabValue] = useState(0)
@@ -165,10 +167,20 @@ export default function DashboardPage() {
     <Box>
       <AdminStatus showDetails={true} />
       
+      {/* Real-time Notifications */}
+      <RealtimeNotifications />
+      
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 600 }}>
-          Dashboard
-        </Typography>
+        <Box>
+          <Typography variant="h4" sx={{ fontWeight: 600 }}>
+            Dashboard
+          </Typography>
+          {lastUpdate && (
+            <Typography variant="caption" color="text.secondary">
+              Last updated: {lastUpdate.toLocaleTimeString()}
+            </Typography>
+          )}
+        </Box>
         <Link href="/dashboard/add" style={{ textDecoration: 'none' }}>
           <Button
             variant="contained"
