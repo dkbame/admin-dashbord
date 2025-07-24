@@ -161,43 +161,20 @@ async function scrapeMacUpdatePages(
 function extractAppsFromHtml(html: string): MacUpdateApp[] {
   const apps: MacUpdateApp[] = []
   
-  // Look specifically for app listing containers
-  // MacUpdate app listings are typically in specific div structures
-  const appContainerPattern = /<div[^>]*class="[^"]*app[^"]*"[^>]*>([\s\S]*?)<\/div>/gi
-  const appLinkPattern = /<a[^>]*href="\/app\/[^"]*"[^>]*>([^<]+)<\/a>/gi
+  // Look for MacUpdate app cards - the actual structure
+  const appCardPattern = /<div class="mu_card_complex_line">([\s\S]*?)<\/div><div class="mu_card_complex_line_mobile_break">/gi
   
-  // First try to find app containers
   let match
-  while ((match = appContainerPattern.exec(html)) !== null) {
+  while ((match = appCardPattern.exec(html)) !== null) {
     try {
       const appHtml = match[1]
-      const app = parseAppFromContainer(appHtml)
+      const app = parseAppFromCard(appHtml)
       if (app) {
         apps.push(app)
       }
     } catch (error) {
-      console.error('Error parsing app container:', error)
+      console.error('Error parsing app card:', error)
       continue
-    }
-  }
-  
-  // If no apps found in containers, try direct app links
-  if (apps.length === 0) {
-    while ((match = appLinkPattern.exec(html)) !== null) {
-      try {
-        const appName = match[1].trim()
-        
-        // Validate this looks like a real app name
-        if (isValidAppName(appName)) {
-          const appData = extractAppDataFromLink(html, match[0])
-          if (appData) {
-            apps.push(appData)
-          }
-        }
-      } catch (error) {
-        console.error('Error parsing app link:', error)
-        continue
-      }
     }
   }
 
@@ -208,6 +185,74 @@ function extractAppsFromHtml(html: string): MacUpdateApp[] {
 
   console.log(`Found ${apps.length} total apps, ${uniqueApps.length} unique apps`)
   return uniqueApps
+}
+
+function parseAppFromCard(appHtml: string): MacUpdateApp | null {
+  try {
+    // Extract app name from the info_name div
+    const nameMatch = appHtml.match(/<div class="mu_card_complex_line_info_name">([^<]+)<\/div>/i)
+    if (!nameMatch) return null
+    
+    const name = nameMatch[1].trim()
+    if (!isValidAppName(name)) return null
+
+    // Extract rating from rating_number
+    let rating = 0
+    const ratingMatch = appHtml.match(/<p class="mu_card_complex_line_rating_number">([^<]+)<\/p>/i)
+    if (ratingMatch) {
+      rating = parseFloat(ratingMatch[1])
+    }
+
+    // Extract review count from reviews_count
+    let reviewCount = 0
+    const reviewMatch = appHtml.match(/<span class="mu_card_complex_line_reviews_count">([^<]+)<\/span>/i)
+    if (reviewMatch) {
+      reviewCount = parseInt(reviewMatch[1])
+    }
+
+    // Extract price from price div
+    let price = 'Unknown'
+    const priceMatch = appHtml.match(/<div class="mu_card_complex_line_price">([^<]+)<\/div>/i)
+    if (priceMatch) {
+      price = priceMatch[1].trim()
+    }
+
+    // Extract version from info_version
+    let version = ''
+    const versionMatch = appHtml.match(/<div class="mu_card_complex_line_info_version"[^>]*title="([^"]+)"/i)
+    if (versionMatch) {
+      version = versionMatch[1]
+    }
+
+    // Extract description from info_description
+    let description = ''
+    const descMatch = appHtml.match(/<div class="mu_card_complex_line_info_description">([^<]+)<\/div>/i)
+    if (descMatch) {
+      description = descMatch[1].trim()
+    }
+
+    // Extract MacUpdate URL from link_app
+    let macUpdateUrl = ''
+    const urlMatch = appHtml.match(/<a class="link_app[^"]*" href="([^"]+)"/i)
+    if (urlMatch) {
+      macUpdateUrl = urlMatch[1]
+    }
+
+    return {
+      name,
+      rating,
+      reviewCount,
+      price,
+      category: 'Unknown',
+      description,
+      version,
+      macUpdateUrl
+    }
+
+  } catch (error) {
+    console.error('Error parsing app from card:', error)
+    return null
+  }
 }
 
 function isValidAppName(name: string): boolean {
@@ -227,74 +272,6 @@ function isValidAppName(name: string): boolean {
   
   const lowerName = name.toLowerCase()
   return !invalidNames.some(invalid => lowerName.includes(invalid))
-}
-
-function parseAppFromContainer(appHtml: string): MacUpdateApp | null {
-  try {
-    // Extract app name from h3 or strong tag within the container
-    const nameMatch = appHtml.match(/<(h3|strong)[^>]*>([^<]+)<\/\1>/i)
-    if (!nameMatch) return null
-    
-    const name = nameMatch[2].trim()
-    if (!isValidAppName(name)) return null
-
-    // Extract rating
-    let rating = 0
-    const ratingMatch = appHtml.match(/(\d+\.?\d*)\s*\/\s*5/i)
-    if (ratingMatch) {
-      rating = parseFloat(ratingMatch[1])
-    }
-
-    // Extract review count
-    let reviewCount = 0
-    const reviewMatch = appHtml.match(/(\d+)\s*reviews?/i)
-    if (reviewMatch) {
-      reviewCount = parseInt(reviewMatch[1])
-    }
-
-    // Extract price
-    let price = 'Unknown'
-    const priceMatch = appHtml.match(/(Free|\$\d+\.?\d*)/i)
-    if (priceMatch) {
-      price = priceMatch[1]
-    }
-
-    // Extract version
-    let version = ''
-    const versionMatch = appHtml.match(/Version\s*([\d\.]+)/i)
-    if (versionMatch) {
-      version = versionMatch[1]
-    }
-
-    // Extract description
-    let description = ''
-    const descMatch = appHtml.match(/<p[^>]*>([^<]+)<\/p>/i)
-    if (descMatch) {
-      description = descMatch[1].trim()
-    }
-
-    // Extract MacUpdate URL
-    let macUpdateUrl = ''
-    const urlMatch = appHtml.match(/href="([^"]*\/app\/[^"]*)"/i)
-    if (urlMatch) {
-      macUpdateUrl = `https://www.macupdate.com${urlMatch[1]}`
-    }
-
-    return {
-      name,
-      rating,
-      reviewCount,
-      price,
-      category: 'Unknown',
-      description,
-      version,
-      macUpdateUrl
-    }
-
-  } catch (error) {
-    console.error('Error parsing app from container:', error)
-    return null
-  }
 }
 
 function extractAppDataFromLink(html: string, linkHtml: string): MacUpdateApp | null {
