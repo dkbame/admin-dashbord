@@ -101,8 +101,8 @@ export default function BulkImportPage() {
     developer: '',
     limit: 50,
     qualityFilter: {
-      minRating: 2.0, // Lower threshold - many good apps have 2-3 star ratings
-      minReviews: 5,  // Much lower - many apps have few reviews
+      minRating: 0,   // Accept any rating (including 0)
+      minReviews: 0,  // Accept any number of reviews (including 0)
       excludeGames: false // Include games too
     },
     batchSize: 10,
@@ -327,6 +327,16 @@ export default function BulkImportPage() {
         }
 
         const appData = data.results[0]
+        
+        // Debug: Log the full app data to see what we're getting
+        console.log(`App ${app.id} raw data:`, {
+          trackName: appData.trackName,
+          averageUserRating: appData.averageUserRating,
+          userRatingCount: appData.userRatingCount,
+          primaryGenreName: appData.primaryGenreName,
+          kind: appData.kind,
+          price: appData.price
+        })
         
         // Apply quality filters
         const rating = appData.averageUserRating || 0
