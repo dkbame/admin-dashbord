@@ -16,9 +16,9 @@ interface MacUpdateApp {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const pageLimit = Math.min(parseInt(searchParams.get('pageLimit') || '5'), 10) // Limit to 10 pages max
+    const pageLimit = Math.min(parseInt(searchParams.get('pageLimit') || '2'), 3) // Reduced to 3 pages max
     const minRating = parseFloat(searchParams.get('minRating') || '0')
-    const priceFilter = searchParams.get('priceFilter') || 'all' // 'free', 'paid', 'all'
+    const priceFilter = searchParams.get('priceFilter') || 'all'
     const category = searchParams.get('category') || 'all'
 
     console.log(`Scraping MacUpdate: pages=${pageLimit}, minRating=${minRating}, price=${priceFilter}, category=${category}`)
@@ -26,82 +26,25 @@ export async function GET(request: NextRequest) {
     const allApps: MacUpdateApp[] = []
     const seenAppNames = new Set<string>()
 
-    // Scrape multiple pages with faster approach
-    for (let page = 1; page <= pageLimit; page++) {
-      try {
-        console.log(`Scraping MacUpdate page ${page}/${pageLimit}`)
-        
-        // Build URL with filters
-        let url = `https://www.macupdate.com/find/mac?page=${page}&sort=computed_rank`
-        
-        if (priceFilter === 'free') {
-          url += '&price=free'
-        } else if (priceFilter === 'paid') {
-          url += '&price=paid'
-        }
-        
-        if (category !== 'all') {
-          url += `&category=${encodeURIComponent(category)}`
-        }
+    // Scrape with timeout protection
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Scraping timeout')), 8000) // 8 second timeout
+    })
 
-        console.log('Scraping URL:', url)
+    const scrapingPromise = scrapeMacUpdatePages(pageLimit, minRating, priceFilter, category, allApps, seenAppNames)
 
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        })
-
-        if (!response.ok) {
-          console.error(`Failed to fetch page ${page}: ${response.status}`)
-          continue
-        }
-
-        const html = await response.text()
-        console.log(`Received HTML length: ${html.length} characters`)
-        
-        // Debug: Look for app-related HTML structure
-        const appDivs = (html.match(/<div[^>]*class="[^"]*app[^"]*"[^>]*>/gi) || []).length
-        const appLinks = (html.match(/href="\/app\/[^"]*"/gi) || []).length
-        const h3Tags = (html.match(/<h3[^>]*>/gi) || []).length
-        
-        console.log(`HTML structure: ${appDivs} app divs, ${appLinks} app links, ${h3Tags} h3 tags`)
-        
-        // Extract apps from the page
-        const pageApps = extractAppsFromHtml(html)
-        
-        console.log(`Extracted ${pageApps.length} apps from page ${page}`)
-        
-        // Filter and deduplicate
-        for (const app of pageApps) {
-          if (!seenAppNames.has(app.name.toLowerCase())) {
-            seenAppNames.add(app.name.toLowerCase())
-            
-            // Apply rating filter with flexible logic
-            if (shouldIncludeApp(app, minRating)) {
-              allApps.push(app)
-            }
-          }
-        }
-
-        console.log(`Page ${page}: Found ${pageApps.length} apps, ${allApps.length} total unique apps`)
-
-        // Reduced rate limiting - faster for Netlify
-        if (page < pageLimit) {
-          await new Promise(resolve => setTimeout(resolve, 200)) // 200ms instead of 1000ms
-        }
-
-      } catch (error) {
-        console.error(`Error scraping page ${page}:`, error)
-        continue
-      }
+    try {
+      await Promise.race([scrapingPromise, timeoutPromise])
+    } catch (error) {
+      console.error('Scraping timeout or error:', error)
+      // Return whatever we have so far
+      return NextResponse.json({
+        success: true,
+        apps: allApps,
+        totalPages: pageLimit,
+        totalApps: allApps.length,
+        warning: 'Scraping was limited due to timeout'
+      })
     }
 
     console.log(`MacUpdate scraping complete: ${allApps.length} apps found`)
@@ -119,6 +62,99 @@ export async function GET(request: NextRequest) {
       { error: error instanceof Error ? error.message : 'Failed to scrape MacUpdate' },
       { status: 500 }
     )
+  }
+}
+
+async function scrapeMacUpdatePages(
+  pageLimit: number, 
+  minRating: number, 
+  priceFilter: string, 
+  category: string,
+  allApps: MacUpdateApp[],
+  seenAppNames: Set<string>
+) {
+  for (let page = 1; page <= pageLimit; page++) {
+    try {
+      console.log(`Scraping MacUpdate page ${page}/${pageLimit}`)
+      
+      // Build URL with filters
+      let url = `https://www.macupdate.com/find/mac?page=${page}&sort=computed_rank`
+      
+      if (priceFilter === 'free') {
+        url += '&price=free'
+      } else if (priceFilter === 'paid') {
+        url += '&price=paid'
+      }
+      
+      if (category !== 'all') {
+        url += `&category=${encodeURIComponent(category)}`
+      }
+
+      console.log('Scraping URL:', url)
+
+      // Use AbortController for timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout per page
+
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
+        signal: controller.signal
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        console.error(`Failed to fetch page ${page}: ${response.status}`)
+        continue
+      }
+
+      const html = await response.text()
+      console.log(`Received HTML length: ${html.length} characters`)
+      
+      // Debug: Look for app-related HTML structure
+      const appDivs = (html.match(/<div[^>]*class="[^"]*app[^"]*"[^>]*>/gi) || []).length
+      const appLinks = (html.match(/href="\/app\/[^"]*"/gi) || []).length
+      const h3Tags = (html.match(/<h3[^>]*>/gi) || []).length
+      
+      console.log(`HTML structure: ${appDivs} app divs, ${appLinks} app links, ${h3Tags} h3 tags`)
+      
+      // Extract apps from the page
+      const pageApps = extractAppsFromHtml(html)
+      
+      console.log(`Extracted ${pageApps.length} apps from page ${page}`)
+      
+      // Filter and deduplicate
+      for (const app of pageApps) {
+        if (!seenAppNames.has(app.name.toLowerCase())) {
+          seenAppNames.add(app.name.toLowerCase())
+          
+          // Apply rating filter with flexible logic
+          if (shouldIncludeApp(app, minRating)) {
+            allApps.push(app)
+          }
+        }
+      }
+
+      console.log(`Page ${page}: Found ${pageApps.length} apps, ${allApps.length} total unique apps`)
+
+      // Reduced rate limiting - faster for Netlify
+      if (page < pageLimit) {
+        await new Promise(resolve => setTimeout(resolve, 100)) // 100ms instead of 200ms
+      }
+
+    } catch (error) {
+      console.error(`Error scraping page ${page}:`, error)
+      continue
+    }
   }
 }
 

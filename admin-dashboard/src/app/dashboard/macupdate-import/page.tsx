@@ -69,7 +69,7 @@ interface ImportConfig {
   priceFilter: 'all' | 'free' | 'paid'
   category: string
   batchSize: number
-  delay: number
+  delayBetweenBatches: number
 }
 
 const MACUPDATE_CATEGORIES = [
@@ -97,13 +97,13 @@ const MACUPDATE_CATEGORIES = [
 ]
 
 export default function MacUpdateImportPage() {
-  const [config, setConfig] = useState<ImportConfig>({
-    pageLimit: 5,
+  const [config, setConfig] = useState({
+    pageLimit: 2, // Reduced from 5 to 2
     minRating: 0,
-    priceFilter: 'all',
+    priceFilter: 'paid',
     category: 'All',
     batchSize: 10,
-    delay: 2000
+    delayBetweenBatches: 1000
   })
   
   const [isImporting, setIsImporting] = useState(false)
@@ -124,31 +124,37 @@ export default function MacUpdateImportPage() {
 
     try {
       console.log('Starting MacUpdate import with config:', config)
-
-      // Step 1: Scrape MacUpdate
-      const scrapeResponse = await fetch(`/api/macupdate-scrape?pageLimit=${config.pageLimit}&minRating=${config.minRating}&priceFilter=${config.priceFilter}&category=${config.category}`)
       
-      if (!scrapeResponse.ok) {
-        throw new Error(`MacUpdate scraping failed: ${scrapeResponse.status}`)
-      }
-
-      const scrapeData = await scrapeResponse.json()
+      // Create AbortController for timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
       
-      if (!scrapeData.success) {
-        throw new Error(scrapeData.error || 'MacUpdate scraping failed')
+      const response = await fetch(`/api/macupdate-scrape?${new URLSearchParams({
+        pageLimit: config.pageLimit.toString(),
+        minRating: config.minRating.toString(),
+        priceFilter: config.priceFilter,
+        category: config.category
+      })}`, {
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
-
-      const apps = scrapeData.apps || []
-      setScrapedApps(apps)
-
-      if (apps.length === 0) {
-        throw new Error('No apps found from MacUpdate')
+      
+      const data = await response.json()
+      
+      if (data.success && data.apps && data.apps.length > 0) {
+        setScrapedApps(data.apps)
+        setSuccess(`Found ${data.apps.length} apps from MacUpdate. Starting import...`)
+      } else {
+        setSuccess('No apps found from MacUpdate')
       }
-
-      setSuccess(`Found ${apps.length} apps from MacUpdate. Starting import...`)
 
       // Step 2: Import apps in batches
-      await importAppsInBatches(apps)
+      await importAppsInBatches(scrapedApps)
 
     } catch (err: unknown) {
       let errorMessage: string
@@ -228,10 +234,10 @@ export default function MacUpdateImportPage() {
         processed++
         setProgress((processed / totalApps) * 100)
 
-        // Delay between imports
-        if (config.delay > 0) {
-          await new Promise(resolve => setTimeout(resolve, config.delay))
-        }
+                  // Delay between imports
+          if (config.delayBetweenBatches > 0) {
+            await new Promise(resolve => setTimeout(resolve, config.delayBetweenBatches))
+          }
       }
 
       // Longer delay between batches
@@ -372,8 +378,8 @@ export default function MacUpdateImportPage() {
                         fullWidth
                         type="number"
                         label="Delay (ms)"
-                        value={config.delay}
-                        onChange={(e) => setConfig({ ...config, delay: parseInt(e.target.value) })}
+                        value={config.delayBetweenBatches}
+                        onChange={(e) => setConfig({ ...config, delayBetweenBatches: parseInt(e.target.value) })}
                         inputProps={{ min: 0, max: 10000 }}
                       />
                     </Grid>
