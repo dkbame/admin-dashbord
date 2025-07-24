@@ -161,22 +161,27 @@ async function scrapeMacUpdatePages(
 function extractAppsFromHtml(html: string): MacUpdateApp[] {
   const apps: MacUpdateApp[] = []
   
-  // Look for MacUpdate app cards - the actual structure
-  const appCardPattern = /<div class="mu_card_complex_line">([\s\S]*?)<\/div><div class="mu_card_complex_line_mobile_break">/gi
+  // Look for MacUpdate app cards - more flexible pattern
+  const appCardPattern = /<div class="mu_card_complex_line">([\s\S]*?)<\/div>/gi
   
   let match
+  let cardCount = 0
   while ((match = appCardPattern.exec(html)) !== null) {
+    cardCount++
     try {
       const appHtml = match[1]
       const app = parseAppFromCard(appHtml)
       if (app) {
         apps.push(app)
+        console.log(`Found app: ${app.name} (${app.rating}/5, ${app.price})`)
       }
     } catch (error) {
       console.error('Error parsing app card:', error)
       continue
     }
   }
+
+  console.log(`Found ${cardCount} app cards, parsed ${apps.length} valid apps`)
 
   // Remove duplicates based on name
   const uniqueApps = apps.filter((app, index, self) => 
