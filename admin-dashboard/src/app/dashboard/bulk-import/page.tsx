@@ -166,8 +166,12 @@ export default function BulkImportPage() {
         throw 'No apps found to import'
       }
 
+      console.log(`Found ${appsToImport.length} apps before quality filtering`)
+
       // Apply quality filters
       const filteredApps = await applyQualityFilters(appsToImport)
+      
+      console.log(`After quality filtering: ${filteredApps.length} apps`)
       
       if (filteredApps.length === 0) {
         throw 'No apps meet the quality criteria'
@@ -391,7 +395,7 @@ export default function BulkImportPage() {
             developer: appData.artistName
           })
         } else {
-          console.log(`App ${app.id} (${appData.trackName}): FAILED - Rating: ${rating} (need ${config.qualityFilter.minRating}), Reviews: ${reviews} (need ${config.qualityFilter.minReviews}), Category: ${category}`)
+          console.log(`App ${app.id} (${appData.trackName}): FAILED - Rating: ${rating} (need ${config.qualityFilter.minRating}) [${ratingPass ? 'PASS' : 'FAIL'}], Reviews: ${reviews} (need ${config.qualityFilter.minReviews}) [${reviewsPass ? 'PASS' : 'FAIL'}], Category: ${category} [${categoryPass ? 'PASS' : 'FAIL'}]`)
         }
       } catch (err) {
         console.error(`Error checking quality for app ${app.id}:`, err)
