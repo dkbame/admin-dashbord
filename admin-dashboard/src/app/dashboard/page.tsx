@@ -142,13 +142,33 @@ export default function DashboardPage() {
     setBulkDeleteError(null)
     
     try {
-      // Delete apps one by one (could be optimized with a bulk delete API)
+      console.log('Bulk Delete: Starting deletion of', appsToDelete.length, 'apps')
+      
+      // Delete apps one by one using direct API calls
       for (const appId of appsToDelete) {
-        await deleteApp(appId)
+        console.log('Bulk Delete: Deleting app:', appId)
+        
+        const response = await fetch(`/api/direct-delete?appId=${appId}`, {
+          method: 'DELETE'
+        })
+        
+        const result = await response.json()
+        console.log('Bulk Delete: API response for', appId, ':', result)
+        
+        if (!response.ok || !result.success) {
+          throw new Error(`Failed to delete app ${appId}: ${result.error || 'Unknown error'}`)
+        }
       }
+      
+      console.log('Bulk Delete: All apps deleted successfully, refreshing...')
+      
+      // Single refresh after all deletions
+      await fetchApps()
+      
       setBulkDeleteDialogOpen(false)
       setAppsToDelete([])
     } catch (err) {
+      console.error('Bulk Delete: Error:', err)
       setBulkDeleteError(err instanceof Error ? err.message : 'Failed to delete some apps')
     } finally {
       setBulkDeleting(false)
