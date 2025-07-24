@@ -201,7 +201,9 @@ export default function BulkImportPage() {
     for (const chart of charts) {
       try {
         console.log(`Fetching chart: ${chart}`)
-        const response = await fetch(`/api/itunes/charts?chart=${chart}&entity=macSoftware&limit=${config.limit}`)
+        // Request more than user limit per chart to account for filtering, but not too many
+        const apiLimit = Math.max(config.limit * 2, 20) // At least 20, or 2x user limit
+        const response = await fetch(`/api/itunes/charts?chart=${chart}&entity=macSoftware&limit=${apiLimit}`)
         
         if (!response.ok) {
           console.error(`Failed to fetch ${chart}:`, response.status, response.statusText)
@@ -236,7 +238,12 @@ export default function BulkImportPage() {
     }
 
     console.log(`Total apps found: ${apps.length}`)
-    return apps
+    
+    // Apply the user's total limit across all charts
+    const limitedApps = apps.slice(0, config.limit)
+    console.log(`Limited to user's requested amount: ${limitedApps.length} (requested: ${config.limit})`)
+    
+    return limitedApps
   }
 
   const getCategoryApps = async () => {

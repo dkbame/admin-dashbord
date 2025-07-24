@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     const itunesUrl = new URL('https://itunes.apple.com/search')
     itunesUrl.searchParams.set('term', searchTerm)
     itunesUrl.searchParams.set('entity', 'macSoftware')
-    itunesUrl.searchParams.set('limit', '200') // Increase limit to get more results
+    itunesUrl.searchParams.set('limit', limit)
     itunesUrl.searchParams.set('country', country)
     itunesUrl.searchParams.set('media', 'software')
 
@@ -91,8 +91,17 @@ export async function GET(request: NextRequest) {
       filtered: macApps.length
     })
 
+    // Apply the user's limit to the filtered results
+    const limitedApps = macApps.slice(0, parseInt(limit))
+    
+    console.log('Final limited apps:', {
+      filtered: macApps.length,
+      limited: limitedApps.length,
+      requestedLimit: limit
+    })
+
     return NextResponse.json({
-      results: macApps
+      results: limitedApps
     })
 
   } catch (error) {
