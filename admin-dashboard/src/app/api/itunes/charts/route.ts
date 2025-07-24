@@ -68,17 +68,22 @@ export async function GET(request: NextRequest) {
       results: data.results?.length || 0
     })
 
-    // Filter to ensure we only get macOS apps (more inclusive)
+    // Filter to ensure we only get macOS apps
     const macApps = (data.results || []).filter((app: any) => {
-      // Since we're using entity=macSoftware, most results should be macOS apps
-      // Apply minimal filtering to exclude obvious iOS apps
-      const isDefinitelyiOS = app.trackName?.toLowerCase().includes('iphone') ||
+      // Check for iOS-specific indicators
+      const isDefinitelyiOS = app.kind === 'software' || // iOS apps have kind="software"
+                              app.features?.includes('iosUniversal') ||
+                              app.screenshotUrls?.some((url: string) => url.includes('392x696') || url.includes('iPhone')) ||
+                              app.ipadScreenshotUrls?.length > 0 ||
+                              app.trackName?.toLowerCase().includes('iphone') ||
                               app.trackName?.toLowerCase().includes('ipad') ||
                               app.description?.toLowerCase().includes('iphone') ||
                               app.description?.toLowerCase().includes('ipad')
       
-      // Include all macOS software except those specifically for iOS
-      return !isDefinitelyiOS
+      // Only include true macOS apps (kind should be 'mac-software')
+      const isMacApp = app.kind === 'mac-software'
+      
+      return isMacApp && !isDefinitelyiOS
     })
 
     console.log('Filtered macOS apps:', {

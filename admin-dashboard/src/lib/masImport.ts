@@ -147,16 +147,25 @@ export async function importFromMAS(url: string): Promise<MASApp | null> {
 
     console.log('Importing app with ID:', appId)
 
-    // Check if app already exists
-    const { data: existingApp, error: checkError } = await supabase
-      .from('apps')
-      .select('id, name, mas_id')
-      .eq('mas_id', appId)
-      .single()
+    // Check if app already exists - try different query approach for better compatibility
+    let existingApp = null
+    try {
+      const { data: existingApps, error: checkError } = await supabase
+        .from('apps')
+        .select('id, name, mas_id')
+        .eq('mas_id', appId)
+        .limit(1)
 
-    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
-      console.error('Error checking for existing app:', checkError)
-      throw new Error('Failed to check for existing app')
+      if (checkError) {
+        console.error('Error checking for existing app:', checkError)
+        // Don't throw error here, just log and continue
+        console.log('Continuing with import despite check error...')
+      } else if (existingApps && existingApps.length > 0) {
+        existingApp = existingApps[0]
+      }
+    } catch (queryError) {
+      console.error('Query error when checking existing app:', queryError)
+      // Continue with import even if check fails
     }
 
     if (existingApp) {
