@@ -57,7 +57,7 @@ interface ImportResult {
 }
 
 interface ImportConfig {
-  importType: 'charts' | 'category' | 'developer' | 'urls'
+  importType: 'charts' | 'topFree' | 'topPaid' | 'category' | 'developer' | 'urls'
   category: string
   developer: string
   limit: number
@@ -150,6 +150,12 @@ export default function BulkImportPage() {
       switch (config.importType) {
         case 'charts':
           appsToImport = await getTopChartApps()
+          break
+        case 'topFree':
+          appsToImport = await getTopFreeApps()
+          break
+        case 'topPaid':
+          appsToImport = await getTopPaidApps()
           break
         case 'category':
           appsToImport = await getCategoryApps()
@@ -253,6 +259,64 @@ export default function BulkImportPage() {
     console.log(`Limited to user's requested amount: ${limitedApps.length} (requested: ${config.limit})`)
     
     return limitedApps
+  }
+
+  const getTopFreeApps = async () => {
+    console.log('Fetching top free apps...')
+    
+    try {
+      const response = await fetch(`/api/itunes/charts?chart=topfreeapplications&entity=macSoftware&limit=${config.limit}`)
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch top free apps')
+      }
+
+      const data = await response.json()
+      const apps = data.results || []
+
+      console.log(`Found ${apps.length} top free apps`)
+
+      return apps.map((app: iTunesApp) => ({
+        id: app.trackId?.toString() || 'unknown',
+        url: app.trackViewUrl || '',
+        name: app.trackName || 'Unknown',
+        developer: app.artistName || 'Unknown'
+      })).filter((app: {id: string, url: string, name: string, developer: string}) => {
+        return app.id !== 'unknown' && app.url && app.name !== 'Unknown'
+      })
+    } catch (error) {
+      console.error('Error fetching top free apps:', error)
+      throw error
+    }
+  }
+
+  const getTopPaidApps = async () => {
+    console.log('Fetching top paid apps...')
+    
+    try {
+      const response = await fetch(`/api/itunes/charts?chart=toppaidapplications&entity=macSoftware&limit=${config.limit}`)
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch top paid apps')
+      }
+
+      const data = await response.json()
+      const apps = data.results || []
+
+      console.log(`Found ${apps.length} top paid apps`)
+
+      return apps.map((app: iTunesApp) => ({
+        id: app.trackId?.toString() || 'unknown',
+        url: app.trackViewUrl || '',
+        name: app.trackName || 'Unknown',
+        developer: app.artistName || 'Unknown'
+      })).filter((app: {id: string, url: string, name: string, developer: string}) => {
+        return app.id !== 'unknown' && app.url && app.name !== 'Unknown'
+      })
+    } catch (error) {
+      console.error('Error fetching top paid apps:', error)
+      throw error
+    }
   }
 
   const getCategoryApps = async () => {
@@ -563,7 +627,9 @@ export default function BulkImportPage() {
                   label="Import Type"
                   onChange={(e) => setConfig({ ...config, importType: e.target.value as any })}
                 >
-                  <MenuItem value="charts">Top Charts</MenuItem>
+                  <MenuItem value="charts">Top Charts (Free + Paid)</MenuItem>
+                  <MenuItem value="topFree">Top Free Apps</MenuItem>
+                  <MenuItem value="topPaid">Top Paid Apps</MenuItem>
                   <MenuItem value="category">By Category</MenuItem>
                   <MenuItem value="developer">By Developer</MenuItem>
                   <MenuItem value="urls">From URL List</MenuItem>
