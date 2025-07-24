@@ -374,14 +374,18 @@ export default function BulkImportPage() {
           trackName: appData.trackName,
           averageUserRating: appData.averageUserRating,
           userRatingCount: appData.userRatingCount,
+          averageUserRatingForCurrentVersion: appData.averageUserRatingForCurrentVersion,
+          userRatingCountForCurrentVersion: appData.userRatingCountForCurrentVersion,
           primaryGenreName: appData.primaryGenreName,
           kind: appData.kind,
           price: appData.price
         })
         
-        // Apply quality filters
-        const rating = appData.averageUserRating || 0
-        const reviews = appData.userRatingCount || 0
+        // Apply quality filters - try multiple rating fields
+        const rating = appData.averageUserRating || 
+                      appData.averageUserRatingForCurrentVersion || 0
+        const reviews = appData.userRatingCount || 
+                       appData.userRatingCountForCurrentVersion || 0
         const category = appData.primaryGenreName || ''
         
         const ratingPass = rating >= config.qualityFilter.minRating

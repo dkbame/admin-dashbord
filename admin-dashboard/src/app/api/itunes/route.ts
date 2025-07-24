@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
     let url: string
 
     if (id) {
-      // Single app lookup
-      url = `https://itunes.apple.com/lookup?id=${id}&entity=${entity}`
+      // Single app lookup - add country parameter for better data
+      url = `https://itunes.apple.com/lookup?id=${id}&entity=${entity}&country=${country}`
     } else if (term) {
       // Search for apps
       url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=${entity}&limit=${limit}&country=${country}&media=software`
@@ -45,6 +45,20 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json()
+
+    // Debug: Log the response structure for single app lookups
+    if (id && data.results && data.results.length > 0) {
+      const app = data.results[0]
+      console.log(`iTunes API response for app ${id}:`, {
+        trackName: app.trackName,
+        averageUserRating: app.averageUserRating,
+        userRatingCount: app.userRatingCount,
+        averageUserRatingForCurrentVersion: app.averageUserRatingForCurrentVersion,
+        userRatingCountForCurrentVersion: app.userRatingCountForCurrentVersion,
+        hasRating: !!app.averageUserRating,
+        hasRatingCount: !!app.userRatingCount
+      })
+    }
 
     return NextResponse.json(data)
 
