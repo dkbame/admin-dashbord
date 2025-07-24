@@ -262,19 +262,19 @@ export default function BulkImportPage() {
   }
 
   const getTopFreeApps = async () => {
-    console.log('Fetching top free apps...')
+    console.log('Fetching top free apps from Mac App Store charts...')
     
     try {
-      const response = await fetch(`/api/itunes/charts?chart=topfreeapplications&entity=macSoftware&limit=${config.limit}`)
+      const response = await fetch(`/api/mac-app-store-charts?type=top-free&limit=${config.limit}`)
       
       if (!response.ok) {
-        throw new Error('Failed to fetch top free apps')
+        throw new Error('Failed to fetch top free apps from Mac App Store')
       }
 
       const data = await response.json()
       const apps = data.results || []
 
-      console.log(`Found ${apps.length} top free apps`)
+      console.log(`Found ${apps.length} top free apps from Mac App Store charts`)
 
       return apps.map((app: iTunesApp) => ({
         id: app.trackId?.toString() || 'unknown',
@@ -291,19 +291,19 @@ export default function BulkImportPage() {
   }
 
   const getTopPaidApps = async () => {
-    console.log('Fetching top paid apps...')
+    console.log('Fetching top paid apps from Mac App Store charts...')
     
     try {
-      const response = await fetch(`/api/itunes/charts?chart=toppaidapplications&entity=macSoftware&limit=${config.limit}`)
+      const response = await fetch(`/api/mac-app-store-charts?type=top-paid&limit=${config.limit}`)
       
       if (!response.ok) {
-        throw new Error('Failed to fetch top paid apps')
+        throw new Error('Failed to fetch top paid apps from Mac App Store')
       }
 
       const data = await response.json()
       const apps = data.results || []
 
-      console.log(`Found ${apps.length} top paid apps`)
+      console.log(`Found ${apps.length} top paid apps from Mac App Store charts`)
 
       return apps.map((app: iTunesApp) => ({
         id: app.trackId?.toString() || 'unknown',
