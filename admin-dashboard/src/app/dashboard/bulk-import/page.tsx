@@ -161,16 +161,14 @@ export default function BulkImportPage() {
       }
 
       if (appsToImport.length === 0) {
-        const error = new Error('No apps found to import')
-        throw error
+        throw 'No apps found to import'
       }
 
       // Apply quality filters
       const filteredApps = await applyQualityFilters(appsToImport)
       
       if (filteredApps.length === 0) {
-        const error = new Error('No apps meet the quality criteria')
-        throw error
+        throw 'No apps meet the quality criteria'
       }
 
       setSuccess(`Found ${filteredApps.length} apps to import. Starting import...`)
@@ -179,7 +177,7 @@ export default function BulkImportPage() {
       await importAppsInBatches(filteredApps)
 
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Import failed'
+      const errorMessage = typeof err === 'string' ? err : err instanceof Error ? err.message : 'Import failed'
       setError(errorMessage)
     } finally {
       setIsImporting(false)
@@ -323,13 +321,13 @@ export default function BulkImportPage() {
             message: result ? 'Imported successfully' : 'Import failed',
             masUrl: app.url
           }])
-        } catch (err) {
+        } catch (err: unknown) {
           setResults(prev => [...prev, {
             id: app.id,
             name: app.name,
             developer: app.developer,
             status: 'error',
-            message: err instanceof Error ? err.message : 'Import failed',
+            message: typeof err === 'string' ? err : err instanceof Error ? err.message : 'Import failed',
             masUrl: app.url
           }])
         }
