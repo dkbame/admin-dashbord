@@ -32,22 +32,21 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Use direct search approach for better reliability
+    // Use broader search terms for better results
     const searchTerms = {
-      'topfreeapplications': 'macOS free software',
-      'toppaidapplications': 'macOS paid software',
-      'topgrossingapplications': 'macOS popular software'
+      'topfreeapplications': 'mac app',
+      'toppaidapplications': 'mac software',
+      'topgrossingapplications': 'productivity'
     }
 
-    const searchTerm = searchTerms[chart as keyof typeof searchTerms] || 'macOS software'
+    const searchTerm = searchTerms[chart as keyof typeof searchTerms] || 'mac'
     
     const itunesUrl = new URL('https://itunes.apple.com/search')
     itunesUrl.searchParams.set('term', searchTerm)
     itunesUrl.searchParams.set('entity', 'macSoftware')
-    itunesUrl.searchParams.set('limit', limit)
+    itunesUrl.searchParams.set('limit', '200') // Increase limit to get more results
     itunesUrl.searchParams.set('country', country)
     itunesUrl.searchParams.set('media', 'software')
-    itunesUrl.searchParams.set('device', 'mac')
 
     console.log('Fetching iTunes apps:', itunesUrl.toString())
 
@@ -69,17 +68,17 @@ export async function GET(request: NextRequest) {
       results: data.results?.length || 0
     })
 
-    // Filter to ensure we only get macOS apps
+    // Filter to ensure we only get macOS apps (more inclusive)
     const macApps = (data.results || []).filter((app: any) => {
-      // Check if it's a macOS app by looking at the bundleId, kind, or trackName
-      const isMacApp = app.kind === 'mac-software' || 
-                      app.bundleId?.includes('.mac') ||
-                      app.trackName?.toLowerCase().includes('mac') ||
-                      app.primaryGenreName === 'Productivity' ||
-                      app.primaryGenreName === 'Developer Tools' ||
-                      app.primaryGenreName === 'Graphics & Design'
+      // Since we're using entity=macSoftware, most results should be macOS apps
+      // Apply minimal filtering to exclude obvious iOS apps
+      const isDefinitelyiOS = app.trackName?.toLowerCase().includes('iphone') ||
+                              app.trackName?.toLowerCase().includes('ipad') ||
+                              app.description?.toLowerCase().includes('iphone') ||
+                              app.description?.toLowerCase().includes('ipad')
       
-      return isMacApp
+      // Include all macOS software except those specifically for iOS
+      return !isDefinitelyiOS
     })
 
     console.log('Filtered macOS apps:', {
