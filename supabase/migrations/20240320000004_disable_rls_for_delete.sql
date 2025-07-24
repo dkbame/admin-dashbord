@@ -14,13 +14,11 @@ drop policy if exists "Allow public delete access for apps" on apps;
 create policy "Allow public delete access for apps"
   on apps for delete
   to anon
-  using (true)
-  with check (true);
+  using (true);
 
 -- Also ensure screenshots can be deleted
 drop policy if exists "Allow public delete access for screenshots" on screenshots;
 create policy "Allow public delete access for screenshots"
   on screenshots for delete
   to anon
-  using (true)
-  with check (true); 
+  using (true); 
