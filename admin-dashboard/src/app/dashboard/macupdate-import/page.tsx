@@ -146,15 +146,19 @@ export default function MacUpdateImportPage() {
       
       const data = await response.json()
       
+      console.log('MacUpdate API response:', data)
+      console.log('Apps array:', data.apps)
+      console.log('Apps length:', data.apps?.length)
+      
       if (data.success && data.apps && data.apps.length > 0) {
         setScrapedApps(data.apps)
         setSuccess(`Found ${data.apps.length} apps from MacUpdate. Starting import...`)
+        
+        // Step 2: Import apps in batches
+        await importAppsInBatches(data.apps)
       } else {
         setSuccess('No apps found from MacUpdate')
       }
-
-      // Step 2: Import apps in batches
-      await importAppsInBatches(scrapedApps)
 
     } catch (err: unknown) {
       let errorMessage: string
