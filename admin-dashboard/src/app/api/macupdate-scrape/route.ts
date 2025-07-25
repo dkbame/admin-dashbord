@@ -255,16 +255,40 @@ function isValidAppName(name: string): boolean {
   // Must not contain HTML tags
   if (name.includes('<') || name.includes('>')) return false
   
-  // Must not be common page elements
+  // Must not be common page elements, navigation, or categories
   const invalidNames = [
     'overview', 'details', 'download', 'search', 'filter', 'form', 'button',
     'input', 'label', 'div', 'span', 'ul', 'li', 'script', 'style',
     'macupdate', 'copyright', '©', 'privacy', 'terms', 'contact',
-    'login', 'signup', 'register', 'help', 'about', 'support'
+    'login', 'signup', 'register', 'help', 'about', 'support',
+    'www', 'articles', 'discontinued apps', 'app requirements:',
+    'video converters', 'video recording', 'video players', 'video editors',
+    'audio converters', 'audio players', 'audio recording', 'audio production',
+    'photo editors', 'photo viewers', 'image converters', 'image capture',
+    'games', 'music', 'productivity', 'system utilities', 'security',
+    'internet utilities', 'graphic design', 'developer tools',
+    'browse', 'categories', 'all apps', 'featured', 'popular', 'new',
+    'free', 'paid', 'rating', 'reviews', 'version', 'updated',
+    'requirements', 'specifications', 'features', 'screenshots'
   ]
   
-  const lowerName = name.toLowerCase()
-  return !invalidNames.some(invalid => lowerName.includes(invalid))
+  const lowerName = name.toLowerCase().trim()
+  
+  // Reject if it matches any invalid name exactly or contains invalid terms
+  if (invalidNames.some(invalid => lowerName === invalid || lowerName.includes(invalid))) {
+    return false
+  }
+  
+  // Reject very short names (likely abbreviations or codes)
+  if (lowerName.length < 3) return false
+  
+  // Reject names that are mostly numbers or symbols
+  if (/^[\d\s\-_.]+$/.test(lowerName)) return false
+  
+  // Reject names ending with colons (likely headings)
+  if (lowerName.endsWith(':')) return false
+  
+  return true
 }
 
 function extractAppDataFromLink(html: string, linkHtml: string): MacUpdateApp | null {
