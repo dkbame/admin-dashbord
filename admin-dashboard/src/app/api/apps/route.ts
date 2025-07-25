@@ -48,4 +48,32 @@ export async function GET(request: NextRequest) {
     console.error('API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const appData = await request.json();
+    
+    // Validate required fields
+    if (!appData.name) {
+      return NextResponse.json({ error: 'App name is required' }, { status: 400 });
+    }
+    
+    // Insert the app into the database
+    const { data: app, error } = await supabase
+      .from('apps')
+      .insert([appData])
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error creating app:', error);
+      return NextResponse.json({ error: `Failed to create app: ${error.message}` }, { status: 500 });
+    }
+    
+    return NextResponse.json(app, { status: 201 });
+  } catch (error) {
+    console.error('API error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 } 
