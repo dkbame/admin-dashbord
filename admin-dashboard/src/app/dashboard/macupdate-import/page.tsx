@@ -180,11 +180,49 @@ export default function MacUpdateImportPage() {
     const totalApps = apps.length
     let processed = 0
 
-    // Process in batches
+    // Helper function to map category name to category ID
+    const getCategoryId = async (categoryName: string): Promise<string | null> => {
+      const categoryMap: { [key: string]: string } = {
+        'productivity': 'productivity',
+        'development': 'development', 
+        'design': 'design',
+        'utilities': 'utilities',
+        'entertainment': 'entertainment',
+        'education': 'education',
+        'business': 'business',
+        'graphics': 'graphics-design',
+        'video': 'video-audio',
+        'audio': 'video-audio',
+        'social': 'social-networking',
+        'games': 'games',
+        'health': 'health-fitness',
+        'lifestyle': 'lifestyle',
+        'finance': 'finance',
+        'reference': 'reference'
+      }
+      
+      const searchTerm = categoryName.toLowerCase()
+      for (const [key, slug] of Object.entries(categoryMap)) {
+        if (searchTerm.includes(key)) {
+          // Get category ID by slug
+          try {
+            const response = await fetch('/api/categories')
+            const categories = await response.json()
+            const category = categories.find((c: any) => c.slug === slug)
+            return category?.id || null
+          } catch (error) {
+            console.error('Error fetching categories:', error)
+            return null
+          }
+        }
+      }
+      return null // Default to utilities if no match
+    }
+
+    // Process apps in batches
     for (let i = 0; i < apps.length; i += config.batchSize) {
       const batch = apps.slice(i, i + config.batchSize)
       
-      // Process batch
       for (const app of batch) {
         try {
           // Try to find app in iTunes first
@@ -204,14 +242,15 @@ export default function MacUpdateImportPage() {
             }
           }
 
-          // For now, just log the app (we'll implement actual import later)
-          console.log(`Processing app: ${app.name} (App Store: ${isAppStore})`)
+          // Get category ID
+          const categoryId = await getCategoryId(app.category || 'utilities')
           
-          // Actually save the app to the database
+          // Build comprehensive app data object
           const appData = {
             name: app.name,
             developer: app.developer || 'Unknown',
             description: app.description || '',
+            category_id: categoryId,
             price: parseFloat(app.price.replace(/[^0-9.]/g, '')) || 0,
             currency: 'USD',
             rating: app.rating || 0,
@@ -220,41 +259,95 @@ export default function MacUpdateImportPage() {
             is_on_mas: isAppStore,
             mas_id: itunesData?.trackId?.toString() || null,
             mas_url: itunesData?.trackViewUrl || null,
+            app_store_url: itunesData?.trackViewUrl || null,
             website_url: app.macUpdateUrl || '',
+            download_url: itunesData?.trackViewUrl || app.macUpdateUrl || '',
             icon_url: itunesData?.artworkUrl512 || itunesData?.artworkUrl100 || null,
             minimum_os_version: itunesData?.minimumOsVersion || null,
             size: itunesData?.fileSizeBytes || null,
             release_date: itunesData?.releaseDate || null,
             is_free: app.price === 'Free' || app.price === '$0.00',
+            is_featured: false,
+            features: itunesData?.genres ? itunesData.genres : [],
             source: isAppStore ? 'MAS' : 'CUSTOM',
             status: 'ACTIVE'
           }
 
           try {
+            // Save the main app record
             const saveResponse = await fetch('/api/apps', {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(appData)
             })
 
             if (saveResponse.ok) {
               const savedApp = await saveResponse.json()
               console.log(`✅ Saved app to database: ${app.name} (ID: ${savedApp.id})`)
-              
+
+              // Save screenshots if available
+              if (itunesData?.screenshotUrls && itunesData.screenshotUrls.length > 0) {
+                for (let idx = 0; idx < itunesData.screenshotUrls.length; idx++) {
+                  const screenshot = itunesData.screenshotUrls[idx]
+                  try {
+                    const screenshotData = {
+                      app_id: savedApp.id,
+                      url: screenshot,
+                      display_order: idx + 1,
+                      caption: `${app.name} Screenshot ${idx + 1}`
+                    }
+                    
+                    const screenshotResponse = await fetch('/api/screenshots', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(screenshotData)
+                    })
+                    
+                    if (screenshotResponse.ok) {
+                      console.log(`  📸 Saved screenshot ${idx + 1} for ${app.name}`)
+                    }
+                  } catch (screenshotError) {
+                    console.error(`  ❌ Failed to save screenshot for ${app.name}:`, screenshotError)
+                  }
+                }
+              }
+
+              // Save additional metadata if available
+              if (itunesData?.releaseNotes || itunesData?.contentAdvisoryRating) {
+                try {
+                  const metadataData = {
+                    app_id: savedApp.id,
+                    release_notes: itunesData.releaseNotes || '',
+                    system_requirements: itunesData.minimumOsVersion ? [`macOS ${itunesData.minimumOsVersion} or later`] : []
+                  }
+                  
+                  const metadataResponse = await fetch('/api/custom-metadata', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(metadataData)
+                  })
+                  
+                  if (metadataResponse.ok) {
+                    console.log(`  📝 Saved metadata for ${app.name}`)
+                  }
+                } catch (metadataError) {
+                  console.error(`  ❌ Failed to save metadata for ${app.name}:`, metadataError)
+                }
+              }
+
               setResults(prev => [...prev, {
                 name: app.name,
                 developer: app.developer || 'Unknown',
                 status: 'success',
-                message: isAppStore ? 'Saved to database (App Store app)' : 'Saved to database (MacUpdate only)',
+                message: isAppStore ? 
+                  `Saved with ${itunesData?.screenshotUrls?.length || 0} screenshots (App Store app)` : 
+                  'Saved to database (MacUpdate only)',
                 macUpdateUrl: app.macUpdateUrl,
                 isAppStore
               }])
             } else {
               const error = await saveResponse.text()
               console.error(`❌ Failed to save app ${app.name}:`, error)
-              
               setResults(prev => [...prev, {
                 name: app.name,
                 developer: app.developer || 'Unknown',
@@ -266,7 +359,6 @@ export default function MacUpdateImportPage() {
             }
           } catch (saveError) {
             console.error(`❌ Error saving app ${app.name}:`, saveError)
-            
             setResults(prev => [...prev, {
               name: app.name,
               developer: app.developer || 'Unknown',
