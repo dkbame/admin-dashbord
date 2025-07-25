@@ -17,6 +17,7 @@ interface MacUpdateApp {
   requirements: string
   website: string
   screenshots: string[]
+  iconUrl: string
 }
 
 export async function POST(request: NextRequest) {
@@ -245,6 +246,16 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
       }
     }
 
+    // Extract icon URL
+    const iconUrlMatch = html.match(/<img[^>]*class="[^"]*main_logo[^"]*"[^>]*src="([^"]+)"[^>]*>/) ||
+                         html.match(/<img[^>]*src="([^"]+)"[^>]*class="[^"]*main_logo[^"]*"[^>]*>/)
+    let iconUrl = iconUrlMatch ? iconUrlMatch[1] : ''
+    if (iconUrl && iconUrl.startsWith('//')) {
+      iconUrl = 'https:' + iconUrl
+    } else if (iconUrl && iconUrl.startsWith('/')) {
+      iconUrl = 'https://www.macupdate.com' + iconUrl
+    }
+
     const app: MacUpdateApp = {
       name,
       developer,
@@ -259,7 +270,8 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
       fileSize,
       requirements,
       website,
-      screenshots
+      screenshots,
+      iconUrl
     }
 
     console.log(`Parsed app data:`, {

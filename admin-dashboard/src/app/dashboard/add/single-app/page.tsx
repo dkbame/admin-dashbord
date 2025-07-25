@@ -37,6 +37,7 @@ interface MacUpdateApp {
   requirements: string
   website: string
   screenshots: string[]
+  iconUrl: string
 }
 
 interface ImportResult {
@@ -127,7 +128,7 @@ export default function SingleAppImportPage() {
         app_store_url: itunesApp?.trackViewUrl || null,
         website_url: scrapedApp.website || scrapedApp.macUpdateUrl,
         download_url: itunesApp?.trackViewUrl || scrapedApp.macUpdateUrl,
-        icon_url: itunesApp?.artworkUrl512 || itunesApp?.artworkUrl100 || null,
+        icon_url: itunesApp?.artworkUrl512 || itunesApp?.artworkUrl100 || scrapedApp.iconUrl || null,
         minimum_os_version: itunesApp?.minimumOsVersion || scrapedApp.requirements,
         size: itunesApp?.fileSizeBytes || null,
         release_date: itunesApp?.releaseDate || null,
@@ -324,12 +325,30 @@ export default function SingleAppImportPage() {
           <CardContent>
             <Grid container spacing={3}>
               <Grid item xs={12} md={8}>
-                <Typography variant="h5" gutterBottom>
-                  {scrapedApp.name}
-                </Typography>
-                <Typography variant="subtitle1" color="text.secondary" gutterBottom>
-                  by {scrapedApp.developer}
-                </Typography>
+                {/* App Header with Icon */}
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  {scrapedApp.iconUrl && (
+                    <Avatar
+                      src={scrapedApp.iconUrl}
+                      alt={`${scrapedApp.name} icon`}
+                      sx={{ 
+                        width: 64, 
+                        height: 64, 
+                        mr: 2,
+                        borderRadius: 2,
+                        border: '1px solid rgba(0,0,0,0.1)'
+                      }}
+                    />
+                  )}
+                  <Box>
+                    <Typography variant="h5" gutterBottom>
+                      {scrapedApp.name}
+                    </Typography>
+                    <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+                      by {scrapedApp.developer}
+                    </Typography>
+                  </Box>
+                </Box>
                 
                 <Box sx={{ mb: 2 }}>
                   <Chip label={scrapedApp.category} sx={{ mr: 1 }} />
