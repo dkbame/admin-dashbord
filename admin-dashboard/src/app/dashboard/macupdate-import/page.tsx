@@ -207,14 +207,81 @@ export default function MacUpdateImportPage() {
           // For now, just log the app (we'll implement actual import later)
           console.log(`Processing app: ${app.name} (App Store: ${isAppStore})`)
           
-          setResults(prev => [...prev, {
+          // Actually save the app to the database
+          const appData = {
             name: app.name,
             developer: app.developer || 'Unknown',
-            status: 'success',
-            message: isAppStore ? 'Found in App Store' : 'MacUpdate only',
-            macUpdateUrl: app.macUpdateUrl,
-            isAppStore
-          }])
+            description: app.description || '',
+            category: app.category || 'Other',
+            price: app.price || 'Unknown',
+            rating: app.rating || 0,
+            review_count: app.reviewCount || 0,
+            version: app.version || '',
+            macupdate_url: app.macUpdateUrl || '',
+            is_app_store: isAppStore,
+            app_store_id: itunesData?.trackId || null,
+            app_store_url: itunesData?.trackViewUrl || null,
+            icon_url: itunesData?.artworkUrl512 || itunesData?.artworkUrl100 || null,
+            screenshots: itunesData?.screenshotUrls ? JSON.stringify(itunesData.screenshotUrls) : null,
+            bundle_id: itunesData?.bundleId || null,
+            minimum_os_version: itunesData?.minimumOsVersion || null,
+            file_size_bytes: itunesData?.fileSizeBytes || null,
+            content_advisory_rating: itunesData?.contentAdvisoryRating || null,
+            release_date: itunesData?.releaseDate || null,
+            current_version_release_date: itunesData?.currentVersionReleaseDate || null,
+            genres: itunesData?.genres ? JSON.stringify(itunesData.genres) : null,
+            features: itunesData?.features ? JSON.stringify(itunesData.features) : null,
+            supported_devices: itunesData?.supportedDevices ? JSON.stringify(itunesData.supportedDevices) : null,
+            advisories: itunesData?.advisories ? JSON.stringify(itunesData.advisories) : null,
+            language_codes: itunesData?.languageCodesISO2A ? JSON.stringify(itunesData.languageCodesISO2A) : null
+          }
+
+          try {
+            const saveResponse = await fetch('/api/apps', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(appData)
+            })
+
+            if (saveResponse.ok) {
+              const savedApp = await saveResponse.json()
+              console.log(`✅ Saved app to database: ${app.name} (ID: ${savedApp.id})`)
+              
+              setResults(prev => [...prev, {
+                name: app.name,
+                developer: app.developer || 'Unknown',
+                status: 'success',
+                message: isAppStore ? 'Saved to database (App Store app)' : 'Saved to database (MacUpdate only)',
+                macUpdateUrl: app.macUpdateUrl,
+                isAppStore
+              }])
+            } else {
+              const error = await saveResponse.text()
+              console.error(`❌ Failed to save app ${app.name}:`, error)
+              
+              setResults(prev => [...prev, {
+                name: app.name,
+                developer: app.developer || 'Unknown',
+                status: 'error',
+                message: `Failed to save: ${error}`,
+                macUpdateUrl: app.macUpdateUrl,
+                isAppStore
+              }])
+            }
+          } catch (saveError) {
+            console.error(`❌ Error saving app ${app.name}:`, saveError)
+            
+            setResults(prev => [...prev, {
+              name: app.name,
+              developer: app.developer || 'Unknown',
+              status: 'error',
+              message: `Save error: ${saveError instanceof Error ? saveError.message : 'Unknown error'}`,
+              macUpdateUrl: app.macUpdateUrl,
+              isAppStore
+            }])
+          }
 
         } catch (err: unknown) {
           let errorMessage: string
