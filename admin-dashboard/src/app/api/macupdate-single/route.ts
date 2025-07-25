@@ -77,25 +77,38 @@ export async function POST(request: NextRequest) {
 
 function parseAppPage(html: string, url: string): MacUpdateApp | null {
   try {
-    // Extract app name
+    // Extract app name - improved patterns for MacUpdate
     const nameMatch = html.match(/<h1[^>]*class="[^"]*app_title[^"]*"[^>]*>([^<]+)<\/h1>/) ||
+                     html.match(/<h1[^>]*class="[^"]*mu_title[^"]*"[^>]*>([^<]+)<\/h1>/) ||
                      html.match(/<h1[^>]*>([^<]+)<\/h1>/) ||
-                     html.match(/<title>([^<]+?)\s*\|\s*MacUpdate<\/title>/)
+                     html.match(/<title>([^<]+?)\s*\|\s*MacUpdate<\/title>/) ||
+                     html.match(/<title>([^<]+?)\s*-\s*MacUpdate<\/title>/)
     const name = nameMatch ? nameMatch[1].trim() : 'Unknown App'
 
-    // Extract developer
+    // Extract developer - improved patterns
     const developerMatch = html.match(/by\s+<a[^>]*>([^<]+)<\/a>/) ||
                           html.match(/Developer[^>]*>([^<]+)</) ||
-                          html.match(/by\s+([^<\n]+)/)
+                          html.match(/by\s+([^<\n]+)/) ||
+                          html.match(/<span[^>]*class="[^"]*developer[^"]*"[^>]*>([^<]+)<\/span>/)
     const developer = developerMatch ? developerMatch[1].trim() : 'Unknown Developer'
 
-    // Extract description
+    // Extract description - improved patterns for MacUpdate
     const descMatch = html.match(/<div[^>]*class="[^"]*description[^"]*"[^>]*>([\s\S]*?)<\/div>/) ||
+                     html.match(/<div[^>]*class="[^"]*mu_description[^"]*"[^>]*>([\s\S]*?)<\/div>/) ||
                      html.match(/<meta\s+name="description"\s+content="([^"]+)"/) ||
-                     html.match(/<p[^>]*class="[^"]*summary[^"]*"[^>]*>([^<]+)<\/p>/)
-    let description = descMatch ? descMatch[1].replace(/<[^>]+>/g, '').trim() : 'No description available'
-    if (description.length > 500) {
-      description = description.substring(0, 500) + '...'
+                     html.match(/<p[^>]*class="[^"]*summary[^"]*"[^>]*>([^<]+)<\/p>/) ||
+                     html.match(/<div[^>]*class="[^"]*app_summary[^"]*"[^>]*>([\s\S]*?)<\/div>/)
+    
+    let description = 'No description available'
+    if (descMatch) {
+      description = descMatch[1]
+        .replace(/<[^>]+>/g, '') // Remove HTML tags
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim()
+      
+      if (description.length > 500) {
+        description = description.substring(0, 500) + '...'
+      }
     }
 
     // Extract category
@@ -152,24 +165,72 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
                         html.match(/official[^>]*href="([^"]+)"/)
     const website = websiteMatch ? websiteMatch[1] : ''
 
-    // Extract screenshots
+    // Extract screenshots - target the mu_app_gallery carousel
     const screenshots: string[] = []
-    const screenshotMatches = html.match(/src="([^"]+(?:screenshot|screen|shot)[^"]*\.(?:jpg|jpeg|png|gif))"/gi)
-    if (screenshotMatches) {
-      screenshotMatches.forEach(match => {
-        const urlMatch = match.match(/src="([^"]+)"/)
-        if (urlMatch && urlMatch[1]) {
-          let screenshotUrl = urlMatch[1]
-          if (screenshotUrl.startsWith('//')) {
-            screenshotUrl = 'https:' + screenshotUrl
-          } else if (screenshotUrl.startsWith('/')) {
-            screenshotUrl = 'https://www.macupdate.com' + screenshotUrl
+    
+    // First try to extract from the mu_app_gallery carousel
+    const galleryMatch = html.match(/<div class="mu_app_gallery[^"]*"[^>]*>([\s\S]*?)<\/div>(?=\s*<div class="mu_app_gallery_video">)/i)
+    if (galleryMatch) {
+      const galleryHtml = galleryMatch[1]
+      
+      // Extract from picture elements with srcset
+      const pictureMatches = galleryHtml.match(/<picture[^>]*>[\s\S]*?<source[^>]*srcset="([^"]+)"[^>]*>[\s\S]*?<\/picture>/gi)
+      if (pictureMatches) {
+        pictureMatches.forEach(pictureMatch => {
+          const srcsetMatch = pictureMatch.match(/srcset="([^"]+)"/)
+          if (srcsetMatch && srcsetMatch[1]) {
+            let screenshotUrl = srcsetMatch[1].split(',')[0].trim() // Take first URL from srcset
+            if (screenshotUrl.startsWith('//')) {
+              screenshotUrl = 'https:' + screenshotUrl
+            } else if (screenshotUrl.startsWith('/')) {
+              screenshotUrl = 'https://www.macupdate.com' + screenshotUrl
+            }
+            if (!screenshots.includes(screenshotUrl)) {
+              screenshots.push(screenshotUrl)
+            }
           }
-          if (!screenshots.includes(screenshotUrl)) {
-            screenshots.push(screenshotUrl)
+        })
+      }
+      
+      // Also try to extract from img tags within the gallery as fallback
+      const imgMatches = galleryHtml.match(/<img[^>]*src="([^"]+)"[^>]*>/gi)
+      if (imgMatches) {
+        imgMatches.forEach(imgMatch => {
+          const srcMatch = imgMatch.match(/src="([^"]+)"/)
+          if (srcMatch && srcMatch[1]) {
+            let screenshotUrl = srcMatch[1]
+            if (screenshotUrl.startsWith('//')) {
+              screenshotUrl = 'https:' + screenshotUrl
+            } else if (screenshotUrl.startsWith('/')) {
+              screenshotUrl = 'https://www.macupdate.com' + screenshotUrl
+            }
+            if (!screenshots.includes(screenshotUrl)) {
+              screenshots.push(screenshotUrl)
+            }
           }
-        }
-      })
+        })
+      }
+    }
+    
+    // Fallback: general screenshot search if gallery method didn't work
+    if (screenshots.length === 0) {
+      const screenshotMatches = html.match(/src="([^"]+(?:screenshot|screen|shot)[^"]*\.(?:jpg|jpeg|png|gif|webp))"/gi)
+      if (screenshotMatches) {
+        screenshotMatches.forEach(match => {
+          const urlMatch = match.match(/src="([^"]+)"/)
+          if (urlMatch && urlMatch[1]) {
+            let screenshotUrl = urlMatch[1]
+            if (screenshotUrl.startsWith('//')) {
+              screenshotUrl = 'https:' + screenshotUrl
+            } else if (screenshotUrl.startsWith('/')) {
+              screenshotUrl = 'https://www.macupdate.com' + screenshotUrl
+            }
+            if (!screenshots.includes(screenshotUrl)) {
+              screenshots.push(screenshotUrl)
+            }
+          }
+        })
+      }
     }
 
     const app: MacUpdateApp = {
