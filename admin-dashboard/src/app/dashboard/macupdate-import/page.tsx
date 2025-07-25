@@ -73,7 +73,7 @@ interface ImportConfig {
 }
 
 const MACUPDATE_CATEGORIES = [
-  'All',
+  'all',
   'AI',
   'Browsing',
   'Business',
@@ -101,7 +101,7 @@ export default function MacUpdateImportPage() {
     pageLimit: 2, // Reduced from 5 to 2
     minRating: 0,
     priceFilter: 'paid',
-    category: 'All',
+    category: 'all',
     batchSize: 10,
     delayBetweenBatches: 1000
   })
@@ -355,7 +355,7 @@ export default function MacUpdateImportPage() {
                 >
                   {MACUPDATE_CATEGORIES.map((cat) => (
                     <MenuItem key={cat} value={cat}>
-                      {cat}
+                      {cat === 'all' ? 'All Categories' : cat}
                     </MenuItem>
                   ))}
                 </Select>
