@@ -78,12 +78,24 @@ export async function POST(request: NextRequest) {
 function parseAppPage(html: string, url: string): MacUpdateApp | null {
   try {
     // Extract app name - improved patterns for MacUpdate
-    const nameMatch = html.match(/<h1[^>]*class="[^"]*app_title[^"]*"[^>]*>([^<]+)<\/h1>/) ||
+    const nameMatch = html.match(/<h1[^>]*>([^<]+)(?:<\s*span[^>]*>.*?<\/span>)?<\/h1>/) ||
+                     html.match(/<h1[^>]*class="[^"]*app_title[^"]*"[^>]*>([^<]+)<\/h1>/) ||
                      html.match(/<h1[^>]*class="[^"]*mu_title[^"]*"[^>]*>([^<]+)<\/h1>/) ||
-                     html.match(/<h1[^>]*>([^<]+)<\/h1>/) ||
                      html.match(/<title>([^<]+?)\s*\|\s*MacUpdate<\/title>/) ||
                      html.match(/<title>([^<]+?)\s*-\s*MacUpdate<\/title>/)
-    const name = nameMatch ? nameMatch[1].trim() : 'Unknown App'
+    
+    let name = nameMatch ? nameMatch[1].trim() : 'Unknown App'
+    
+    // Clean up the name - remove common suffixes
+    name = name.replace(/\s+(for\s+Mac|for\s+macOS|\(Mac\)|\(macOS\))$/i, '').trim()
+    
+    // If name is empty after cleanup, try alternative extraction
+    if (!name || name === 'Unknown App') {
+      const altNameMatch = html.match(/<div[^>]*class="[^"]*main_data[^"]*"[^>]*>[\s\S]*?<h1[^>]*>([^<]+)/i)
+      if (altNameMatch) {
+        name = altNameMatch[1].trim().replace(/\s+(for\s+Mac|for\s+macOS|\(Mac\)|\(macOS\))$/i, '').trim()
+      }
+    }
 
     // Extract developer - improved patterns
     const developerMatch = html.match(/by\s+<a[^>]*>([^<]+)<\/a>/) ||
