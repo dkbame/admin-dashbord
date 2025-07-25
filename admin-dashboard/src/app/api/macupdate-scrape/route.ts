@@ -164,187 +164,87 @@ async function scrapeMacUpdatePages(
 function extractAppsFromHtml(html: string): MacUpdateApp[] {
   const apps: MacUpdateApp[] = []
   
-  // Look for app cards in the search results - updated pattern based on actual HTML
-  // Try multiple patterns to find apps
-  
-  // Pattern 1: Look for links to app pages
-  const appLinkPattern = /<a[^>]*href="([^"]*\.macupdate\.com[^"]*)"[^>]*>([^<]+)<\/a>/gi
-  const appUrlPattern = /<a[^>]*href="https:\/\/([^"]*\.macupdate\.com[^"]*)"[^>]*>/gi
-  
-  // First, find all app URLs
-  const foundUrls = new Set<string>()
-  let match
-  
-  while ((match = appUrlPattern.exec(html)) !== null) {
-    const appUrl = `https://${match[1]}`
-    if (appUrl.includes('.macupdate.com') && !appUrl.includes('/explore/') && !appUrl.includes('/find/')) {
-      foundUrls.add(appUrl)
-    }
-  }
-  
-  console.log(`Found ${foundUrls.size} potential app URLs`)
-  
-  // For each found URL, try to extract app data from the surrounding HTML
-  for (const appUrl of foundUrls) {
-    try {
-      const app = extractAppDataFromUrl(html, appUrl)
-      if (app) {
-        apps.push(app)
-        console.log(`Found app: ${app.name} (${app.rating}/5, ${app.price})`)
-      }
-    } catch (error) {
-      console.error('Error parsing app from URL:', appUrl, error)
-      continue
-    }
-  }
-
-  console.log(`Found ${foundUrls.size} app URLs, parsed ${apps.length} valid apps`)
-
-  // Remove duplicates based on name
-  const uniqueApps = apps.filter((app, index, self) => 
-    index === self.findIndex(a => a.name.toLowerCase() === app.name.toLowerCase())
-  )
-
-  console.log(`Found ${apps.length} total apps, ${uniqueApps.length} unique apps`)
-  return uniqueApps
-}
-
-function extractAppDataFromUrl(html: string, appUrl: string): MacUpdateApp | null {
   try {
-    // Find the context around this app URL
-    const urlIndex = html.indexOf(appUrl)
-    if (urlIndex === -1) return null
-
-    // Get a larger chunk of HTML around the app URL to find the app data
-    const start = Math.max(0, urlIndex - 1000)
-    const end = Math.min(html.length, urlIndex + 1000)
-    const context = html.substring(start, end)
-
-    // Extract app name from the URL or context
-    let name = ''
+    // Look for the __NEXT_DATA__ script tag that contains the JSON data
+    const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/)
     
-    // Try to get name from the URL
-    const urlMatch = appUrl.match(/https:\/\/([^.]+)\.macupdate\.com/)
-    if (urlMatch) {
-      name = urlMatch[1].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+    if (!nextDataMatch) {
+      console.log('No __NEXT_DATA__ script found')
+      return apps
     }
+
+    // Parse the JSON data
+    const jsonData = JSON.parse(nextDataMatch[1])
+    console.log('Found __NEXT_DATA__ script')
     
-    // Try to find a better name in the context
-    const namePatterns = [
-      /<a[^>]*href="[^"]*"[^>]*>([^<]+)<\/a>/gi,
-      /<h3[^>]*>([^<]+)<\/h3>/gi,
-      /<strong[^>]*>([^<]+)<\/strong>/gi
-    ]
-    
-    for (const pattern of namePatterns) {
-      let nameMatch
-      pattern.lastIndex = 0 // Reset regex
-      while ((nameMatch = pattern.exec(context)) !== null) {
-        const potentialName = nameMatch[1].trim()
-        if (potentialName.length > 2 && isValidAppName(potentialName) && potentialName.length > name.length) {
-          name = potentialName
+    // Navigate to the search results data
+    const searchResult = jsonData?.props?.pageProps?.searchResult
+    if (!searchResult || !searchResult.success) {
+      console.log('No valid search result data found')
+      return apps
+    }
+
+    const appsData = searchResult.data
+    if (!Array.isArray(appsData)) {
+      console.log('Apps data is not an array')
+      return apps
+    }
+
+    console.log(`Found ${appsData.length} apps in JSON data`)
+
+    // Convert each app from the JSON structure to our MacUpdateApp format
+    for (const appData of appsData) {
+      try {
+        const app: MacUpdateApp = {
+          name: appData.title || 'Unknown',
+          rating: appData.rating || 0,
+          reviewCount: appData.review_count || 0,
+          price: formatPrice(appData.price),
+          category: 'Unknown', // Category not directly available in this data
+          description: appData.short_description || '',
+          version: appData.version || '',
+          macUpdateUrl: appData.custom_url || `https://${appData.title_slug}.macupdate.com`,
+          lastUpdated: appData.date?.date || '',
+          developer: 'Unknown' // Developer not directly available in this data
         }
-      }
-    }
 
-    if (!name || !isValidAppName(name)) return null
-
-    // Extract rating from context
-    let rating = 0
-    const ratingPatterns = [
-      /(\d+\.?\d*)\s*\/\s*5/i,
-      /"rating[^"]*"[^>]*>([^<]+)</gi,
-      /rating[^>]*>(\d+\.?\d*)/gi
-    ]
-    
-    for (const pattern of ratingPatterns) {
-      const ratingMatch = context.match(pattern)
-      if (ratingMatch) {
-        const ratingValue = parseFloat(ratingMatch[1])
-        if (ratingValue >= 0 && ratingValue <= 5) {
-          rating = ratingValue
-          break
+        // Only include apps with valid names
+        if (isValidAppName(app.name)) {
+          apps.push(app)
+          console.log(`Found app: ${app.name} (${app.rating}/5, ${app.price})`)
         }
+      } catch (error) {
+        console.error('Error parsing app data:', error)
+        continue
       }
-    }
-
-    // Extract review count from context
-    let reviewCount = 0
-    const reviewPatterns = [
-      /(\d+)\s*reviews?/i,
-      /(\d+)\s*ratings?/i,
-      /based\s+on\s+(\d+)/i
-    ]
-    
-    for (const pattern of reviewPatterns) {
-      const reviewMatch = context.match(pattern)
-      if (reviewMatch) {
-        reviewCount = parseInt(reviewMatch[1])
-        break
-      }
-    }
-
-    // Extract price from context
-    let price = 'Unknown'
-    const pricePatterns = [
-      /(Free)/i,
-      /(\$\d+\.?\d*)/i,
-      /price[^>]*>([^<]+)</gi
-    ]
-    
-    for (const pattern of pricePatterns) {
-      const priceMatch = context.match(pattern)
-      if (priceMatch) {
-        price = priceMatch[1]
-        break
-      }
-    }
-
-    // Extract version from context
-    let version = ''
-    const versionPatterns = [
-      /Version\s*([\d\.]+)/i,
-      /version[^>]*>([^<]+)</gi,
-      /v(\d+\.[\d\.]+)/i
-    ]
-    
-    for (const pattern of versionPatterns) {
-      const versionMatch = context.match(pattern)
-      if (versionMatch) {
-        version = versionMatch[1]
-        break
-      }
-    }
-
-    // Extract description from context
-    let description = ''
-    const descPatterns = [
-      /<p[^>]*>([^<]+)<\/p>/i,
-      /description[^>]*>([^<]+)</gi
-    ]
-    
-    for (const pattern of descPatterns) {
-      const descMatch = context.match(pattern)
-      if (descMatch && descMatch[1].length > 10) {
-        description = descMatch[1].trim()
-        break
-      }
-    }
-
-    return {
-      name,
-      rating,
-      reviewCount,
-      price,
-      category: 'Unknown',
-      description,
-      version,
-      macUpdateUrl: appUrl
     }
 
   } catch (error) {
-    console.error('Error extracting app data from URL:', error)
-    return null
+    console.error('Error parsing JSON data:', error)
+    return apps
+  }
+
+  console.log(`Successfully parsed ${apps.length} apps from JSON data`)
+  return apps
+}
+
+function formatPrice(priceData: any): string {
+  if (!priceData || typeof priceData !== 'object') {
+    return 'Unknown'
+  }
+  
+  if (priceData.value === 0) {
+    return 'Free'
+  }
+  
+  // Convert cents to dollars
+  const dollars = (priceData.value / 100).toFixed(2)
+  const currency = priceData.currency || 'USD'
+  
+  if (currency === 'USD') {
+    return `$${dollars}`
+  } else {
+    return `${dollars} ${currency}`
   }
 }
 
