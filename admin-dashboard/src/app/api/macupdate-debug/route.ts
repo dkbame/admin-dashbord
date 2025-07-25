@@ -35,6 +35,10 @@ export async function GET(request: NextRequest) {
     // Look for any text that might be app names
     const potentialAppNames = html.match(/<[^>]*>([A-Z][a-zA-Z0-9\s&]+)<\/[^>]*>/g)?.slice(0, 20) || []
     
+    // Look for MacUpdate app URLs
+    const macUpdateUrls = html.match(/https:\/\/[^"]*\.macupdate\.com[^"']*/g) || []
+    const uniqueUrls = [...new Set(macUpdateUrls)].slice(0, 10)
+    
     // Get a sample of the HTML structure
     const sampleHtml = html.substring(0, 2000)
     
@@ -48,6 +52,7 @@ export async function GET(request: NextRequest) {
         strongTags
       },
       potentialAppNames: potentialAppNames.slice(0, 10),
+      macUpdateUrls: uniqueUrls,
       sampleHtml
     })
 
