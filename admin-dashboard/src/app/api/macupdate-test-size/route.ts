@@ -100,6 +100,10 @@ export async function GET(request: NextRequest) {
       }
     }
     
+    // Note: We're not extracting release dates from MacUpdate
+    // They show "Updated on" dates, not initial release dates
+    // Release date will be left empty for manual entry if needed
+    
     return NextResponse.json({
       success: true,
       data: results
