@@ -361,19 +361,18 @@ export class MacUpdateScraper {
                        $('.developer').first().text().trim() ||
                        $('a[href*="developer"]').first().text().trim()
       
-      const version = $('span:contains("Version")').next().text().trim() || 
+      const version = $('span').filter((_, el) => $(el).text().includes('Version')).next().text().trim() || 
                      $('.version').first().text().trim() ||
-                     $('*:contains("Version")').next().text().trim()
+                     $('*').filter((_, el) => $(el).text().includes('Version')).next().text().trim()
       
-      const priceText = $('.price, .app-price, span:contains("$")').first().text().trim() ||
-                       $('*:contains("$")').first().text().trim()
+      const priceText = $('.price, .app-price').first().text().trim() ||
+                       $('*').filter((_, el) => $(el).text().includes('$')).first().text().trim()
       
-      const ratingText = $('.rating, .stars, span:contains("Based on")').first().text().trim() ||
-                        $('*:contains("Based on")').first().text().trim()
+      const ratingText = $('.rating, .stars').first().text().trim() ||
+                        $('*').filter((_, el) => $(el).text().includes('Based on')).first().text().trim()
       
-      const downloadCountText = $('span:contains("Downloads")').text().trim() || 
-                               $('.downloads').first().text().trim() ||
-                               $('*:contains("Downloads")').text().trim()
+      const downloadCountText = $('*').filter((_, el) => $(el).text().includes('Downloads')).text().trim() || 
+                               $('.downloads').first().text().trim()
       
       const category = $('a[href*="/category/"]').first().text().trim() || 
                       $('.category').first().text().trim() ||
@@ -398,9 +397,8 @@ export class MacUpdateScraper {
       })
       
       // Extract system requirements from app specs section
-      const requirements = $('span:contains("OS")').parent().text().trim() || 
-                          $('.requirements, .system-requirements').first().text().trim() ||
-                          $('*:contains("OS")').parent().text().trim()
+      const requirements = $('*').filter((_, el) => $(el).text().includes('OS')).parent().text().trim() || 
+                          $('.requirements, .system-requirements').first().text().trim()
       const system_requirements = requirements ? [requirements] : []
       
       // Parse data
