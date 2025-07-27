@@ -801,7 +801,8 @@ export class MacUpdateScraper {
       if (architectures.length === 1) {
         return architectures[0]
       } else {
-        return architectures.join(' & ')
+        // Multiple architectures = Universal (modern approach)
+        return 'Universal'
       }
     }
     
