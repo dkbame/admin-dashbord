@@ -485,8 +485,9 @@ export class MacUpdateScraper {
       const priceText = $('.price, .app-price').first().text().trim() ||
                        $('*').filter((_, el) => $(el).text().includes('$')).first().text().trim()
       
-      const ratingText = $('.rating, .stars').first().text().trim() ||
-                        $('*').filter((_, el) => $(el).text().includes('Based on')).first().text().trim()
+      // Skip rating extraction - will use our own rating system
+      // const ratingText = $('.rating, .stars').first().text().trim() ||
+      //                   $('*').filter((_, el) => $(el).text().includes('Based on')).first().text().trim()
       
       const downloadCountText = $('*').filter((_, el) => $(el).text().includes('Downloads')).text().trim() || 
                                $('.downloads').first().text().trim()
@@ -606,14 +607,14 @@ export class MacUpdateScraper {
       
       // Parse data
       const price = this.parsePrice(priceText)
-      const rating = this.parseRating(ratingText)
+      // Skip rating parsing - will use our own rating system
+      // const rating = this.parseRating(ratingText)
       
       console.log('Extracted data:', {
         name,
         developer,
         version,
         price,
-        rating,
         category,
         descriptionLength: description?.length || 0
       })
@@ -629,8 +630,8 @@ export class MacUpdateScraper {
         version: version || 'Unknown',
         price,
         currency: 'USD',
-        rating,
-        rating_count: 0, // MacUpdate doesn't always show review count
+        rating: null, // Skip ratings - will use our own rating system
+        rating_count: 0, // Skip rating count - will use our own rating system
         download_count,
         description: description || '',
         category: category || 'Unknown',

@@ -155,8 +155,8 @@ export async function importMacUpdateApp(app: MacUpdateApp): Promise<ImportResul
       category_id: categoryId,
       price: app.price || 0,
       currency: app.currency || 'USD',
-      rating: app.rating || null,
-      rating_count: app.rating_count || 0,
+      rating: null, // Skip ratings - will use our own rating system
+      rating_count: 0, // Skip rating count - will use our own rating system
       version: app.version || '',
       is_on_mas: false, // MacUpdate apps are not from App Store
       mas_id: null,
