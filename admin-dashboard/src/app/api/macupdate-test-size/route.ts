@@ -41,6 +41,10 @@ export async function GET(request: NextRequest) {
       updated_on_info: {
         raw_text: '',
         parsed_date: ''
+      },
+      developer_website_info: {
+        raw_text: '',
+        extracted_url: ''
       }
     }
     
@@ -140,6 +144,28 @@ export async function GET(request: NextRequest) {
         console.warn('Failed to parse updated date:', updated_on, error)
       }
     }
+    
+    // Test developer website URL extraction
+    let developer_website_url = ''
+    $('.specs_list .specs_list_item').each((_, item) => {
+      const $item = $(item)
+      const title = $item.find('.specs_list_title').text().trim()
+      
+      if (title === 'Developer') {
+        // Look for the developer website link within this item
+        const websiteLink = $item.find('a[href*="http"]').first()
+        if (websiteLink.length > 0) {
+          developer_website_url = websiteLink.attr('href') || ''
+        }
+        return false // break the loop
+      }
+    })
+    
+    results.developer_website_info.raw_text = $('.specs_list .specs_list_item').filter((_, item) => {
+      return $(item).find('.specs_list_title').text().trim() === 'Developer'
+    }).first().text().trim()
+    
+    results.developer_website_info.extracted_url = developer_website_url
     
     // Note: We're not extracting release dates from MacUpdate
     // They show "Updated on" dates, not initial release dates

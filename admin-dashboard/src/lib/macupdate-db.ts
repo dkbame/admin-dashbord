@@ -162,7 +162,7 @@ export async function importMacUpdateApp(app: MacUpdateApp): Promise<ImportResul
       mas_id: null,
       mas_url: null,
       app_store_url: null,
-      website_url: app.macupdate_url || '',
+              website_url: app.developer_website_url || app.macupdate_url || '',
       download_url: null, // Leave download URL empty for MacUpdate apps
       icon_url: app.icon_url || null,
       minimum_os_version: app.system_requirements && app.system_requirements.length > 0 ? app.system_requirements[0] : null,

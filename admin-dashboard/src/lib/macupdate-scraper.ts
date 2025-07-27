@@ -28,6 +28,7 @@ export interface MacUpdateApp {
   screenshots: string[]
   icon_url: string
   macupdate_url: string
+  developer_website_url?: string
   release_date?: Date
   last_updated: Date
   file_size?: string
@@ -587,6 +588,7 @@ export class MacUpdateScraper {
       let download_count = 0
       let updated_on = ''
       let architecture = ''
+      let developer_website_url = ''
       
       $('.specs_list .specs_list_item').each((_, item) => {
         const $item = $(item)
@@ -609,6 +611,21 @@ export class MacUpdateScraper {
           case 'Architecture':
             architecture = description
             break
+        }
+      })
+      
+      // Extract developer website URL from the specs_list
+      $('.specs_list .specs_list_item').each((_, item) => {
+        const $item = $(item)
+        const title = $item.find('.specs_list_title').text().trim()
+        
+        if (title === 'Developer') {
+          // Look for the developer website link within this item
+          const websiteLink = $item.find('a[href*="http"]').first()
+          if (websiteLink.length > 0) {
+            developer_website_url = websiteLink.attr('href') || ''
+          }
+          return false // break the loop
         }
       })
       
@@ -648,6 +665,7 @@ export class MacUpdateScraper {
         screenshots,
         icon_url,
         macupdate_url: appUrl,
+        developer_website_url,
         last_updated: this.parseUpdatedDate(updated_on),
         file_size,
         requirements,
