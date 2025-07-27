@@ -32,6 +32,7 @@ export interface App {
   website_url?: string
   icon_url?: string
   minimum_os_version?: string
+  architecture?: string
   features: string[]
   status: 'ACTIVE' | 'PENDING' | 'INACTIVE'
   screenshots: Screenshot[]
@@ -62,6 +63,7 @@ export interface AppFormData {
   website_url?: string
   icon_url?: string
   minimum_os_version?: string
+  architecture?: string
   features: string[]
   status: 'ACTIVE' | 'PENDING' | 'INACTIVE'
   version?: string

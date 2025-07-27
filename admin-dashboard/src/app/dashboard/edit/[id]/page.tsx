@@ -55,6 +55,7 @@ interface App {
   website_url?: string
   icon_url?: string
   minimum_os_version?: string
+  architecture?: string
   features: string[]
   status: 'ACTIVE' | 'PENDING' | 'INACTIVE'
   screenshots: Screenshot[]
@@ -245,6 +246,7 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
           // Add the new fields
           version: app.version,
           size: app.size,
+          architecture: app.architecture,
           rating: app.rating,
           rating_count: app.rating_count,
           release_date: app.release_date,
@@ -550,6 +552,15 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
                   label="Minimum macOS Version"
                   value={app.minimum_os_version || ''}
                   onChange={(e) => setApp({ ...app, minimum_os_version: e.target.value })}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Architecture"
+                  value={app.architecture || ''}
+                  onChange={(e) => setApp({ ...app, architecture: e.target.value })}
+                  helperText="e.g., Intel 64, Apple Silicon"
                 />
               </Grid>
               <Grid item xs={12} sm={6}>

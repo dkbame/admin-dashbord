@@ -167,6 +167,7 @@ export async function importMacUpdateApp(app: MacUpdateApp): Promise<ImportResul
       icon_url: app.icon_url || null,
       minimum_os_version: app.system_requirements && app.system_requirements.length > 0 ? app.system_requirements[0] : null,
       size: app.file_size || null,
+      architecture: app.architecture || null,
       release_date: null, // Leave empty - MacUpdate shows "Updated on" not release date
       is_free: app.price === 0,
       is_featured: false,

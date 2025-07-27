@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       specs_list_items: [] as any[],
       size_extracted: '',
       requirements_extracted: '',
+      architecture_extracted: '',
       all_specs_titles: [] as string[],
       all_specs_descriptions: [] as string[],
       version_info: {
@@ -56,6 +57,9 @@ export async function GET(request: NextRequest) {
       }
       if (title === 'OS') {
         results.requirements_extracted = description
+      }
+      if (title === 'Architecture') {
+        results.architecture_extracted = description
       }
     })
     

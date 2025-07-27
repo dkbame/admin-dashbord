@@ -32,6 +32,7 @@ export interface MacUpdateApp {
   last_updated: Date
   file_size?: string
   requirements?: string
+  architecture?: string
 }
 
 export interface ScrapingConfig {
@@ -585,6 +586,7 @@ export class MacUpdateScraper {
       let requirements = ''
       let download_count = 0
       let updated_on = ''
+      let architecture = ''
       
       $('.specs_list .specs_list_item').each((_, item) => {
         const $item = $(item)
@@ -603,6 +605,9 @@ export class MacUpdateScraper {
             break
           case 'Updated on':
             updated_on = description
+            break
+          case 'Architecture':
+            architecture = description
             break
         }
       })
@@ -645,7 +650,8 @@ export class MacUpdateScraper {
         macupdate_url: appUrl,
         last_updated: this.parseUpdatedDate(updated_on),
         file_size,
-        requirements
+        requirements,
+        architecture
       }
       
     } catch (error) {
