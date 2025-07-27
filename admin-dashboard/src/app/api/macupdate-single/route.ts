@@ -135,21 +135,53 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
     }
 
     try {
-      // Extract app name
-      const nameMatch = html.match(/<h1[^>]*>([^<]*?)(?:<span[^>]*>.*?<\/span>)?[^<]*<\/h1>/)
+      // Extract app name with multiple fallback patterns
+      let nameMatch = html.match(/<h1[^>]*>([^<]*?)(?:<span[^>]*>.*?<\/span>)?[^<]*<\/h1>/)
+      
+      if (!nameMatch) {
+        // Fallback 1: Look for any h1 with app title
+        nameMatch = html.match(/<h1[^>]*class="[^"]*app_title[^"]*"[^>]*>([^<]+)<\/h1>/)
+      }
+      
+      if (!nameMatch) {
+        // Fallback 2: Look for any h1 with mu_title
+        nameMatch = html.match(/<h1[^>]*class="[^"]*mu_title[^"]*"[^>]*>([^<]+)<\/h1>/)
+      }
+      
+      if (!nameMatch) {
+        // Fallback 3: Extract from page title
+        nameMatch = html.match(/<title>([^<]+?)\s*\|\s*MacUpdate<\/title>/)
+      }
+      
+      if (!nameMatch) {
+        // Fallback 4: Extract from page title with dash
+        nameMatch = html.match(/<title>([^<]+?)\s*-\s*MacUpdate<\/title>/)
+      }
+      
+      if (!nameMatch) {
+        // Fallback 5: Any h1 element
+        nameMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/)
+      }
+      
+      if (!nameMatch) {
+        // Fallback 6: Extract from main_data div
+        nameMatch = html.match(/<div[^>]*class="[^"]*main_data[^"]*"[^>]*>.*?<h1[^>]*>([^<]*?)(?:<span[^>]*>.*?<\/span>)?[^<]*<\/h1>/i)
+      }
+      
       if (nameMatch) {
         app.name = nameMatch[1].trim()
           .replace(/\s+(for\s+Mac|for\s+macOS|\(Mac\)|\(macOS\))$/i, '')
           .substring(0, 255) // Limit to 255 chars
-      } else {
-        // Fallback: try to extract from main_data div
-        const altNameMatch = html.match(/<div[^>]*class="[^"]*main_data[^"]*"[^>]*>.*?<h1[^>]*>([^<]*?)(?:<span[^>]*>.*?<\/span>)?[^<]*<\/h1>/i)
-        if (altNameMatch) {
-          app.name = altNameMatch[1].trim()
-            .replace(/\s+(for\s+Mac|for\s+macOS|\(Mac\)|\(macOS\))$/i, '')
-            .substring(0, 255)
+        
+        // If name is still empty after cleanup, try to extract from URL
+        if (!app.name) {
+          const urlMatch = url.match(/\/([^\/]+)\.macupdate\.com/)
+          if (urlMatch) {
+            app.name = urlMatch[1].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+          }
         }
       }
+      
       console.log('Extracted name:', app.name)
     } catch (error) {
       console.log('Error extracting name:', error)
@@ -392,6 +424,12 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
       screenshots: finalApp.screenshots.length,
       iconUrl: !!finalApp.iconUrl
     })
+
+    // Validate that we have at least a name
+    if (!finalApp.name || finalApp.name.trim() === '') {
+      console.error('Failed to extract app name from page')
+      return null
+    }
 
     // Return the app object even if some fields are missing
     return finalApp
