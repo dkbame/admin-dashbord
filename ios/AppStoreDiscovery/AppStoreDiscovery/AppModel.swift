@@ -134,6 +134,7 @@ struct AppModel: Identifiable, Codable {
         status = try container.decodeIfPresent(String.self, forKey: .status)
         currency = try container.decodeIfPresent(String.self, forKey: .currency)
         minimum_os_version = try container.decodeIfPresent(String.self, forKey: .minimum_os_version)
+        architecture = try container.decodeIfPresent(String.self, forKey: .architecture)
         features = try container.decodeIfPresent([String].self, forKey: .features)
         source = try container.decodeIfPresent(String.self, forKey: .source)
         
@@ -219,7 +220,7 @@ struct AppModel: Identifiable, Codable {
     )
     
     // Manual initializer for creating AppModel instances
-    init(id: String, name: String, description: String, developer: String?, price: String?, category_id: String, icon_url: String?, screenshots: [Screenshot]?, app_store_url: String?, website_url: String?, version: String?, size: Int?, rating: Double?, rating_count: Int?, release_date: String?, last_updated: String?, is_free: Bool?, is_featured: Bool?, created_at: String?, updated_at: String?, status: String?, currency: String?, minimum_os_version: String?, features: [String]?, source: String?) {
+    init(id: String, name: String, description: String, developer: String?, price: String?, category_id: String, icon_url: String?, screenshots: [Screenshot]?, app_store_url: String?, website_url: String?, version: String?, size: Int?, rating: Double?, rating_count: Int?, release_date: String?, last_updated: String?, is_free: Bool?, is_featured: Bool?, created_at: String?, updated_at: String?, status: String?, currency: String?, minimum_os_version: String?, architecture: String?, features: [String]?, source: String?) {
         self.id = id
         self.name = name
         self.description = description
@@ -243,6 +244,7 @@ struct AppModel: Identifiable, Codable {
         self.status = status
         self.currency = currency
         self.minimum_os_version = minimum_os_version
+        self.architecture = architecture
         self.features = features
         self.source = source
     }
