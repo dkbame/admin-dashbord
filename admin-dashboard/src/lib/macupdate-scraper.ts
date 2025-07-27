@@ -1,5 +1,6 @@
 import puppeteer, { Browser, LaunchOptions } from 'puppeteer'
 import * as cheerio from 'cheerio'
+import axios from 'axios'
 
 // Import Chromium for Netlify
 let chromium: any = null
@@ -7,10 +8,9 @@ if (process.env.NETLIFY) {
   try {
     chromium = require('@sparticuz/chromium')
   } catch (error) {
-    console.log('Chromium not available, using default Puppeteer')
+    console.log('Chromium not available, using fallback scraping method')
   }
 }
-import axios from 'axios'
 
 // Types for MacUpdate data
 export interface MacUpdateApp {
@@ -214,52 +214,73 @@ export class MacUpdateScraper {
   // Scrape individual app page
   async scrapeAppPage(appUrl: string): Promise<MacUpdateApp | null> {
     try {
-      if (!this.browser) {
-        await this.initBrowser()
-      }
-
       console.log(`Scraping app page: ${appUrl}`)
       
-      const page = await this.browser!.newPage()
-      
-      try {
-        // Set timeout and user agent
-        await page.setDefaultTimeout(this.config.timeout)
-        await page.setUserAgent(this.config.userAgent)
-        
-        // Navigate to app page
-        console.log('Navigating to page...')
-        await page.goto(appUrl, { waitUntil: 'networkidle2' })
-        
-        // Wait for content to load
-        console.log('Waiting for content to load...')
-        await new Promise(resolve => setTimeout(resolve, 3000))
-        
-        // Check if page loaded successfully
-        const title = await page.title()
-        console.log('Page title:', title)
-        
-        // Get page content
-        const content = await page.content()
-        console.log('HTML length:', content.length)
-        
-        const $ = cheerio.load(content)
-        
-        // Extract app data
-        const app = this.extractAppData($, appUrl)
-        
-        if (!app) {
-          console.error('Failed to extract app data from page')
-          // Log some debug info
-          console.log('Available h1 elements:', $('h1').length)
-          console.log('Available title elements:', $('title').length)
-          console.log('Available links:', $('a').length)
+      // Try Puppeteer first (for local development)
+      if (!process.env.NETLIFY) {
+        try {
+          if (!this.browser) {
+            await this.initBrowser()
+          }
+          
+          const page = await this.browser!.newPage()
+          
+          try {
+            await page.setDefaultTimeout(this.config.timeout)
+            await page.setUserAgent(this.config.userAgent)
+            
+            console.log('Navigating to page with Puppeteer...')
+            await page.goto(appUrl, { waitUntil: 'networkidle2' })
+            await new Promise(resolve => setTimeout(resolve, 3000))
+            
+            const title = await page.title()
+            console.log('Page title:', title)
+            
+            const content = await page.content()
+            console.log('HTML length:', content.length)
+            
+            const $ = cheerio.load(content)
+            const app = this.extractAppData($, appUrl)
+            
+            if (app) {
+              console.log('Successfully scraped with Puppeteer')
+              return app
+            }
+            
+          } finally {
+            await page.close()
+          }
+        } catch (puppeteerError) {
+          console.log('Puppeteer failed, trying fallback method:', puppeteerError)
         }
-        
+      }
+      
+      // Fallback: Use axios + cheerio (works on Netlify)
+      console.log('Using fallback scraping method with axios...')
+      const response = await axios.get(appUrl, {
+        timeout: this.config.timeout,
+        headers: {
+          'User-Agent': this.config.userAgent,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1'
+        }
+      })
+      
+      console.log('Response status:', response.status)
+      console.log('HTML length:', response.data.length)
+      
+      const $ = cheerio.load(response.data)
+      const app = this.extractAppData($, appUrl)
+      
+      if (app) {
+        console.log('Successfully scraped with fallback method')
         return app
-        
-      } finally {
-        await page.close()
+      } else {
+        console.error('Failed to extract app data with fallback method')
+        return null
       }
       
     } catch (error) {
