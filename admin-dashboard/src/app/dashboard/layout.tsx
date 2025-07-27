@@ -59,14 +59,6 @@ export default function DashboardLayout({
             <ListItemText primary="Bulk Import" primaryTypographyProps={{ fontWeight: 500 }} />
           </ListItemButton>
         </Link>
-        <Link href="/dashboard/macupdate-import" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <ListItemButton sx={{ borderRadius: 2, mb: 1 }}>
-            <ListItemIcon>
-              <Download />
-            </ListItemIcon>
-            <ListItemText primary="MacUpdate Import" primaryTypographyProps={{ fontWeight: 500 }} />
-          </ListItemButton>
-        </Link>
         <Link href="/dashboard/categories" style={{ textDecoration: 'none', color: 'inherit' }}>
           <ListItemButton sx={{ borderRadius: 2, mb: 1 }}>
             <ListItemIcon>

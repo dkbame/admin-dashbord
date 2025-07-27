@@ -302,7 +302,6 @@ export default function AddAppPage() {
         >
           <Tab label="Mac App Store Import" />
           <Tab label="Custom App" />
-          <Tab label="MacUpdate Import" />
         </Tabs>
 
         <TabPanel value={tabValue} index={0}>
@@ -495,28 +494,6 @@ export default function AddAppPage() {
               </Grid>
             </Grid>
           </form>
-        </TabPanel>
-
-        <TabPanel value={tabValue} index={2}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Import Single App from MacUpdate
-              </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                Use our dedicated single app import tool to scrape and import apps from MacUpdate URLs 
-                with complete details including screenshots, descriptions, and metadata.
-              </Typography>
-              <Button
-                variant="contained"
-                size="large"
-                onClick={() => router.push('/dashboard/add/single-app')}
-                sx={{ mt: 2 }}
-              >
-                Open Single App Import Tool
-              </Button>
-            </CardContent>
-          </Card>
         </TabPanel>
       </Paper>
     </Box>
