@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getImportStats } from '@/lib/macupdate-db'
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const stats = await getImportStats()

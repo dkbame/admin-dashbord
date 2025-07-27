@@ -173,28 +173,53 @@ export class MacUpdateScraper {
   // Scrape individual app page
   async scrapeAppPage(appUrl: string): Promise<MacUpdateApp | null> {
     try {
-      const browser = await this.initBrowser()
-      const page = await browser.newPage()
+      if (!this.browser) {
+        await this.initBrowser()
+      }
+
+      console.log(`Scraping app page: ${appUrl}`)
       
-      // Set timeout and user agent
-      await page.setDefaultTimeout(this.config.timeout)
-      await page.setUserAgent(this.config.userAgent)
+      const page = await this.browser!.newPage()
       
-      // Navigate to app page
-      await page.goto(appUrl, { waitUntil: 'networkidle2' })
-      
-      // Wait for content to load
-      await page.waitForSelector('.app-header, .app-info, h1', { timeout: 10000 })
-      
-      // Get page content
-      const content = await page.content()
-      const $ = cheerio.load(content)
-      
-      // Extract app data
-      const app = this.extractAppData($, appUrl)
-      
-      await page.close()
-      return app
+      try {
+        // Set timeout and user agent
+        await page.setDefaultTimeout(this.config.timeout)
+        await page.setUserAgent(this.config.userAgent)
+        
+        // Navigate to app page
+        console.log('Navigating to page...')
+        await page.goto(appUrl, { waitUntil: 'networkidle2' })
+        
+        // Wait for content to load
+        console.log('Waiting for content to load...')
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        
+        // Check if page loaded successfully
+        const title = await page.title()
+        console.log('Page title:', title)
+        
+        // Get page content
+        const content = await page.content()
+        console.log('HTML length:', content.length)
+        
+        const $ = cheerio.load(content)
+        
+        // Extract app data
+        const app = this.extractAppData($, appUrl)
+        
+        if (!app) {
+          console.error('Failed to extract app data from page')
+          // Log some debug info
+          console.log('Available h1 elements:', $('h1').length)
+          console.log('Available title elements:', $('title').length)
+          console.log('Available links:', $('a').length)
+        }
+        
+        return app
+        
+      } finally {
+        await page.close()
+      }
       
     } catch (error) {
       console.error(`Failed to scrape app page ${appUrl}:`, error)
@@ -325,18 +350,41 @@ export class MacUpdateScraper {
   // Extract detailed app data from individual page
   private extractAppData($: cheerio.CheerioAPI, appUrl: string): MacUpdateApp | null {
     try {
+      console.log('Extracting app data from:', appUrl)
+      
       // Extract basic info - updated selectors based on actual MacUpdate structure
-      const name = $('h1').first().text().trim() || $('.app-title').first().text().trim()
-      const developer = $('a[href*="/developer/"]').first().text().trim() || $('.developer').first().text().trim()
-      const version = $('span:contains("Version")').next().text().trim() || $('.version').first().text().trim()
-      const priceText = $('.price, .app-price, span:contains("$")').first().text().trim()
-      const ratingText = $('.rating, .stars, span:contains("Based on")').first().text().trim()
-      const downloadCountText = $('span:contains("Downloads")').text().trim() || $('.downloads').first().text().trim()
-      const category = $('a[href*="/category/"]').first().text().trim() || $('.category').first().text().trim()
-      const description = $('.overview, .description, .app-description').first().text().trim()
+      const name = $('h1').first().text().trim() || 
+                   $('.app-title').first().text().trim() ||
+                   $('title').first().text().replace(' for Mac', '').trim()
+      
+      const developer = $('a[href*="/developer/"]').first().text().trim() || 
+                       $('.developer').first().text().trim() ||
+                       $('a[href*="developer"]').first().text().trim()
+      
+      const version = $('span:contains("Version")').next().text().trim() || 
+                     $('.version').first().text().trim() ||
+                     $('*:contains("Version")').next().text().trim()
+      
+      const priceText = $('.price, .app-price, span:contains("$")').first().text().trim() ||
+                       $('*:contains("$")').first().text().trim()
+      
+      const ratingText = $('.rating, .stars, span:contains("Based on")').first().text().trim() ||
+                        $('*:contains("Based on")').first().text().trim()
+      
+      const downloadCountText = $('span:contains("Downloads")').text().trim() || 
+                               $('.downloads').first().text().trim() ||
+                               $('*:contains("Downloads")').text().trim()
+      
+      const category = $('a[href*="/category/"]').first().text().trim() || 
+                      $('.category').first().text().trim() ||
+                      $('a[href*="category"]').first().text().trim()
+      
+      const description = $('.overview, .description, .app-description').first().text().trim() ||
+                         $('p').first().text().trim()
       
       // Extract icon - look for logo or app icon
-      const iconUrl = $('img[src*="logo"], img[src*="icon"], .logo img, .app-icon img').first().attr('src') || ''
+      const iconUrl = $('img[src*="logo"], img[src*="icon"], .logo img, .app-icon img').first().attr('src') || 
+                     $('img').first().attr('src') || ''
       const icon_url = iconUrl.startsWith('http') ? iconUrl : `https://www.macupdate.com${iconUrl}`
       
       // Extract screenshots - look for gallery images
@@ -351,13 +399,24 @@ export class MacUpdateScraper {
       
       // Extract system requirements from app specs section
       const requirements = $('span:contains("OS")').parent().text().trim() || 
-                          $('.requirements, .system-requirements').first().text().trim()
+                          $('.requirements, .system-requirements').first().text().trim() ||
+                          $('*:contains("OS")').parent().text().trim()
       const system_requirements = requirements ? [requirements] : []
       
       // Parse data
       const price = this.parsePrice(priceText)
       const rating = this.parseRating(ratingText)
       const download_count = this.parseDownloadCount(downloadCountText)
+      
+      console.log('Extracted data:', {
+        name,
+        developer,
+        version,
+        price,
+        rating,
+        category,
+        descriptionLength: description?.length || 0
+      })
       
       if (!name) {
         console.error('No app name found on page')

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { importMacUpdateAppsBatch } from '@/lib/macupdate-db'
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
