@@ -199,7 +199,6 @@ struct AppDetailView: View {
                                 InfoRow(title: "Architecture", value: architecture)
                             }
                             
-                            InfoRow(title: "Release Date", value: app.formattedReleaseDate)
                             InfoRow(title: "Last Updated", value: app.formattedLastUpdated)
                             
                             if let currency = app.currency {

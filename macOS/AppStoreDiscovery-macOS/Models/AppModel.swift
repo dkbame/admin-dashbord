@@ -29,7 +29,6 @@ struct AppModel: Identifiable, Codable {
     let size: String?
     let rating: Double?
     let rating_count: Int?
-    let release_date: String?
     let last_updated: String?
     let is_free: Bool?
     let is_featured: Bool?
@@ -96,16 +95,7 @@ struct AppModel: Identifiable, Codable {
         return size
     }
     
-    var formattedReleaseDate: String {
-        guard let releaseDate = release_date else { return "Unknown" }
-        let formatter = Foundation.DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        if let date = formatter.date(from: releaseDate) {
-            formatter.dateStyle = .medium
-            return formatter.string(from: date)
-        }
-        return releaseDate
-    }
+
     
     var formattedLastUpdated: String {
         guard let lastUpdated = last_updated else { return "Unknown" }
@@ -138,7 +128,6 @@ struct AppModel: Identifiable, Codable {
         is_featured = try container.decodeIfPresent(Bool.self, forKey: .is_featured)
         created_at = try container.decodeIfPresent(String.self, forKey: .created_at)
         updated_at = try container.decodeIfPresent(String.self, forKey: .updated_at)
-        release_date = try container.decodeIfPresent(String.self, forKey: .release_date)
         status = try container.decodeIfPresent(String.self, forKey: .status)
         currency = try container.decodeIfPresent(String.self, forKey: .currency)
         minimum_os_version = try container.decodeIfPresent(String.self, forKey: .minimum_os_version)
@@ -217,7 +206,6 @@ struct AppModel: Identifiable, Codable {
         size: "50 MB",
         rating: 4.5,
         rating_count: 1234,
-        release_date: "2024-01-15",
         last_updated: "2024-01-15T10:30:00.000000Z",
         is_free: true,
         is_featured: true,
@@ -232,7 +220,7 @@ struct AppModel: Identifiable, Codable {
     )
     
     // Manual initializer for creating AppModel instances
-    init(id: String, name: String, description: String, developer: String?, price: String?, category_id: String, icon_url: String?, screenshots: [Screenshot]?, app_store_url: String?, website_url: String?, version: String?, size: String?, rating: Double?, rating_count: Int?, release_date: String?, last_updated: String?, is_free: Bool?, is_featured: Bool?, created_at: String?, updated_at: String?, status: String?, currency: String?, minimum_os_version: String?, architecture: String?, features: [String]?, source: String?) {
+    init(id: String, name: String, description: String, developer: String?, price: String?, category_id: String, icon_url: String?, screenshots: [Screenshot]?, app_store_url: String?, website_url: String?, version: String?, size: String?, rating: Double?, rating_count: Int?, last_updated: String?, is_free: Bool?, is_featured: Bool?, created_at: String?, updated_at: String?, status: String?, currency: String?, minimum_os_version: String?, architecture: String?, features: [String]?, source: String?) {
         self.id = id
         self.name = name
         self.description = description
@@ -247,7 +235,6 @@ struct AppModel: Identifiable, Codable {
         self.size = size
         self.rating = rating
         self.rating_count = rating_count
-        self.release_date = release_date
         self.last_updated = last_updated
         self.is_free = is_free
         self.is_featured = is_featured

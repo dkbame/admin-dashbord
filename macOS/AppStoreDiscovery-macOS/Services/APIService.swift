@@ -106,7 +106,7 @@ class APIService: ObservableObject {
                                 size: app.size,
                                 rating: app.rating,
                                 rating_count: app.rating_count,
-                                release_date: app.release_date,
+                    
                                 last_updated: app.last_updated,
                                 is_free: app.is_free,
                                 is_featured: app.is_featured,
