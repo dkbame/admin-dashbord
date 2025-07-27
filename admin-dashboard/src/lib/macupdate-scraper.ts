@@ -325,23 +325,23 @@ export class MacUpdateScraper {
   // Extract detailed app data from individual page
   private extractAppData($: cheerio.CheerioAPI, appUrl: string): MacUpdateApp | null {
     try {
-      // Extract basic info
-      const name = $('.app-header h1, .app-title, h1').first().text().trim()
-      const developer = $('.developer, .publisher, .company').first().text().trim()
-      const version = $('.version, .app-version').first().text().trim()
-      const priceText = $('.price, .app-price').first().text().trim()
-      const ratingText = $('.rating, .stars').first().attr('title') || ''
-      const downloadCountText = $('.downloads, .download-count').first().text().trim()
-      const category = $('.category, .app-category').first().text().trim()
-      const description = $('.description, .app-description, .overview').first().text().trim()
+      // Extract basic info - updated selectors based on actual MacUpdate structure
+      const name = $('h1').first().text().trim() || $('.app-title').first().text().trim()
+      const developer = $('a[href*="/developer/"]').first().text().trim() || $('.developer').first().text().trim()
+      const version = $('span:contains("Version")').next().text().trim() || $('.version').first().text().trim()
+      const priceText = $('.price, .app-price, span:contains("$")').first().text().trim()
+      const ratingText = $('.rating, .stars, span:contains("Based on")').first().text().trim()
+      const downloadCountText = $('span:contains("Downloads")').text().trim() || $('.downloads').first().text().trim()
+      const category = $('a[href*="/category/"]').first().text().trim() || $('.category').first().text().trim()
+      const description = $('.overview, .description, .app-description').first().text().trim()
       
-      // Extract icon
-      const iconUrl = $('.app-icon img, .logo img').first().attr('src') || ''
+      // Extract icon - look for logo or app icon
+      const iconUrl = $('img[src*="logo"], img[src*="icon"], .logo img, .app-icon img').first().attr('src') || ''
       const icon_url = iconUrl.startsWith('http') ? iconUrl : `https://www.macupdate.com${iconUrl}`
       
-      // Extract screenshots
+      // Extract screenshots - look for gallery images
       const screenshots: string[] = []
-      $('.screenshots img, .gallery img').each((_, img) => {
+      $('img[src*="screenshot"], img[src*="gallery"], .screenshots img, .gallery img').each((_, img) => {
         const src = $(img).attr('src')
         if (src) {
           const fullUrl = src.startsWith('http') ? src : `https://www.macupdate.com${src}`
@@ -349,8 +349,9 @@ export class MacUpdateScraper {
         }
       })
       
-      // Extract system requirements
-      const requirements = $('.requirements, .system-requirements').first().text().trim()
+      // Extract system requirements from app specs section
+      const requirements = $('span:contains("OS")').parent().text().trim() || 
+                          $('.requirements, .system-requirements').first().text().trim()
       const system_requirements = requirements ? [requirements] : []
       
       // Parse data
@@ -358,13 +359,14 @@ export class MacUpdateScraper {
       const rating = this.parseRating(ratingText)
       const download_count = this.parseDownloadCount(downloadCountText)
       
-      if (!name || !developer) {
+      if (!name) {
+        console.error('No app name found on page')
         return null
       }
 
       return {
         name,
-        developer,
+        developer: developer || 'Unknown',
         version: version || 'Unknown',
         price,
         currency: 'USD',

@@ -124,6 +124,7 @@ export default function MacUpdateImportPage() {
     timeout: 30000
   })
   
+  const [manualUrl, setManualUrl] = useState('')
   const [isScraping, setIsScraping] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [scrapingProgress, setScrapingProgress] = useState(0)
@@ -191,6 +192,52 @@ export default function MacUpdateImportPage() {
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Scraping failed'
+      setError(errorMessage)
+    } finally {
+      setIsScraping(false)
+    }
+  }
+
+  const handleManualScrape = async () => {
+    if (!manualUrl.trim()) {
+      setError('Please enter a MacUpdate URL')
+      return
+    }
+
+    setIsScraping(true)
+    setScrapingProgress(0)
+    setScrapedApps([])
+    setError(null)
+    setSuccess(null)
+
+    try {
+      console.log('Starting manual MacUpdate scraping for URL:', manualUrl)
+      
+      const response = await fetch('/api/macupdate-scraper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'scrape-app',
+          appUrl: manualUrl
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      
+      if (data.success && data.app) {
+        setScrapedApps([data.app])
+        setSuccess(`Successfully scraped app: ${data.app.name}`)
+        setScrapingProgress(100)
+      } else {
+        setError(data.error || 'Failed to scrape app')
+      }
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Manual scraping failed'
       setError(errorMessage)
     } finally {
       setIsScraping(false)
@@ -323,7 +370,35 @@ export default function MacUpdateImportPage() {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Scraping Configuration
+                Manual App Scraping
+              </Typography>
+
+              <TextField
+                fullWidth
+                label="MacUpdate App URL"
+                placeholder="https://istat-menus.macupdate.com/"
+                value={manualUrl}
+                onChange={(e) => setManualUrl(e.target.value)}
+                sx={{ mb: 2 }}
+                helperText="Enter a specific MacUpdate app URL to scrape"
+              />
+
+              <Button
+                fullWidth
+                variant="contained"
+                color="primary"
+                startIcon={isScraping ? <CircularProgress size={20} /> : <CloudDownload />}
+                onClick={handleManualScrape}
+                disabled={isScraping || isImporting || !manualUrl.trim()}
+                sx={{ mb: 3 }}
+              >
+                {isScraping ? 'Scraping...' : 'Scrape Single App'}
+              </Button>
+
+              <Divider sx={{ my: 3 }} />
+
+              <Typography variant="h6" gutterBottom>
+                Bulk Scraping Configuration
               </Typography>
 
               <TextField
