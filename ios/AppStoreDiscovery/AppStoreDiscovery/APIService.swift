@@ -119,6 +119,7 @@ class APIService: ObservableObject {
                                 status: app.status,
                                 currency: app.currency,
                                 minimum_os_version: app.minimum_os_version,
+                                architecture: app.architecture,
                                 features: app.features,
                                 source: app.source
                             )
