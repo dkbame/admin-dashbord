@@ -64,7 +64,6 @@ interface App {
   size?: string  // Changed from number to string to support "97.4 MB" format
   rating?: number
   rating_count?: number
-  release_date?: string
   last_updated?: string
 }
 
@@ -250,7 +249,6 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
           architecture: app.architecture,
           rating: app.rating,
           rating_count: app.rating_count,
-          release_date: app.release_date,
           last_updated: app.last_updated,
         })
         .eq('id', app.id)
@@ -536,19 +534,7 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
                   onChange={(e) => setApp({ ...app, rating_count: parseInt(e.target.value) || undefined })}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Release Date"
-                  type="date"
-                  value={app.release_date ? app.release_date.split('T')[0] : ''}
-                  onChange={(e) => setApp({ ...app, release_date: e.target.value })}
-                  InputLabelProps={{
-                    shrink: true,
-                  }}
-                  helperText="Initial release date (manual entry for MacUpdate apps)"
-                />
-              </Grid>
+
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth

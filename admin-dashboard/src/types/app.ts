@@ -42,7 +42,6 @@ export interface App {
   size?: string  // Changed from number to string to support "97.4 MB" format
   rating?: number
   rating_count?: number
-  release_date?: string
   last_updated?: string
   created_at: string
   updated_at: string
@@ -70,7 +69,6 @@ export interface AppFormData {
   size?: string  // Changed from number to string to support "97.4 MB" format
   rating?: number
   rating_count?: number
-  release_date?: string
   last_updated?: string
 }
 
