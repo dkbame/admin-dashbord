@@ -149,22 +149,27 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
       }
       
       if (!nameMatch) {
-        // Fallback 3: Extract from page title
+        // Fallback 3: Extract from page title - remove "Download" and "for Mac"
+        nameMatch = html.match(/<title>Download\s+([^<]+?)\s+for\s+Mac\s*\|\s*MacUpdate<\/title>/)
+      }
+      
+      if (!nameMatch) {
+        // Fallback 4: Extract from page title with pipe
         nameMatch = html.match(/<title>([^<]+?)\s*\|\s*MacUpdate<\/title>/)
       }
       
       if (!nameMatch) {
-        // Fallback 4: Extract from page title with dash
+        // Fallback 5: Extract from page title with dash
         nameMatch = html.match(/<title>([^<]+?)\s*-\s*MacUpdate<\/title>/)
       }
       
       if (!nameMatch) {
-        // Fallback 5: Any h1 element
+        // Fallback 6: Any h1 element
         nameMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/)
       }
       
       if (!nameMatch) {
-        // Fallback 6: Extract from main_data div
+        // Fallback 7: Extract from main_data div
         nameMatch = html.match(/<div[^>]*class="[^"]*main_data[^"]*"[^>]*>.*?<h1[^>]*>([^<]*?)(?:<span[^>]*>.*?<\/span>)?[^<]*<\/h1>/i)
       }
       
@@ -188,8 +193,10 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
     }
 
     try {
-      // Extract developer
-      const developerMatch = html.match(/<div[^>]*class="[^"]*developer[^"]*"[^>]*>.*?<a[^>]*>([^<]+)<\/a>/i)
+      // Extract developer - look for "Developer" section
+      const developerMatch = html.match(/Developer[^>]*>([^<]+)</) ||
+                            html.match(/by\s+<a[^>]*>([^<]+)<\/a>/) ||
+                            html.match(/<div[^>]*class="[^"]*developer[^"]*"[^>]*>.*?<a[^>]*>([^<]+)<\/a>/i)
       if (developerMatch) {
         app.developer = developerMatch[1].trim().substring(0, 255)
       }
@@ -199,10 +206,13 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
     }
 
     try {
-      // Extract description
-      const descMatch = html.match(/<div[^>]*class="[^"]*description[^"]*"[^>]*>.*?<p[^>]*>([^<]+)<\/p>/i)
+      // Extract description - look for overview section
+      const descMatch = html.match(/##\s*([^#]+?)\s*overview[\s\S]*?<p[^>]*>([^<]+)<\/p>/i) ||
+                       html.match(/<div[^>]*class="[^"]*description[^"]*"[^>]*>.*?<p[^>]*>([^<]+)<\/p>/i) ||
+                       html.match(/<div[^>]*class="[^"]*overview[^"]*"[^>]*>([\s\S]*?)<\/div>/i)
       if (descMatch) {
-        app.description = descMatch[1].trim().substring(0, 1000) // Limit to 1000 chars
+        app.description = descMatch[1] || descMatch[2]
+        app.description = app.description.replace(/<[^>]+>/g, '').trim().substring(0, 1000)
       }
       console.log('Extracted description length:', app.description.length)
     } catch (error) {
@@ -210,52 +220,9 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
     }
 
     try {
-      // Extract category
-      const categoryMatch = html.match(/<div[^>]*class="[^"]*category[^"]*"[^>]*>.*?<a[^>]*>([^<]+)<\/a>/i)
-      if (categoryMatch) {
-        app.category = categoryMatch[1].trim().substring(0, 100)
-      }
-      console.log('Extracted category:', app.category)
-    } catch (error) {
-      console.log('Error extracting category:', error)
-    }
-
-    try {
-      // Extract price
-      const priceMatch = html.match(/<div[^>]*class="[^"]*price[^"]*"[^>]*>([^<]+)/i)
-      if (priceMatch) {
-        app.price = priceMatch[1].trim().substring(0, 50)
-      }
-      console.log('Extracted price:', app.price)
-    } catch (error) {
-      console.log('Error extracting price:', error)
-    }
-
-    try {
-      // Extract rating
-      const ratingMatch = html.match(/<div[^>]*class="[^"]*rating[^"]*"[^>]*>([0-9.]+)/i)
-      if (ratingMatch) {
-        app.rating = parseFloat(ratingMatch[1]) || 0
-      }
-      console.log('Extracted rating:', app.rating)
-    } catch (error) {
-      console.log('Error extracting rating:', error)
-    }
-
-    try {
-      // Extract review count
-      const reviewMatch = html.match(/<div[^>]*class="[^"]*reviews[^"]*"[^>]*>([0-9]+)/i)
-      if (reviewMatch) {
-        app.reviewCount = parseInt(reviewMatch[1]) || 0
-      }
-      console.log('Extracted review count:', app.reviewCount)
-    } catch (error) {
-      console.log('Error extracting review count:', error)
-    }
-
-    try {
-      // Extract version
-      const versionMatch = html.match(/<div[^>]*class="[^"]*version[^"]*"[^>]*>([^<]+)/i)
+      // Extract version - look for "Version" in app specs
+      const versionMatch = html.match(/Version\s+([0-9.]+)/i) ||
+                          html.match(/<div[^>]*class="[^"]*version[^"]*"[^>]*>([^<]+)/i)
       if (versionMatch) {
         app.version = versionMatch[1].trim().substring(0, 50)
       }
@@ -265,21 +232,12 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
     }
 
     try {
-      // Extract last updated
-      const updatedMatch = html.match(/<div[^>]*class="[^"]*updated[^"]*"[^>]*>([^<]+)/i)
-      if (updatedMatch) {
-        app.lastUpdated = updatedMatch[1].trim().substring(0, 100)
-      }
-      console.log('Extracted last updated:', app.lastUpdated)
-    } catch (error) {
-      console.log('Error extracting last updated:', error)
-    }
-
-    try {
-      // Extract file size
-      const sizeMatch = html.match(/<div[^>]*class="[^"]*size[^"]*"[^>]*>([^<]+)/i)
+      // Extract file size - look for "Size" in app specs
+      const sizeMatch = html.match(/Size\s+([0-9.]+)\s*([KMGT]B)/i) ||
+                       html.match(/Download\s*\(([0-9.]+)\s*([KMGT]B)\)/i) ||
+                       html.match(/<div[^>]*class="[^"]*size[^"]*"[^>]*>([^<]+)/i)
       if (sizeMatch) {
-        app.fileSize = sizeMatch[1].trim().substring(0, 50)
+        app.fileSize = `${sizeMatch[1]} ${sizeMatch[2]}`.substring(0, 50)
       }
       console.log('Extracted file size:', app.fileSize)
     } catch (error) {
@@ -287,8 +245,9 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
     }
 
     try {
-      // Extract requirements
-      const reqMatch = html.match(/<div[^>]*class="[^"]*requirements[^"]*"[^>]*>([^<]+)/i)
+      // Extract requirements - look for "OS" in app specs
+      const reqMatch = html.match(/OS\s+([^<]+)/i) ||
+                      html.match(/<div[^>]*class="[^"]*requirements[^"]*"[^>]*>([^<]+)/i)
       if (reqMatch) {
         app.requirements = reqMatch[1].trim().substring(0, 200)
       }
@@ -298,8 +257,74 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
     }
 
     try {
-      // Extract website
-      const websiteMatch = html.match(/<a[^>]*href="([^"]*)"[^>]*>Visit Website<\/a>/i)
+      // Extract last updated - look for "Updated on" in app specs
+      const updatedMatch = html.match(/Updated on\s+([^<]+)/i) ||
+                          html.match(/<div[^>]*class="[^"]*updated[^"]*"[^>]*>([^<]+)/i)
+      if (updatedMatch) {
+        app.lastUpdated = updatedMatch[1].trim().substring(0, 100)
+      }
+      console.log('Extracted last updated:', app.lastUpdated)
+    } catch (error) {
+      console.log('Error extracting last updated:', error)
+    }
+
+    try {
+      // Extract price - look for price in the page
+      const priceMatch = html.match(/\$([0-9.]+)/) ||
+                        html.match(/Price[^>]*>([^<]+)</) ||
+                        html.match(/<div[^>]*class="[^"]*price[^"]*"[^>]*>([^<]+)/i)
+      if (priceMatch) {
+        app.price = priceMatch[1] ? `$${priceMatch[1]}` : 'Free'
+        app.price = app.price.substring(0, 50)
+      }
+      console.log('Extracted price:', app.price)
+    } catch (error) {
+      console.log('Error extracting price:', error)
+    }
+
+    try {
+      // Extract rating - look for rating in the page
+      const ratingMatch = html.match(/([0-9.]+)\s*\/\s*5/) ||
+                         html.match(/Based on\s+[0-9]+\s+user rates/i) ||
+                         html.match(/<div[^>]*class="[^"]*rating[^"]*"[^>]*>([0-9.]+)/i)
+      if (ratingMatch) {
+        app.rating = parseFloat(ratingMatch[1]) || 0
+      }
+      console.log('Extracted rating:', app.rating)
+    } catch (error) {
+      console.log('Error extracting rating:', error)
+    }
+
+    try {
+      // Extract review count - look for review count
+      const reviewMatch = html.match(/([0-9]+)\s*user rates/i) ||
+                         html.match(/([0-9]+)\s*reviews/i) ||
+                         html.match(/<div[^>]*class="[^"]*reviews[^"]*"[^>]*>([0-9]+)/i)
+      if (reviewMatch) {
+        app.reviewCount = parseInt(reviewMatch[1]) || 0
+      }
+      console.log('Extracted review count:', app.reviewCount)
+    } catch (error) {
+      console.log('Error extracting review count:', error)
+    }
+
+    try {
+      // Extract category - look for category in breadcrumbs or page structure
+      const categoryMatch = html.match(/Categories[^>]*>([^<]+)</) ||
+                           html.match(/category\/([^"\/]+)/) ||
+                           html.match(/<div[^>]*class="[^"]*category[^"]*"[^>]*>.*?<a[^>]*>([^<]+)<\/a>/i)
+      if (categoryMatch) {
+        app.category = categoryMatch[1].trim().replace(/-/g, ' ').substring(0, 100)
+      }
+      console.log('Extracted category:', app.category)
+    } catch (error) {
+      console.log('Error extracting category:', error)
+    }
+
+    try {
+      // Extract website - look for developer website link
+      const websiteMatch = html.match(/<a[^>]*href="([^"]*)"[^>]*>Developer website<\/a>/i) ||
+                          html.match(/<a[^>]*href="([^"]*)"[^>]*>Visit Website<\/a>/i)
       if (websiteMatch) {
         app.website = websiteMatch[1].trim().substring(0, 255)
       }
