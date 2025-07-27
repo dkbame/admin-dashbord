@@ -193,10 +193,11 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
     }
 
     try {
-      // Extract developer - look for "Developer" section
+      // Extract developer - look for "Developer" section (avoid JSON data)
       const developerMatch = html.match(/Developer[^>]*>([^<]+)</) ||
                             html.match(/by\s+<a[^>]*>([^<]+)<\/a>/) ||
-                            html.match(/<div[^>]*class="[^"]*developer[^"]*"[^>]*>.*?<a[^>]*>([^<]+)<\/a>/i)
+                            html.match(/<div[^>]*class="[^"]*developer[^"]*"[^>]*>.*?<a[^>]*>([^<]+)<\/a>/i) ||
+                            html.match(/Go to developer's website/i) // If we find this, look for developer name nearby
       if (developerMatch) {
         app.developer = developerMatch[1].trim().substring(0, 255)
       }
@@ -206,10 +207,11 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
     }
 
     try {
-      // Extract description - look for overview section
+      // Extract description - look for overview section (avoid JSON data)
       const descMatch = html.match(/##\s*([^#]+?)\s*overview[\s\S]*?<p[^>]*>([^<]+)<\/p>/i) ||
                        html.match(/<div[^>]*class="[^"]*description[^"]*"[^>]*>.*?<p[^>]*>([^<]+)<\/p>/i) ||
-                       html.match(/<div[^>]*class="[^"]*overview[^"]*"[^>]*>([\s\S]*?)<\/div>/i)
+                       html.match(/<div[^>]*class="[^"]*overview[^"]*"[^>]*>([\s\S]*?)<\/div>/i) ||
+                       html.match(/<p[^>]*>([^<]+?is the world's favourite iOS device manager[^<]+)<\/p>/i)
       if (descMatch) {
         app.description = descMatch[1] || descMatch[2]
         app.description = app.description.replace(/<[^>]+>/g, '').trim().substring(0, 1000)
@@ -220,7 +222,35 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
     }
 
     try {
-      // Extract version - look for "Version" in app specs
+      // Extract rating - look for rating in the page (avoid JSON data)
+      const ratingMatch = html.match(/([0-9.]+)\s*\/\s*5/) ||
+                         html.match(/Based on\s+([0-9]+)\s+user rates/i) ||
+                         html.match(/<div[^>]*class="[^"]*rating[^"]*"[^>]*>([0-9.]+)/i)
+      if (ratingMatch) {
+        const rating = parseFloat(ratingMatch[1]) || 0
+        // Ensure rating is between 0-5
+        app.rating = rating > 5 ? 0 : rating
+      }
+      console.log('Extracted rating:', app.rating)
+    } catch (error) {
+      console.log('Error extracting rating:', error)
+    }
+
+    try {
+      // Extract review count - look for review count (avoid JSON data)
+      const reviewMatch = html.match(/([0-9]+)\s*user rates/i) ||
+                         html.match(/([0-9]+)\s*reviews/i) ||
+                         html.match(/<div[^>]*class="[^"]*reviews[^"]*"[^>]*>([0-9]+)/i)
+      if (reviewMatch) {
+        app.reviewCount = parseInt(reviewMatch[1]) || 0
+      }
+      console.log('Extracted review count:', app.reviewCount)
+    } catch (error) {
+      console.log('Error extracting review count:', error)
+    }
+
+    try {
+      // Extract version - look for "Version" in app specs (avoid JSON data)
       const versionMatch = html.match(/Version\s+([0-9.]+)/i) ||
                           html.match(/<div[^>]*class="[^"]*version[^"]*"[^>]*>([^<]+)/i)
       if (versionMatch) {
@@ -232,7 +262,7 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
     }
 
     try {
-      // Extract file size - look for "Size" in app specs
+      // Extract file size - look for "Size" in app specs (avoid JSON data)
       const sizeMatch = html.match(/Size\s+([0-9.]+)\s*([KMGT]B)/i) ||
                        html.match(/Download\s*\(([0-9.]+)\s*([KMGT]B)\)/i) ||
                        html.match(/<div[^>]*class="[^"]*size[^"]*"[^>]*>([^<]+)/i)
@@ -245,8 +275,8 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
     }
 
     try {
-      // Extract requirements - look for "OS" in app specs
-      const reqMatch = html.match(/OS\s+([^<]+)/i) ||
+      // Extract requirements - look for "OS" in app specs (avoid JSON data)
+      const reqMatch = html.match(/OS\s+([^<]+?)(?=\s*<\/|$)/i) ||
                       html.match(/<div[^>]*class="[^"]*requirements[^"]*"[^>]*>([^<]+)/i)
       if (reqMatch) {
         app.requirements = reqMatch[1].trim().substring(0, 200)
@@ -257,8 +287,8 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
     }
 
     try {
-      // Extract last updated - look for "Updated on" in app specs
-      const updatedMatch = html.match(/Updated on\s+([^<]+)/i) ||
+      // Extract last updated - look for "Updated on" in app specs (avoid JSON data)
+      const updatedMatch = html.match(/Updated on\s+([^<]+?)(?=\s*<\/|$)/i) ||
                           html.match(/<div[^>]*class="[^"]*updated[^"]*"[^>]*>([^<]+)/i)
       if (updatedMatch) {
         app.lastUpdated = updatedMatch[1].trim().substring(0, 100)
@@ -280,32 +310,6 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
       console.log('Extracted price:', app.price)
     } catch (error) {
       console.log('Error extracting price:', error)
-    }
-
-    try {
-      // Extract rating - look for rating in the page
-      const ratingMatch = html.match(/([0-9.]+)\s*\/\s*5/) ||
-                         html.match(/Based on\s+[0-9]+\s+user rates/i) ||
-                         html.match(/<div[^>]*class="[^"]*rating[^"]*"[^>]*>([0-9.]+)/i)
-      if (ratingMatch) {
-        app.rating = parseFloat(ratingMatch[1]) || 0
-      }
-      console.log('Extracted rating:', app.rating)
-    } catch (error) {
-      console.log('Error extracting rating:', error)
-    }
-
-    try {
-      // Extract review count - look for review count
-      const reviewMatch = html.match(/([0-9]+)\s*user rates/i) ||
-                         html.match(/([0-9]+)\s*reviews/i) ||
-                         html.match(/<div[^>]*class="[^"]*reviews[^"]*"[^>]*>([0-9]+)/i)
-      if (reviewMatch) {
-        app.reviewCount = parseInt(reviewMatch[1]) || 0
-      }
-      console.log('Extracted review count:', app.reviewCount)
-    } catch (error) {
-      console.log('Error extracting review count:', error)
     }
 
     try {
