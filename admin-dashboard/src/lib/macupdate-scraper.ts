@@ -498,30 +498,45 @@ export class MacUpdateScraper {
       // Extract icon - look for the main logo in picture element first
       let iconUrl = ''
       
-      // Try to get the main logo from picture element (highest quality)
+      // Try to get the main logo from picture element (force PNG format)
       // Look for picture elements that contain the app logo (not MacUpdate logo)
       $('picture').each((_, el) => {
         const $el = $(el)
-        const webpSource = $el.find('source[type="image/webp"]').attr('srcset')
         const pngSource = $el.find('source[type="image/png"]').attr('srcset')
         const imgSrc = $el.find('img').attr('src')
         
         // Check if this picture contains the app logo (not MacUpdate logo)
-        const src = webpSource || pngSource || imgSrc || ''
+        const src = pngSource || imgSrc || ''
         if (src && src.includes('/products/') && !src.includes('mu_logo') && !src.includes('avatar') && !iconUrl) {
-          iconUrl = webpSource || pngSource || imgSrc || ''
+          // Force PNG format - prefer PNG source, fallback to img src if it's PNG
+          if (pngSource) {
+            iconUrl = pngSource
+          } else if (imgSrc && imgSrc.includes('.png')) {
+            iconUrl = imgSrc
+          }
           return false // break the loop
         }
       })
       
-      // Fallback to main_logo class if picture element not found
+      // Fallback to main_logo class if picture element not found (force PNG)
       if (!iconUrl) {
-        iconUrl = $('img.main_logo').first().attr('src') || 
-                 $('img[src*="logo"]').first().attr('src') || 
-                 $('img[src*="icon"]').first().attr('src') || 
-                 $('.logo img').first().attr('src') || 
-                 $('.app-icon img').first().attr('src') || 
-                 $('img').first().attr('src') || ''
+        // Try to find PNG images first
+        const pngLogo = $('img[src*=".png"]').filter((_, img) => {
+          const src = $(img).attr('src') || ''
+          return src.includes('/products/') && !src.includes('mu_logo') && !src.includes('avatar')
+        }).first().attr('src')
+        
+        if (pngLogo) {
+          iconUrl = pngLogo
+        } else {
+          // Fallback to any image if no PNG found
+          iconUrl = $('img.main_logo').first().attr('src') || 
+                   $('img[src*="logo"]').first().attr('src') || 
+                   $('img[src*="icon"]').first().attr('src') || 
+                   $('.logo img').first().attr('src') || 
+                   $('.app-icon img').first().attr('src') || 
+                   $('img').first().attr('src') || ''
+        }
       }
       
       const icon_url = iconUrl.startsWith('http') ? iconUrl : `https://www.macupdate.com${iconUrl}`
