@@ -474,15 +474,40 @@ export class MacUpdateScraper {
       
       const icon_url = iconUrl.startsWith('http') ? iconUrl : `https://www.macupdate.com${iconUrl}`
       
-      // Extract screenshots - look for gallery images
+      // Extract screenshots from the slider/carousel
       const screenshots: string[] = []
-      $('img[src*="screenshot"], img[src*="gallery"], .screenshots img, .gallery img').each((_, img) => {
-        const src = $(img).attr('src')
-        if (src) {
-          const fullUrl = src.startsWith('http') ? src : `https://www.macupdate.com${src}`
-          screenshots.push(fullUrl)
+      
+      // Look for screenshots in the slider structure
+      $('.slider .slide picture').each((_, picture) => {
+        const $picture = $(picture)
+        const webpSource = $picture.find('source[type="image/webp"]').attr('srcset')
+        const pngSource = $picture.find('source[type="image/png"]').attr('srcset')
+        const imgSrc = $picture.find('img').attr('src')
+        
+        // Get the best quality screenshot (webp first, then png, then img)
+        const screenshotUrl = webpSource || pngSource || imgSrc
+        
+        if (screenshotUrl && screenshotUrl.includes('/screenshots/')) {
+          const fullUrl = screenshotUrl.startsWith('http') ? screenshotUrl : `https://www.macupdate.com${screenshotUrl}`
+          // Avoid duplicates
+          if (!screenshots.includes(fullUrl)) {
+            screenshots.push(fullUrl)
+          }
         }
       })
+      
+      // Fallback: look for any screenshot images if slider not found
+      if (screenshots.length === 0) {
+        $('img[src*="screenshot"]').each((_, img) => {
+          const src = $(img).attr('src')
+          if (src && src.includes('/screenshots/')) {
+            const fullUrl = src.startsWith('http') ? src : `https://www.macupdate.com${src}`
+            if (!screenshots.includes(fullUrl)) {
+              screenshots.push(fullUrl)
+            }
+          }
+        })
+      }
       
       // Extract system requirements from app specs section
       const requirements = $('*').filter((_, el) => $(el).text().includes('OS')).parent().text().trim() || 
