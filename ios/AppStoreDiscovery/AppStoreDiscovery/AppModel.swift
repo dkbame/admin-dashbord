@@ -215,6 +215,7 @@ struct AppModel: Identifiable, Codable {
         status: "ACTIVE",
         currency: "USD",
         minimum_os_version: "iOS 14.0",
+        architecture: "Universal",
         features: ["Feature 1", "Feature 2", "Feature 3"],
         source: "manual"
     )
