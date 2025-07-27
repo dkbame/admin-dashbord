@@ -115,126 +115,165 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
   try {
     console.log('Starting to parse app page...')
 
-    // Initialize with defaults
-    let name = 'Unknown App'
-    let developer = 'Unknown Developer' 
-    let description = 'No description available'
-    let category = 'Utilities'
-    let price = 'Unknown'
-    let rating = 0
-    let reviewCount = 0
-    let version = 'Unknown'
-    let lastUpdated = 'Unknown'
-    let fileSize = 'Unknown'
-    let requirements = 'macOS'
-    let website = ''
-    let screenshots: string[] = []
-    let iconUrl = ''
+    // Initialize with default values
+    let app: MacUpdateApp = {
+      name: '',
+      developer: '',
+      description: '',
+      category: '',
+      price: '',
+      rating: 0,
+      reviewCount: 0,
+      version: '',
+      macUpdateUrl: url,
+      lastUpdated: '',
+      fileSize: '',
+      requirements: '',
+      website: '',
+      screenshots: [],
+      iconUrl: ''
+    }
 
-    // Try to extract app name with multiple fallbacks
     try {
-      const nameMatch = html.match(/<h1[^>]*>([^<]+)(?:<\s*span[^>]*>.*?<\/span>)?<\/h1>/) ||
-                       html.match(/<h1[^>]*class="[^"]*app_title[^"]*"[^>]*>([^<]+)<\/h1>/) ||
-                       html.match(/<h1[^>]*class="[^"]*mu_title[^"]*"[^>]*>([^<]+)<\/h1>/) ||
-                       html.match(/<title>([^<]+?)\s*\|\s*MacUpdate<\/title>/) ||
-                       html.match(/<title>([^<]+?)\s*-\s*MacUpdate<\/title>/) ||
-                       html.match(/<title>([^<]+)<\/title>/)
-      
+      // Extract app name
+      const nameMatch = html.match(/<h1[^>]*>([^<]*?)(?:<span[^>]*>.*?<\/span>)?[^<]*<\/h1>/)
       if (nameMatch) {
-        name = nameMatch[1].trim()
-        // Clean up the name - remove common suffixes
-        name = name.replace(/\s+(for\s+Mac|for\s+macOS|\(Mac\)|\(macOS\))$/i, '').trim()
-        
-        // If name is empty after cleanup, try alternative extraction
-        if (!name) {
-          const altNameMatch = html.match(/<div[^>]*class="[^"]*main_data[^"]*"[^>]*>[\s\S]*?<h1[^>]*>([^<]+)/i)
-          if (altNameMatch) {
-            name = altNameMatch[1].trim().replace(/\s+(for\s+Mac|for\s+macOS|\(Mac\)|\(macOS\))$/i, '').trim()
-          }
+        app.name = nameMatch[1].trim()
+          .replace(/\s+(for\s+Mac|for\s+macOS|\(Mac\)|\(macOS\))$/i, '')
+          .substring(0, 255) // Limit to 255 chars
+      } else {
+        // Fallback: try to extract from main_data div
+        const altNameMatch = html.match(/<div[^>]*class="[^"]*main_data[^"]*"[^>]*>.*?<h1[^>]*>([^<]*?)(?:<span[^>]*>.*?<\/span>)?[^<]*<\/h1>/i)
+        if (altNameMatch) {
+          app.name = altNameMatch[1].trim()
+            .replace(/\s+(for\s+Mac|for\s+macOS|\(Mac\)|\(macOS\))$/i, '')
+            .substring(0, 255)
         }
       }
-      console.log(`Extracted app name: ${name}`)
-    } catch (nameError) {
-      console.error('Error extracting name:', nameError)
+      console.log('Extracted name:', app.name)
+    } catch (error) {
+      console.log('Error extracting name:', error)
     }
 
-    // Try to extract developer
     try {
-      const developerMatch = html.match(/by\s+<a[^>]*>([^<]+)<\/a>/) ||
-                            html.match(/Developer[^>]*>([^<]+)</) ||
-                            html.match(/by\s+([^<\n]+)/) ||
-                            html.match(/<span[^>]*class="[^"]*developer[^"]*"[^>]*>([^<]+)<\/span>/)
+      // Extract developer
+      const developerMatch = html.match(/<div[^>]*class="[^"]*developer[^"]*"[^>]*>.*?<a[^>]*>([^<]+)<\/a>/i)
       if (developerMatch) {
-        developer = developerMatch[1].trim()
+        app.developer = developerMatch[1].trim().substring(0, 255)
       }
-      console.log(`Extracted developer: ${developer}`)
-    } catch (devError) {
-      console.error('Error extracting developer:', devError)
+      console.log('Extracted developer:', app.developer)
+    } catch (error) {
+      console.log('Error extracting developer:', error)
     }
 
-    // Try to extract description
     try {
-      const descMatch = html.match(/<div[^>]*class="[^"]*description[^"]*"[^>]*>([\s\S]*?)<\/div>/) ||
-                       html.match(/<div[^>]*class="[^"]*mu_description[^"]*"[^>]*>([\s\S]*?)<\/div>/) ||
-                       html.match(/<meta\s+name="description"\s+content="([^"]+)"/) ||
-                       html.match(/<p[^>]*class="[^"]*summary[^"]*"[^>]*>([^<]+)<\/p>/) ||
-                       html.match(/<div[^>]*class="[^"]*app_summary[^"]*"[^>]*>([\s\S]*?)<\/div>/)
-      
+      // Extract description
+      const descMatch = html.match(/<div[^>]*class="[^"]*description[^"]*"[^>]*>.*?<p[^>]*>([^<]+)<\/p>/i)
       if (descMatch) {
-        description = descMatch[1]
-          .replace(/<[^>]+>/g, '') // Remove HTML tags
-          .replace(/\s+/g, ' ') // Normalize whitespace
-          .trim()
-        
-        if (description.length > 500) {
-          description = description.substring(0, 500) + '...'
-        }
+        app.description = descMatch[1].trim().substring(0, 1000) // Limit to 1000 chars
       }
-      console.log(`Extracted description length: ${description.length}`)
-    } catch (descError) {
-      console.error('Error extracting description:', descError)
+      console.log('Extracted description length:', app.description.length)
+    } catch (error) {
+      console.log('Error extracting description:', error)
     }
 
-    // Extract other basic fields with error handling
     try {
-      const categoryMatch = html.match(/Category[^>]*>([^<]+)</) ||
-                           html.match(/category\/([^"\/]+)/) ||
-                           html.match(/Categories?[^>]*>.*?>([^<]+)</)
+      // Extract category
+      const categoryMatch = html.match(/<div[^>]*class="[^"]*category[^"]*"[^>]*>.*?<a[^>]*>([^<]+)<\/a>/i)
       if (categoryMatch) {
-        category = categoryMatch[1].trim().replace(/-/g, ' ')
+        app.category = categoryMatch[1].trim().substring(0, 100)
       }
+      console.log('Extracted category:', app.category)
+    } catch (error) {
+      console.log('Error extracting category:', error)
+    }
 
-      const priceMatch = html.match(/Price[^>]*>([^<]+)</) ||
-                        html.match(/\$[\d.,]+/) ||
-                        html.match(/Free/)
+    try {
+      // Extract price
+      const priceMatch = html.match(/<div[^>]*class="[^"]*price[^"]*"[^>]*>([^<]+)/i)
       if (priceMatch) {
-        price = priceMatch[1].trim()
+        app.price = priceMatch[1].trim().substring(0, 50)
       }
+      console.log('Extracted price:', app.price)
+    } catch (error) {
+      console.log('Error extracting price:', error)
+    }
 
-      const ratingMatch = html.match(/rating[^>]*>[\s\S]*?([\d.]+)/) ||
-                         html.match(/([\d.]+)\s*\/\s*5/) ||
-                         html.match(/stars?[^>]*>[\s\S]*?([\d.]+)/)
+    try {
+      // Extract rating
+      const ratingMatch = html.match(/<div[^>]*class="[^"]*rating[^"]*"[^>]*>([0-9.]+)/i)
       if (ratingMatch) {
-        rating = parseFloat(ratingMatch[1])
+        app.rating = parseFloat(ratingMatch[1]) || 0
       }
+      console.log('Extracted rating:', app.rating)
+    } catch (error) {
+      console.log('Error extracting rating:', error)
+    }
 
-      const reviewMatch = html.match(/(\d+)\s*reviews?/) ||
-                         html.match(/(\d+)\s*ratings?/) ||
-                         html.match(/reviews?[^>]*>[\s\S]*?(\d+)/)
+    try {
+      // Extract review count
+      const reviewMatch = html.match(/<div[^>]*class="[^"]*reviews[^"]*"[^>]*>([0-9]+)/i)
       if (reviewMatch) {
-        reviewCount = parseInt(reviewMatch[1])
+        app.reviewCount = parseInt(reviewMatch[1]) || 0
       }
+      console.log('Extracted review count:', app.reviewCount)
+    } catch (error) {
+      console.log('Error extracting review count:', error)
+    }
 
-      const versionMatch = html.match(/Version[^>]*>([^<]+)</) ||
-                          html.match(/v([\d.]+)/) ||
-                          html.match(/(\d+\.[\d.]+)/)
+    try {
+      // Extract version
+      const versionMatch = html.match(/<div[^>]*class="[^"]*version[^"]*"[^>]*>([^<]+)/i)
       if (versionMatch) {
-        version = versionMatch[1].trim()
+        app.version = versionMatch[1].trim().substring(0, 50)
       }
+      console.log('Extracted version:', app.version)
+    } catch (error) {
+      console.log('Error extracting version:', error)
+    }
 
-      console.log(`Extracted basic info: category=${category}, price=${price}, rating=${rating}`)
-    } catch (basicError) {
-      console.error('Error extracting basic info:', basicError)
+    try {
+      // Extract last updated
+      const updatedMatch = html.match(/<div[^>]*class="[^"]*updated[^"]*"[^>]*>([^<]+)/i)
+      if (updatedMatch) {
+        app.lastUpdated = updatedMatch[1].trim().substring(0, 100)
+      }
+      console.log('Extracted last updated:', app.lastUpdated)
+    } catch (error) {
+      console.log('Error extracting last updated:', error)
+    }
+
+    try {
+      // Extract file size
+      const sizeMatch = html.match(/<div[^>]*class="[^"]*size[^"]*"[^>]*>([^<]+)/i)
+      if (sizeMatch) {
+        app.fileSize = sizeMatch[1].trim().substring(0, 50)
+      }
+      console.log('Extracted file size:', app.fileSize)
+    } catch (error) {
+      console.log('Error extracting file size:', error)
+    }
+
+    try {
+      // Extract requirements
+      const reqMatch = html.match(/<div[^>]*class="[^"]*requirements[^"]*"[^>]*>([^<]+)/i)
+      if (reqMatch) {
+        app.requirements = reqMatch[1].trim().substring(0, 200)
+      }
+      console.log('Extracted requirements:', app.requirements)
+    } catch (error) {
+      console.log('Error extracting requirements:', error)
+    }
+
+    try {
+      // Extract website
+      const websiteMatch = html.match(/<a[^>]*href="([^"]*)"[^>]*>Visit Website<\/a>/i)
+      if (websiteMatch) {
+        app.website = websiteMatch[1].trim().substring(0, 255)
+      }
+      console.log('Extracted website:', app.website)
+    } catch (error) {
+      console.log('Error extracting website:', error)
     }
 
     // Extract screenshots with error handling
@@ -256,8 +295,8 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
               } else if (screenshotUrl.startsWith('/')) {
                 screenshotUrl = 'https://www.macupdate.com' + screenshotUrl
               }
-              if (!screenshots.includes(screenshotUrl)) {
-                screenshots.push(screenshotUrl)
+              if (!app.screenshots.includes(screenshotUrl)) {
+                app.screenshots.push(screenshotUrl)
               }
             }
           })
@@ -275,8 +314,8 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
               } else if (screenshotUrl.startsWith('/')) {
                 screenshotUrl = 'https://www.macupdate.com' + screenshotUrl
               }
-              if (!screenshots.includes(screenshotUrl)) {
-                screenshots.push(screenshotUrl)
+              if (!app.screenshots.includes(screenshotUrl)) {
+                app.screenshots.push(screenshotUrl)
               }
             }
           })
@@ -284,7 +323,7 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
       }
       
       // Fallback: general screenshot search if gallery method didn't work
-      if (screenshots.length === 0) {
+      if (app.screenshots.length === 0) {
         console.log('Gallery method failed, trying fallback screenshot extraction...')
         const screenshotMatches = html.match(/src="([^"]+(?:screenshot|screen|shot)[^"]*\.(?:jpg|jpeg|png|gif|webp))"/gi)
         if (screenshotMatches) {
@@ -297,14 +336,14 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
               } else if (screenshotUrl.startsWith('/')) {
                 screenshotUrl = 'https://www.macupdate.com' + screenshotUrl
               }
-              if (!screenshots.includes(screenshotUrl)) {
-                screenshots.push(screenshotUrl)
+              if (!app.screenshots.includes(screenshotUrl)) {
+                app.screenshots.push(screenshotUrl)
               }
             }
           })
         }
       }
-      console.log(`Extracted ${screenshots.length} screenshots`)
+      console.log(`Extracted ${app.screenshots.length} screenshots`)
     } catch (screenshotError) {
       console.error('Error extracting screenshots:', screenshotError)
     }
@@ -314,48 +353,48 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
       const iconUrlMatch = html.match(/<img[^>]*class="[^"]*main_logo[^"]*"[^>]*src="([^"]+)"[^>]*>/) ||
                            html.match(/<img[^>]*src="([^"]+)"[^>]*class="[^"]*main_logo[^"]*"[^>]*>/)
       if (iconUrlMatch) {
-        iconUrl = iconUrlMatch[1]
-        if (iconUrl.startsWith('//')) {
-          iconUrl = 'https:' + iconUrl
-        } else if (iconUrl.startsWith('/')) {
-          iconUrl = 'https://www.macupdate.com' + iconUrl
+        app.iconUrl = iconUrlMatch[1]
+        if (app.iconUrl.startsWith('//')) {
+          app.iconUrl = 'https:' + app.iconUrl
+        } else if (app.iconUrl.startsWith('/')) {
+          app.iconUrl = 'https://www.macupdate.com' + app.iconUrl
         }
       }
-      console.log(`Extracted icon URL: ${iconUrl}`)
+      console.log(`Extracted icon URL: ${app.iconUrl}`)
     } catch (iconError) {
       console.error('Error extracting icon:', iconError)
     }
 
-    const app: MacUpdateApp = {
-      name,
-      developer,
-      description,
-      category,
-      price,
-      rating,
-      reviewCount,
-      version,
-      macUpdateUrl: url,
-      lastUpdated,
-      fileSize,
-      requirements,
-      website,
-      screenshots,
-      iconUrl
-    }
-
-    console.log(`Successfully created app object:`, {
+    const finalApp: MacUpdateApp = {
       name: app.name,
       developer: app.developer,
+      description: app.description,
       category: app.category,
       price: app.price,
       rating: app.rating,
-      screenshots: app.screenshots.length,
-      iconUrl: !!app.iconUrl
+      reviewCount: app.reviewCount,
+      version: app.version,
+      macUpdateUrl: url,
+      lastUpdated: app.lastUpdated,
+      fileSize: app.fileSize,
+      requirements: app.requirements,
+      website: app.website,
+      screenshots: app.screenshots,
+      iconUrl: app.iconUrl
+    }
+
+    console.log(`Successfully created app object:`, {
+      name: finalApp.name,
+      developer: finalApp.developer,
+      category: finalApp.category,
+      price: finalApp.price,
+      rating: finalApp.rating,
+      screenshots: finalApp.screenshots.length,
+      iconUrl: !!finalApp.iconUrl
     })
 
     // Return the app object even if some fields are missing
-    return app
+    return finalApp
 
   } catch (error) {
     console.error('Error parsing app page:', error)
