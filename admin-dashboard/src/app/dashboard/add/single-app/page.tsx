@@ -56,6 +56,7 @@ export default function SingleAppImportPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
+  const [debugInfo, setDebugInfo] = useState<any>(null)
 
   const handleScrapeApp = async () => {
     if (!url.trim()) {
@@ -230,6 +231,39 @@ export default function SingleAppImportPage() {
     }
   }
 
+  const handleDebugApp = async () => {
+    if (!url.trim()) {
+      setError('Please enter a MacUpdate URL')
+      return
+    }
+
+    setIsScrapingLoading(true)
+    setError('')
+    setDebugInfo(null)
+
+    try {
+      const response = await fetch('/api/macupdate-debug-single', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url.trim() })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setDebugInfo(data.debugInfo)
+        setSuccess(`Debug info retrieved for: ${data.url}`)
+      } else {
+        setError(data.error || 'Failed to get debug info')
+      }
+    } catch (err) {
+      setError('Network error while getting debug info')
+      console.error('Debug error:', err)
+    } finally {
+      setIsScrapingLoading(false)
+    }
+  }
+
   const getCategoryId = async (categoryName: string): Promise<string | null> => {
     const categoryMap: { [key: string]: string } = {
       'productivity': 'productivity',
@@ -281,7 +315,7 @@ export default function SingleAppImportPage() {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={8}>
+            <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
                 label="MacUpdate App URL"
@@ -291,7 +325,7 @@ export default function SingleAppImportPage() {
                 disabled={isScrapingLoading}
               />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={3}>
               <Button
                 fullWidth
                 variant="contained"
@@ -300,6 +334,18 @@ export default function SingleAppImportPage() {
                 startIcon={isScrapingLoading ? <CircularProgress size={20} /> : <Search />}
               >
                 {isScrapingLoading ? 'Scraping...' : 'Scrape App'}
+              </Button>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <Button
+                fullWidth
+                variant="outlined"
+                color="secondary"
+                onClick={handleDebugApp}
+                disabled={isScrapingLoading || !url.trim()}
+                startIcon={isScrapingLoading ? <CircularProgress size={20} /> : <Search />}
+              >
+                {isScrapingLoading ? 'Loading...' : 'Debug HTML'}
               </Button>
             </Grid>
           </Grid>
@@ -317,6 +363,64 @@ export default function SingleAppImportPage() {
         <Alert severity="success" sx={{ mb: 2 }}>
           {success}
         </Alert>
+      )}
+
+      {/* Debug Info Display */}
+      {debugInfo && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Debug Information
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <Typography variant="subtitle2">HTML Length:</Typography>
+                <Typography variant="body2" color="text.secondary">{debugInfo.htmlLength} characters</Typography>
+                
+                <Typography variant="subtitle2" sx={{ mt: 2 }}>Page Title:</Typography>
+                <Typography variant="body2" color="text.secondary">{debugInfo.title}</Typography>
+                
+                <Typography variant="subtitle2" sx={{ mt: 2 }}>Element Counts:</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  H1 elements: {debugInfo.searchResults.h1Count}<br/>
+                  main_data divs: {debugInfo.searchResults.mainDataCount}<br/>
+                  galleries: {debugInfo.searchResults.galleryCount}<br/>
+                  logos: {debugInfo.searchResults.logoCount}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                {debugInfo.h1Elements.length > 0 && (
+                  <>
+                    <Typography variant="subtitle2">H1 Elements Found:</Typography>
+                    <Box sx={{ maxHeight: 200, overflow: 'auto', mt: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
+                      {debugInfo.h1Elements.map((h1: string, index: number) => (
+                        <Typography key={index} variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', mb: 1 }}>
+                          {h1}
+                        </Typography>
+                      ))}
+                    </Box>
+                  </>
+                )}
+                
+                {debugInfo.logoImg && (
+                  <>
+                    <Typography variant="subtitle2" sx={{ mt: 2 }}>Logo Element:</Typography>
+                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', bgcolor: 'grey.100', p: 1, borderRadius: 1 }}>
+                      {debugInfo.logoImg}
+                    </Typography>
+                  </>
+                )}
+              </Grid>
+            </Grid>
+            
+            <Typography variant="subtitle2" sx={{ mt: 2 }}>Sample HTML (first 2000 chars):</Typography>
+            <Box sx={{ maxHeight: 300, overflow: 'auto', mt: 1, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+              <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'pre-wrap' }}>
+                {debugInfo.sampleHtml}
+              </Typography>
+            </Box>
+          </CardContent>
+        </Card>
       )}
 
       {/* App Preview */}
