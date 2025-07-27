@@ -32,6 +32,9 @@ export async function POST(request: NextRequest) {
     const html = await response.text()
     console.log(`Fetched HTML length: ${html.length}`)
 
+    // Check if we got JSON instead of HTML
+    const isJson = html.trim().startsWith('{') || html.trim().startsWith('[')
+    
     // Extract key sections for debugging
     const debugInfo: {
       htmlLength: number
@@ -41,6 +44,8 @@ export async function POST(request: NextRequest) {
       galleryDiv: string
       logoImg: string
       sampleHtml: string
+      isJson: boolean
+      contentType: string
       searchResults: {
         h1Count: number
         mainDataCount: number
@@ -55,6 +60,8 @@ export async function POST(request: NextRequest) {
       galleryDiv: '',
       logoImg: '',
       sampleHtml: html.substring(0, 2000) + '...',
+      isJson: isJson,
+      contentType: response.headers.get('content-type') || 'unknown',
       searchResults: {
         h1Count: (html.match(/<h1[^>]*>/g) || []).length,
         mainDataCount: (html.match(/class="[^"]*main_data[^"]*"/g) || []).length,
@@ -63,28 +70,40 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Extract all H1 elements
-    const h1Matches = html.match(/<h1[^>]*>[\s\S]*?<\/h1>/g)
-    if (h1Matches) {
-      debugInfo.h1Elements = h1Matches.slice(0, 5) // First 5 H1 elements
+    // If it's JSON, try to format it nicely
+    if (isJson) {
+      try {
+        const jsonData = JSON.parse(html)
+        debugInfo.sampleHtml = JSON.stringify(jsonData, null, 2).substring(0, 2000) + '...'
+      } catch (e) {
+        debugInfo.sampleHtml = html.substring(0, 2000) + '...'
+      }
     }
 
-    // Extract main_data div if it exists
-    const mainDataMatch = html.match(/<div[^>]*class="[^"]*main_data[^"]*"[^>]*>[\s\S]*?<\/div>/i)
-    if (mainDataMatch) {
-      debugInfo.mainDataDiv = mainDataMatch[0].substring(0, 1000) + '...'
-    }
+    // Extract all H1 elements (only if it's HTML)
+    if (!isJson) {
+      const h1Matches = html.match(/<h1[^>]*>[\s\S]*?<\/h1>/g)
+      if (h1Matches) {
+        debugInfo.h1Elements = h1Matches.slice(0, 5) // First 5 H1 elements
+      }
 
-    // Extract gallery div if it exists
-    const galleryMatch = html.match(/<div[^>]*class="[^"]*mu_app_gallery[^"]*"[^>]*>[\s\S]*?<\/div>/i)
-    if (galleryMatch) {
-      debugInfo.galleryDiv = galleryMatch[0].substring(0, 1000) + '...'
-    }
+      // Extract main_data div if it exists
+      const mainDataMatch = html.match(/<div[^>]*class="[^"]*main_data[^"]*"[^>]*>[\s\S]*?<\/div>/i)
+      if (mainDataMatch) {
+        debugInfo.mainDataDiv = mainDataMatch[0].substring(0, 1000) + '...'
+      }
 
-    // Extract logo img if it exists
-    const logoMatch = html.match(/<img[^>]*class="[^"]*main_logo[^"]*"[^>]*>/)
-    if (logoMatch) {
-      debugInfo.logoImg = logoMatch[0]
+      // Extract gallery div if it exists
+      const galleryMatch = html.match(/<div[^>]*class="[^"]*mu_app_gallery[^"]*"[^>]*>[\s\S]*?<\/div>/i)
+      if (galleryMatch) {
+        debugInfo.galleryDiv = galleryMatch[0].substring(0, 1000) + '...'
+      }
+
+      // Extract logo img if it exists
+      const logoMatch = html.match(/<img[^>]*class="[^"]*main_logo[^"]*"[^>]*>/)
+      if (logoMatch) {
+        debugInfo.logoImg = logoMatch[0]
+      }
     }
 
     return NextResponse.json({

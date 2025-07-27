@@ -380,6 +380,14 @@ export default function SingleAppImportPage() {
                 <Typography variant="subtitle2" sx={{ mt: 2 }}>Page Title:</Typography>
                 <Typography variant="body2" color="text.secondary">{debugInfo.title}</Typography>
                 
+                <Typography variant="subtitle2" sx={{ mt: 2 }}>Content Type:</Typography>
+                <Typography variant="body2" color="text.secondary">{debugInfo.contentType}</Typography>
+                
+                <Typography variant="subtitle2" sx={{ mt: 2 }}>Is JSON Response:</Typography>
+                <Typography variant="body2" color={debugInfo.isJson ? "error" : "success"}>
+                  {debugInfo.isJson ? "Yes - This is JSON data, not HTML!" : "No - This is HTML"}
+                </Typography>
+                
                 <Typography variant="subtitle2" sx={{ mt: 2 }}>Element Counts:</Typography>
                 <Typography variant="body2" color="text.secondary">
                   H1 elements: {debugInfo.searchResults.h1Count}<br/>
@@ -413,7 +421,9 @@ export default function SingleAppImportPage() {
               </Grid>
             </Grid>
             
-            <Typography variant="subtitle2" sx={{ mt: 2 }}>Sample HTML (first 2000 chars):</Typography>
+            <Typography variant="subtitle2" sx={{ mt: 2 }}>
+              {debugInfo.isJson ? "Sample JSON (first 2000 chars):" : "Sample HTML (first 2000 chars):"}
+            </Typography>
             <Box sx={{ maxHeight: 300, overflow: 'auto', mt: 1, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
               <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'pre-wrap' }}>
                 {debugInfo.sampleHtml}
