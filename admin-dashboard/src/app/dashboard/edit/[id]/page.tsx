@@ -60,7 +60,7 @@ interface App {
   screenshots: Screenshot[]
   // Add the new fields
   version?: string
-  size?: number
+  size?: string  // Changed from number to string to support "97.4 MB" format
   rating?: number
   rating_count?: number
   release_date?: string
@@ -507,10 +507,10 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  label="Size (bytes)"
-                  type="number"
+                  label="Size (e.g., 97.4 MB, 2.1 GB)"
                   value={app.size || ''}
-                  onChange={(e) => setApp({ ...app, size: parseInt(e.target.value) || undefined })}
+                  onChange={(e) => setApp({ ...app, size: e.target.value })}
+                  helperText="Human-readable format like '97.4 MB' or '2.1 GB'"
                 />
               </Grid>
               <Grid item xs={12} sm={6}>

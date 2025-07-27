@@ -38,7 +38,7 @@ export interface App {
   is_featured: boolean | null
   is_free: boolean | null
   version?: string
-  size?: number
+  size?: string  // Changed from number to string to support "97.4 MB" format
   rating?: number
   rating_count?: number
   release_date?: string
@@ -65,7 +65,7 @@ export interface AppFormData {
   features: string[]
   status: 'ACTIVE' | 'PENDING' | 'INACTIVE'
   version?: string
-  size?: number
+  size?: string  // Changed from number to string to support "97.4 MB" format
   rating?: number
   rating_count?: number
   release_date?: string
