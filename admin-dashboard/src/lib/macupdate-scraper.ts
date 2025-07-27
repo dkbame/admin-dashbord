@@ -419,9 +419,61 @@ export class MacUpdateScraper {
                    $('.app-title').first().text().trim() ||
                    $('title').first().text().replace(' for Mac', '').trim()
       
-      const developer = $('a[href*="/developer/"]').first().text().trim() || 
-                       $('.developer').first().text().trim() ||
-                       $('a[href*="developer"]').first().text().trim()
+      // Extract developer name from JSON data first (most reliable)
+      let developer = ''
+      
+      // Look for JSON data containing developer information
+      $('script').each((_, script) => {
+        const scriptContent = $(script).html() || ''
+        if (scriptContent.includes('"developer"') && scriptContent.includes('"name"')) {
+          try {
+            // Try to find and parse JSON data
+            const jsonMatch = scriptContent.match(/"developer"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"/)
+            if (jsonMatch && jsonMatch[1]) {
+              developer = jsonMatch[1].trim()
+              return false // break the loop
+            }
+          } catch (error) {
+            // Continue to next script if parsing fails
+          }
+        }
+      })
+      
+      // Fallback: Look for "Developer Go to developer's website" pattern
+      if (!developer) {
+        $('*').filter((_, el) => $(el).text().includes('Developer Go to developer')).each((_, el) => {
+          const text = $(el).text().trim()
+          const match = text.match(/Developer\s+(.*?)\s+Go to developer's website/)
+          if (match && match[1]) {
+            developer = match[1].trim()
+            return false // break the loop
+          }
+        })
+      }
+      
+      // Fallback: Look for developer website links
+      if (!developer) {
+        $('a[href*="developer"]').each((_, link) => {
+          const href = $(link).attr('href')
+          const text = $(link).text().trim()
+          if (href && text && !text.includes('Developer Tools') && text.length > 0) {
+            // Extract domain name from href
+            const domainMatch = href.match(/https?:\/\/([^\/]+)/)
+            if (domainMatch && domainMatch[1]) {
+              const domain = domainMatch[1].replace('www.', '')
+              developer = domain.split('.')[0] // Get first part of domain
+              return false // break the loop
+            }
+          }
+        })
+      }
+      
+      // Final fallback: use existing selectors
+      if (!developer) {
+        developer = $('a[href*="/developer/"]').first().text().trim() || 
+                   $('.developer').first().text().trim() ||
+                   $('a[href*="developer"]').first().text().trim()
+      }
       
       const version = $('span').filter((_, el) => $(el).text().includes('Version')).next().text().trim() || 
                      $('.version').first().text().trim() ||
