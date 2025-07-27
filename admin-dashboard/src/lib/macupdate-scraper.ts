@@ -443,9 +443,35 @@ export class MacUpdateScraper {
       const description = $('.overview, .description, .app-description').first().text().trim() ||
                          $('p').first().text().trim()
       
-      // Extract icon - look for logo or app icon
-      const iconUrl = $('img[src*="logo"], img[src*="icon"], .logo img, .app-icon img').first().attr('src') || 
-                     $('img').first().attr('src') || ''
+      // Extract icon - look for the main logo in picture element first
+      let iconUrl = ''
+      
+      // Try to get the main logo from picture element (highest quality)
+      // Look for picture elements that contain the app logo (not MacUpdate logo)
+      $('picture').each((_, el) => {
+        const $el = $(el)
+        const webpSource = $el.find('source[type="image/webp"]').attr('srcset')
+        const pngSource = $el.find('source[type="image/png"]').attr('srcset')
+        const imgSrc = $el.find('img').attr('src')
+        
+        // Check if this picture contains the app logo (not MacUpdate logo)
+        const src = webpSource || pngSource || imgSrc || ''
+        if (src && src.includes('/products/') && !src.includes('mu_logo') && !src.includes('avatar') && !iconUrl) {
+          iconUrl = webpSource || pngSource || imgSrc || ''
+          return false // break the loop
+        }
+      })
+      
+      // Fallback to main_logo class if picture element not found
+      if (!iconUrl) {
+        iconUrl = $('img.main_logo').first().attr('src') || 
+                 $('img[src*="logo"]').first().attr('src') || 
+                 $('img[src*="icon"]').first().attr('src') || 
+                 $('.logo img').first().attr('src') || 
+                 $('.app-icon img').first().attr('src') || 
+                 $('img').first().attr('src') || ''
+      }
+      
       const icon_url = iconUrl.startsWith('http') ? iconUrl : `https://www.macupdate.com${iconUrl}`
       
       // Extract screenshots - look for gallery images
