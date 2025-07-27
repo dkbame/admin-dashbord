@@ -576,9 +576,28 @@ export class MacUpdateScraper {
         })
       }
       
+      // Extract file size from app specs section
+      let file_size = ''
+      $('*').filter((_, el) => $(el).text().includes('Size')).each((_, el) => {
+        const text = $(el).text().trim()
+        const sizeMatch = text.match(/Size\s*(\d+\.?\d*\s*[KMGT]?B)/i)
+        if (sizeMatch) {
+          file_size = sizeMatch[1].trim()
+          return false // break the loop
+        }
+      })
+      
       // Extract system requirements from app specs section
-      const requirements = $('*').filter((_, el) => $(el).text().includes('OS')).parent().text().trim() || 
-                          $('.requirements, .system-requirements').first().text().trim()
+      let requirements = ''
+      $('*').filter((_, el) => $(el).text().includes('OS')).each((_, el) => {
+        const text = $(el).text().trim()
+        const osMatch = text.match(/OS\s*(macOS\s+\d+\.\d+(?:\s+or\s+later)?)/i)
+        if (osMatch) {
+          requirements = osMatch[1].trim()
+          return false // break the loop
+        }
+      })
+      
       const system_requirements = requirements ? [requirements] : []
       
       // Parse data
@@ -617,6 +636,7 @@ export class MacUpdateScraper {
         icon_url,
         macupdate_url: appUrl,
         last_updated: new Date(),
+        file_size,
         requirements
       }
       
