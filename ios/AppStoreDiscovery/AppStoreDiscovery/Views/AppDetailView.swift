@@ -197,6 +197,7 @@ struct AppDetailsSection: View {
             VStack(spacing: 8) {
                 DetailRow(title: "Version", value: VersionFormatter.formatVersion(app.version))
                 DetailRow(title: "Size", value: FileSizeFormatter.formatFileSize(app.size))
+                DetailRow(title: "Architecture", value: app.architecture ?? "Unknown")
                 DetailRow(title: "Release Date", value: DateFormatter.shared.formatDate(app.release_date))
                 DetailRow(title: "Last Updated", value: DateFormatter.shared.formatDate(app.last_updated))
                 DetailRow(title: "Minimum OS", value: MinimumOSFormatter.formatMinimumOS(app.minimum_os_version))

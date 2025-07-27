@@ -40,6 +40,7 @@ struct AppModel: Identifiable, Codable {
     let status: String?
     let currency: String?
     let minimum_os_version: String?
+    let architecture: String?
     let features: [String]?
     let source: String?
     

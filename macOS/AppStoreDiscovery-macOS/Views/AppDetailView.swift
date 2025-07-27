@@ -195,6 +195,10 @@ struct AppDetailView: View {
                                 InfoRow(title: "Minimum OS", value: minimumOS)
                             }
                             
+                            if let architecture = app.architecture {
+                                InfoRow(title: "Architecture", value: architecture)
+                            }
+                            
                             InfoRow(title: "Release Date", value: app.formattedReleaseDate)
                             InfoRow(title: "Last Updated", value: app.formattedLastUpdated)
                             
