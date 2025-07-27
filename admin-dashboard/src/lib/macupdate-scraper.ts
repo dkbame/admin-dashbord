@@ -475,9 +475,12 @@ export class MacUpdateScraper {
                    $('a[href*="developer"]').first().text().trim()
       }
       
-      const version = $('span').filter((_, el) => $(el).text().includes('Version')).next().text().trim() || 
-                     $('.version').first().text().trim() ||
-                     $('*').filter((_, el) => $(el).text().includes('Version')).next().text().trim()
+      const versionText = $('span').filter((_, el) => $(el).text().includes('Version')).next().text().trim() || 
+                         $('.version').first().text().trim() ||
+                         $('*').filter((_, el) => $(el).text().includes('Version')).next().text().trim()
+      
+      // Clean up version text to extract just the version number
+      const version = this.parseVersion(versionText)
       
       const priceText = $('.price, .app-price').first().text().trim() ||
                        $('*').filter((_, el) => $(el).text().includes('$')).first().text().trim()
@@ -686,6 +689,23 @@ export class MacUpdateScraper {
     }
     
     return 0
+  }
+
+  // Parse version from text to extract just the version number
+  private parseVersion(versionText: string): string {
+    if (!versionText) return ''
+    
+    // Remove "Version" prefix and clean up
+    let cleaned = versionText.replace(/^Version\s*/i, '').trim()
+    
+    // Extract version number pattern (e.g., "20.1.7", "1.0.0", "2.1.3.4")
+    const versionMatch = cleaned.match(/(\d+(?:\.\d+)*)/)
+    if (versionMatch) {
+      return versionMatch[1]
+    }
+    
+    // If no version pattern found, return the cleaned text
+    return cleaned
   }
 
   // Filter app based on configuration

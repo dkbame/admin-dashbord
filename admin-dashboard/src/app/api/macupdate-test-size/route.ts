@@ -32,7 +32,11 @@ export async function GET(request: NextRequest) {
       size_extracted: '',
       requirements_extracted: '',
       all_specs_titles: [] as string[],
-      all_specs_descriptions: [] as string[]
+      all_specs_descriptions: [] as string[],
+      version_info: {
+        raw_text: '',
+        parsed_version: ''
+      }
     }
     
     // Method 1: Look for specs_list structure
@@ -75,6 +79,24 @@ export async function GET(request: NextRequest) {
       if (match) {
         results.size_extracted = match[0]
         break
+      }
+    }
+    
+    // Test version extraction
+    const versionText = $('span').filter((_, el) => $(el).text().includes('Version')).next().text().trim() || 
+                       $('.version').first().text().trim() ||
+                       $('*').filter((_, el) => $(el).text().includes('Version')).next().text().trim()
+    
+    results.version_info.raw_text = versionText
+    
+    // Parse version (same logic as the scraper)
+    if (versionText) {
+      let cleaned = versionText.replace(/^Version\s*/i, '').trim()
+      const versionMatch = cleaned.match(/(\d+(?:\.\d+)*)/)
+      if (versionMatch) {
+        results.version_info.parsed_version = versionMatch[1]
+      } else {
+        results.version_info.parsed_version = cleaned
       }
     }
     
