@@ -4,6 +4,44 @@ import * as cheerio from 'cheerio'
 
 export const dynamic = 'force-dynamic'
 
+// Parse and format architecture field
+function parseArchitecture(architectureText: string): string {
+  if (!architectureText) return ''
+  
+  // Clean up the text and split by common separators
+  const cleaned = architectureText.trim()
+  
+  // Check for common patterns
+  const architectures: string[] = []
+  
+  // Check for Intel 64
+  if (cleaned.includes('Intel 64') || cleaned.includes('Intel64') || cleaned.includes('x86_64')) {
+    architectures.push('Intel 64')
+  }
+  
+  // Check for Apple Silicon
+  if (cleaned.includes('Apple Silicon') || cleaned.includes('AppleSilicon') || cleaned.includes('ARM64') || cleaned.includes('arm64')) {
+    architectures.push('Apple Silicon')
+  }
+  
+  // Check for Universal
+  if (cleaned.includes('Universal') || cleaned.includes('universal')) {
+    architectures.push('Universal')
+  }
+  
+  // If we found specific architectures, format them
+  if (architectures.length > 0) {
+    if (architectures.length === 1) {
+      return architectures[0]
+    } else {
+      return architectures.join(' & ')
+    }
+  }
+  
+  // If no specific patterns found, return the cleaned text
+  return cleaned
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -45,6 +83,10 @@ export async function GET(request: NextRequest) {
       developer_website_info: {
         raw_text: '',
         extracted_url: ''
+      },
+      architecture_info: {
+        raw_text: '',
+        parsed_architecture: ''
       }
     }
     
@@ -64,6 +106,8 @@ export async function GET(request: NextRequest) {
       }
       if (title === 'Architecture') {
         results.architecture_extracted = description
+        results.architecture_info.raw_text = description
+        results.architecture_info.parsed_architecture = parseArchitecture(description)
       }
     })
     

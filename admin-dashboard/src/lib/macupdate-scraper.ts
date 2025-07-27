@@ -609,7 +609,7 @@ export class MacUpdateScraper {
             updated_on = description
             break
           case 'Architecture':
-            architecture = description
+            architecture = this.parseArchitecture(description)
             break
         }
       })
@@ -769,6 +769,44 @@ export class MacUpdateScraper {
     
     const monthLower = monthName.toLowerCase().substring(0, 3)
     return months.indexOf(monthLower)
+  }
+
+  // Parse and format architecture field
+  private parseArchitecture(architectureText: string): string {
+    if (!architectureText) return ''
+    
+    // Clean up the text and split by common separators
+    const cleaned = architectureText.trim()
+    
+    // Check for common patterns
+    const architectures: string[] = []
+    
+    // Check for Intel 64
+    if (cleaned.includes('Intel 64') || cleaned.includes('Intel64') || cleaned.includes('x86_64')) {
+      architectures.push('Intel 64')
+    }
+    
+    // Check for Apple Silicon
+    if (cleaned.includes('Apple Silicon') || cleaned.includes('AppleSilicon') || cleaned.includes('ARM64') || cleaned.includes('arm64')) {
+      architectures.push('Apple Silicon')
+    }
+    
+    // Check for Universal
+    if (cleaned.includes('Universal') || cleaned.includes('universal')) {
+      architectures.push('Universal')
+    }
+    
+    // If we found specific architectures, format them
+    if (architectures.length > 0) {
+      if (architectures.length === 1) {
+        return architectures[0]
+      } else {
+        return architectures.join(' & ')
+      }
+    }
+    
+    // If no specific patterns found, return the cleaned text
+    return cleaned
   }
 
   // Filter app based on configuration
