@@ -71,6 +71,7 @@ export interface AppFormData {
   rating?: number
   rating_count?: number
   release_date?: string
+  last_updated?: string
 }
 
 export interface AppListItem {

@@ -65,6 +65,7 @@ interface App {
   rating?: number
   rating_count?: number
   release_date?: string
+  last_updated?: string
 }
 
 export default function EditAppPage({ params }: { params: { id: string } }) {
@@ -250,6 +251,7 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
           rating: app.rating,
           rating_count: app.rating_count,
           release_date: app.release_date,
+          last_updated: app.last_updated,
         })
         .eq('id', app.id)
         .select()
@@ -544,6 +546,20 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
                   InputLabelProps={{
                     shrink: true,
                   }}
+                  helperText="Initial release date (manual entry for MacUpdate apps)"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Last Updated"
+                  type="date"
+                  value={app.last_updated ? app.last_updated.split('T')[0] : ''}
+                  onChange={(e) => setApp({ ...app, last_updated: e.target.value })}
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                  helperText="Last update date (from MacUpdate 'Updated on')"
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
