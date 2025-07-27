@@ -584,6 +584,7 @@ export class MacUpdateScraper {
       let file_size = ''
       let requirements = ''
       let download_count = 0
+      let updated_on = ''
       
       $('.specs_list .specs_list_item').each((_, item) => {
         const $item = $(item)
@@ -599,6 +600,9 @@ export class MacUpdateScraper {
             break
           case 'Downloads':
             download_count = this.parseDownloadCount(description)
+            break
+          case 'Updated on':
+            updated_on = description
             break
         }
       })
@@ -639,7 +643,7 @@ export class MacUpdateScraper {
         screenshots,
         icon_url,
         macupdate_url: appUrl,
-        last_updated: new Date(),
+        last_updated: this.parseUpdatedDate(updated_on),
         file_size,
         requirements
       }
@@ -707,6 +711,40 @@ export class MacUpdateScraper {
     
     // If no version pattern found, return the cleaned text
     return cleaned
+  }
+
+  // Parse "Updated on" date from MacUpdate format
+  private parseUpdatedDate(updatedOnText: string): Date {
+    if (!updatedOnText) {
+      return new Date() // Fallback to current date if no date found
+    }
+    
+    try {
+      // MacUpdate format: "Apr 23 2025" or "Dec 15 2024"
+      const dateMatch = updatedOnText.match(/(\w+)\s+(\d+)\s+(\d{4})/)
+      if (dateMatch) {
+        const [, month, day, year] = dateMatch
+        const monthIndex = this.getMonthIndex(month)
+        if (monthIndex !== -1) {
+          return new Date(parseInt(year), monthIndex, parseInt(day))
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to parse updated date:', updatedOnText, error)
+    }
+    
+    return new Date() // Fallback to current date
+  }
+
+  // Helper method to convert month name to index
+  private getMonthIndex(monthName: string): number {
+    const months = [
+      'jan', 'feb', 'mar', 'apr', 'may', 'jun',
+      'jul', 'aug', 'sep', 'oct', 'nov', 'dec'
+    ]
+    
+    const monthLower = monthName.toLowerCase().substring(0, 3)
+    return months.indexOf(monthLower)
   }
 
   // Filter app based on configuration

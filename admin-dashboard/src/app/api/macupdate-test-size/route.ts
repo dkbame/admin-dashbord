@@ -36,6 +36,10 @@ export async function GET(request: NextRequest) {
       version_info: {
         raw_text: '',
         parsed_version: ''
+      },
+      updated_on_info: {
+        raw_text: '',
+        parsed_date: ''
       }
     }
     
@@ -97,6 +101,39 @@ export async function GET(request: NextRequest) {
         results.version_info.parsed_version = versionMatch[1]
       } else {
         results.version_info.parsed_version = cleaned
+      }
+    }
+    
+    // Test "Updated on" date extraction
+    let updated_on = ''
+    $('.specs_list .specs_list_item').each((_, item) => {
+      const $item = $(item)
+      const title = $item.find('.specs_list_title').text().trim()
+      const description = $item.find('.specs_list_description').text().trim()
+      
+      if (title === 'Updated on') {
+        updated_on = description
+        return false // break the loop
+      }
+    })
+    
+    results.updated_on_info.raw_text = updated_on
+    
+    // Parse the date (same logic as the scraper)
+    if (updated_on) {
+      try {
+        const dateMatch = updated_on.match(/(\w+)\s+(\d+)\s+(\d{4})/)
+        if (dateMatch) {
+          const [, month, day, year] = dateMatch
+          const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+          const monthIndex = months.indexOf(month.toLowerCase().substring(0, 3))
+          if (monthIndex !== -1) {
+            const parsedDate = new Date(parseInt(year), monthIndex, parseInt(day))
+            results.updated_on_info.parsed_date = parsedDate.toISOString().split('T')[0]
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to parse updated date:', updated_on, error)
       }
     }
     
