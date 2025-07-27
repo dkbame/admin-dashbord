@@ -1,5 +1,15 @@
 import puppeteer, { Browser, LaunchOptions } from 'puppeteer'
 import * as cheerio from 'cheerio'
+
+// Import Chromium for Netlify
+let chromium: any = null
+if (process.env.NETLIFY) {
+  try {
+    chromium = require('@sparticuz/chromium')
+  } catch (error) {
+    console.log('Chromium not available, using default Puppeteer')
+  }
+}
 import axios from 'axios'
 
 // Types for MacUpdate data
@@ -105,12 +115,43 @@ export class MacUpdateScraper {
         '--disable-renderer-backgrounding',
         '--disable-features=TranslateUI',
         '--disable-ipc-flooding-protection',
+        '--disable-extensions',
+        '--disable-plugins',
+        '--disable-images',
+        '--disable-javascript',
         '--user-agent=' + this.config.userAgent
       ]
     }
 
-    this.browser = await puppeteer.launch(launchOptions)
-    return this.browser
+    // Netlify-specific configuration
+    if (process.env.NETLIFY && chromium) {
+      try {
+        // Use @sparticuz/chromium for Netlify
+        const executablePath = await chromium.executablePath()
+        launchOptions.executablePath = executablePath
+        if (launchOptions.args) {
+          launchOptions.args.push(...chromium.args)
+        }
+      } catch (error) {
+        console.log('Failed to get Chromium executable path, using fallback')
+      }
+    }
+
+    try {
+      this.browser = await puppeteer.launch(launchOptions)
+      return this.browser
+    } catch (error) {
+      console.error('Failed to launch browser with default options:', error)
+      
+      // Fallback: try with minimal options
+      const fallbackOptions: LaunchOptions = {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      }
+      
+      this.browser = await puppeteer.launch(fallbackOptions)
+      return this.browser
+    }
   }
 
   // Close browser
