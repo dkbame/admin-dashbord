@@ -576,25 +576,26 @@ export class MacUpdateScraper {
         })
       }
       
-      // Extract file size from app specs section
+      // Extract data from the consistent specs_list structure
       let file_size = ''
-      $('*').filter((_, el) => $(el).text().includes('Size')).each((_, el) => {
-        const text = $(el).text().trim()
-        const sizeMatch = text.match(/Size\s*(\d+\.?\d*\s*[KMGT]?B)/i)
-        if (sizeMatch) {
-          file_size = sizeMatch[1].trim()
-          return false // break the loop
-        }
-      })
-      
-      // Extract system requirements from app specs section
       let requirements = ''
-      $('*').filter((_, el) => $(el).text().includes('OS')).each((_, el) => {
-        const text = $(el).text().trim()
-        const osMatch = text.match(/OS\s*(macOS\s+\d+\.\d+(?:\s+or\s+later)?)/i)
-        if (osMatch) {
-          requirements = osMatch[1].trim()
-          return false // break the loop
+      let download_count = 0
+      
+      $('.specs_list .specs_list_item').each((_, item) => {
+        const $item = $(item)
+        const title = $item.find('.specs_list_title').text().trim()
+        const description = $item.find('.specs_list_description').text().trim()
+        
+        switch (title) {
+          case 'Size':
+            file_size = description
+            break
+          case 'OS':
+            requirements = description
+            break
+          case 'Downloads':
+            download_count = this.parseDownloadCount(description)
+            break
         }
       })
       
@@ -603,7 +604,6 @@ export class MacUpdateScraper {
       // Parse data
       const price = this.parsePrice(priceText)
       const rating = this.parseRating(ratingText)
-      const download_count = this.parseDownloadCount(downloadCountText)
       
       console.log('Extracted data:', {
         name,
