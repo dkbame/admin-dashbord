@@ -139,6 +139,17 @@ export default function MacUpdateImportPage() {
     macUpdateApps: 0,
     recentImports: 0
   })
+  
+  // Duplicate cleanup state
+  const [duplicates, setDuplicates] = useState<Array<{
+    name: string
+    count: number
+    appIds: string[]
+    developers: string[]
+  }>>([])
+  const [totalDuplicates, setTotalDuplicates] = useState(0)
+  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false)
+  const [isRemovingDuplicates, setIsRemovingDuplicates] = useState(false)
 
   // Load stats on component mount
   useEffect(() => {
@@ -154,6 +165,68 @@ export default function MacUpdateImportPage() {
       }
     } catch (error) {
       console.error('Error loading stats:', error)
+    }
+  }
+
+  const handleCheckDuplicates = async () => {
+    setIsCheckingDuplicates(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const response = await fetch('/api/macupdate-cleanup-duplicates?action=find')
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          setDuplicates(data.data.duplicates)
+          setTotalDuplicates(data.data.totalDuplicates)
+          if (data.data.totalDuplicates > 0) {
+            setSuccess(`Found ${data.data.totalDuplicates} duplicate apps across ${data.data.duplicates.length} app names`)
+          } else {
+            setSuccess('No duplicate apps found!')
+          }
+        } else {
+          setError(data.error || 'Failed to check for duplicates')
+        }
+      } else {
+        setError('Failed to check for duplicates')
+      }
+    } catch (error) {
+      setError('Error checking for duplicates')
+    } finally {
+      setIsCheckingDuplicates(false)
+    }
+  }
+
+  const handleRemoveDuplicates = async () => {
+    setIsRemovingDuplicates(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const response = await fetch('/api/macupdate-cleanup-duplicates?action=remove')
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          setSuccess(`Successfully removed ${data.data.removed} duplicate apps. Kept ${data.data.kept} apps.`)
+          if (data.data.errors.length > 0) {
+            setError(`Some errors occurred: ${data.data.errors.join(', ')}`)
+          }
+          // Refresh duplicates list
+          setDuplicates([])
+          setTotalDuplicates(0)
+          // Refresh stats
+          loadStats()
+        } else {
+          setError(data.error || 'Failed to remove duplicates')
+        }
+      } else {
+        setError('Failed to remove duplicates')
+      }
+    } catch (error) {
+      setError('Error removing duplicates')
+    } finally {
+      setIsRemovingDuplicates(false)
     }
   }
 
@@ -350,6 +423,71 @@ export default function MacUpdateImportPage() {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Duplicate Cleanup Section */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Duplicate App Cleanup
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Check for and remove duplicate MacUpdate apps that may have been imported multiple times.
+          </Typography>
+          
+          <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+            <Button
+              variant="outlined"
+              startIcon={isCheckingDuplicates ? <CircularProgress size={20} /> : <Refresh />}
+              onClick={handleCheckDuplicates}
+              disabled={isCheckingDuplicates || isRemovingDuplicates}
+            >
+              {isCheckingDuplicates ? 'Checking...' : 'Check for Duplicates'}
+            </Button>
+            
+            {totalDuplicates > 0 && (
+              <Button
+                variant="contained"
+                color="warning"
+                startIcon={isRemovingDuplicates ? <CircularProgress size={20} /> : <ErrorIcon />}
+                onClick={handleRemoveDuplicates}
+                disabled={isCheckingDuplicates || isRemovingDuplicates}
+              >
+                {isRemovingDuplicates ? 'Removing...' : `Remove ${totalDuplicates} Duplicates`}
+              </Button>
+            )}
+          </Box>
+
+          {duplicates.length > 0 && (
+            <Box>
+              <Typography variant="subtitle2" gutterBottom>
+                Found Duplicates:
+              </Typography>
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>App Name</TableCell>
+                      <TableCell>Count</TableCell>
+                      <TableCell>Developers</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {duplicates.map((duplicate, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{duplicate.name}</TableCell>
+                        <TableCell>{duplicate.count}</TableCell>
+                        <TableCell>
+                          {duplicate.developers.join(', ')}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Error/Success Messages */}
       {error && (

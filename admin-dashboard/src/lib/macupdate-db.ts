@@ -89,14 +89,15 @@ async function getCategoryId(categoryName: string): Promise<string | null> {
   }
 }
 
-// Check if app already exists
-async function checkAppExists(appName: string, developer: string): Promise<string | null> {
+// Check if app already exists by name and MacUpdate URL
+async function checkAppExists(appName: string, macupdateUrl: string): Promise<string | null> {
   try {
+    // First try to find by exact name and MacUpdate URL
     const { data, error } = await supabase
       .from('apps')
       .select('id')
       .eq('name', appName)
-      .eq('developer', developer)
+      .eq('website_url', macupdateUrl)
       .single()
     
     if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
@@ -104,7 +105,24 @@ async function checkAppExists(appName: string, developer: string): Promise<strin
       return null
     }
     
-    return data?.id || null
+    if (data?.id) {
+      return data.id
+    }
+    
+    // Fallback: check by name only (in case URL changed)
+    const { data: nameData, error: nameError } = await supabase
+      .from('apps')
+      .select('id')
+      .eq('name', appName)
+      .eq('source', 'CUSTOM')
+      .single()
+    
+    if (nameError && nameError.code !== 'PGRST116') {
+      console.error('Error checking app existence by name:', nameError)
+      return null
+    }
+    
+    return nameData?.id || null
   } catch (error) {
     console.error('Error in checkAppExists:', error)
     return null
@@ -115,7 +133,7 @@ async function checkAppExists(appName: string, developer: string): Promise<strin
 export async function importMacUpdateApp(app: MacUpdateApp): Promise<ImportResult> {
   try {
     // Check if app already exists
-    const existingAppId = await checkAppExists(app.name, app.developer)
+    const existingAppId = await checkAppExists(app.name, app.macupdate_url)
     
     if (existingAppId) {
       return {
@@ -322,4 +340,101 @@ export async function getImportStats(): Promise<{
       recentImports: 0
     }
   }
-} 
+}
+
+// Function to find and clean up duplicate apps
+export async function findDuplicateApps(): Promise<{
+  duplicates: Array<{
+    name: string
+    count: number
+    appIds: string[]
+    developers: string[]
+  }>
+  totalDuplicates: number
+}> {
+  try {
+    // Find apps with the same name but different developers
+    const { data, error } = await supabase
+      .from('apps')
+      .select('id, name, developer, created_at, icon_url')
+      .eq('source', 'CUSTOM')
+      .order('name')
+    
+    if (error) {
+      console.error('Error finding duplicates:', error)
+      return { duplicates: [], totalDuplicates: 0 }
+    }
+    
+    // Group by name and find duplicates
+    const groupedByName: { [key: string]: any[] } = {}
+    data?.forEach(app => {
+      if (!groupedByName[app.name]) {
+        groupedByName[app.name] = []
+      }
+      groupedByName[app.name].push(app)
+    })
+    
+    const duplicates = Object.entries(groupedByName)
+      .filter(([name, apps]) => apps.length > 1)
+      .map(([name, apps]) => ({
+        name,
+        count: apps.length,
+        appIds: apps.map(app => app.id),
+        developers: apps.map(app => app.developer)
+      }))
+    
+    return {
+      duplicates,
+      totalDuplicates: duplicates.reduce((sum, group) => sum + group.count - 1, 0)
+    }
+  } catch (error) {
+    console.error('Error finding duplicates:', error)
+    return { duplicates: [], totalDuplicates: 0 }
+  }
+}
+
+// Function to remove duplicate apps (keeps the one with the most complete data)
+export async function removeDuplicateApps(): Promise<{
+  removed: number
+  kept: number
+  errors: string[]
+}> {
+  try {
+    const { duplicates } = await findDuplicateApps()
+    let removed = 0
+    let kept = 0
+    const errors: string[] = []
+    
+    for (const duplicate of duplicates) {
+      // Sort by completeness (prefer apps with icons and more recent data)
+      const sortedApps = duplicate.appIds.map((id, index) => ({
+        id,
+        developer: duplicate.developers[index]
+      }))
+      
+      // Keep the first one, remove the rest
+      const toKeep = sortedApps[0]
+      const toRemove = sortedApps.slice(1)
+      
+      for (const appToRemove of toRemove) {
+        const { error } = await supabase
+          .from('apps')
+          .delete()
+          .eq('id', appToRemove.id)
+        
+        if (error) {
+          errors.push(`Failed to remove duplicate ${appToRemove.id}: ${error.message}`)
+        } else {
+          removed++
+        }
+      }
+      
+      kept++
+    }
+    
+    return { removed, kept, errors }
+  } catch (error) {
+    console.error('Error removing duplicates:', error)
+    return { removed: 0, kept: 0, errors: [error instanceof Error ? error.message : 'Unknown error'] }
+  }
+}
