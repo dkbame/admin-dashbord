@@ -26,7 +26,7 @@ struct AppModel: Identifiable, Codable {
     let app_store_url: String?
     let website_url: String?
     let version: String?
-    let size: Int?
+    let size: String?
     let rating: Double?
     let rating_count: Int?
     let release_date: String?
@@ -82,10 +82,18 @@ struct AppModel: Identifiable, Codable {
     
     var formattedSize: String {
         guard let size = size else { return "Unknown" }
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useMB, .useGB]
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: Int64(size))
+        // If size is already in human-readable format (e.g., "97.4 MB"), return it as is
+        if size.contains("MB") || size.contains("GB") || size.contains("KB") {
+            return size
+        }
+        // Fallback: try to parse as integer and format
+        if let sizeInt = Int(size) {
+            let formatter = ByteCountFormatter()
+            formatter.allowedUnits = [.useMB, .useGB]
+            formatter.countStyle = .file
+            return formatter.string(fromByteCount: Int64(sizeInt))
+        }
+        return size
     }
     
     var formattedReleaseDate: String {
@@ -139,14 +147,18 @@ struct AppModel: Identifiable, Codable {
         source = try container.decodeIfPresent(String.self, forKey: .source)
         
         // Handle size field with robust error handling
-        var tempSize: Int? = nil
+        var tempSize: String? = nil
         if container.contains(.size) {
             do {
-                tempSize = try container.decode(Int.self, forKey: .size)
+                tempSize = try container.decode(String.self, forKey: .size)
             } catch {
                 do {
-                    let sizeString = try container.decode(String.self, forKey: .size)
-                    tempSize = Int(sizeString)
+                    let sizeInt = try container.decode(Int.self, forKey: .size)
+                    // Convert integer to human-readable format
+                    let formatter = ByteCountFormatter()
+                    formatter.allowedUnits = [.useMB, .useGB]
+                    formatter.countStyle = .file
+                    tempSize = formatter.string(fromByteCount: Int64(sizeInt))
                 } catch {
                     tempSize = nil
                 }
@@ -203,7 +215,7 @@ struct AppModel: Identifiable, Codable {
         app_store_url: "https://apps.apple.com/app/sample",
         website_url: "https://example.com",
         version: "1.0.0",
-        size: 52428800, // 50MB
+        size: "50 MB",
         rating: 4.5,
         rating_count: 1234,
         release_date: "2024-01-15",
@@ -221,7 +233,7 @@ struct AppModel: Identifiable, Codable {
     )
     
     // Manual initializer for creating AppModel instances
-    init(id: String, name: String, description: String, developer: String?, price: String?, category_id: String, icon_url: String?, screenshots: [Screenshot]?, app_store_url: String?, website_url: String?, version: String?, size: Int?, rating: Double?, rating_count: Int?, release_date: String?, last_updated: String?, is_free: Bool?, is_featured: Bool?, created_at: String?, updated_at: String?, status: String?, currency: String?, minimum_os_version: String?, architecture: String?, features: [String]?, source: String?) {
+    init(id: String, name: String, description: String, developer: String?, price: String?, category_id: String, icon_url: String?, screenshots: [Screenshot]?, app_store_url: String?, website_url: String?, version: String?, size: String?, rating: Double?, rating_count: Int?, release_date: String?, last_updated: String?, is_free: Bool?, is_featured: Bool?, created_at: String?, updated_at: String?, status: String?, currency: String?, minimum_os_version: String?, architecture: String?, features: [String]?, source: String?) {
         self.id = id
         self.name = name
         self.description = description
