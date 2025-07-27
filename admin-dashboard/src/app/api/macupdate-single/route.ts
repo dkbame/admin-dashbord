@@ -276,10 +276,33 @@ function parseAppPage(html: string, url: string): MacUpdateApp | null {
 
     try {
       // Extract requirements - look for "OS" in app specs (avoid JSON data)
-      const reqMatch = html.match(/OS\s+([^<]+?)(?=\s*<\/|$)/i) ||
-                      html.match(/<div[^>]*class="[^"]*requirements[^"]*"[^>]*>([^<]+)/i)
+      let reqMatch = html.match(/OS\s+([^<]+?)(?=\s*<\/|$)/i)
+      
+      if (!reqMatch) {
+        // Try to find the OS requirement in a more specific way
+        reqMatch = html.match(/OS\s+([^<]+?)(?=\s*<\/|,|"|$)/i)
+      }
+      
+      if (!reqMatch) {
+        // Look for OS requirement in a specific section
+        reqMatch = html.match(/<div[^>]*class="[^"]*requirements[^"]*"[^>]*>([^<]+)/i)
+      }
+      
+      if (!reqMatch) {
+        // Look for OS requirement in app specs section
+        const appSpecsSection = html.match(/App Specs[\s\S]*?OS\s+([^<]+?)(?=\s*<\/|,|"|$)/i)
+        if (appSpecsSection) {
+          reqMatch = appSpecsSection
+        }
+      }
+      
       if (reqMatch) {
-        app.requirements = reqMatch[1].trim().substring(0, 200)
+        let requirements = reqMatch[1].trim()
+        console.log('Raw requirements match:', requirements)
+        // Clean up any remaining JSON or HTML artifacts
+        requirements = requirements.replace(/["{},\[\]@]/g, '').trim()
+        console.log('Cleaned requirements:', requirements)
+        app.requirements = requirements.substring(0, 200)
       }
       console.log('Extracted requirements:', app.requirements)
     } catch (error) {
