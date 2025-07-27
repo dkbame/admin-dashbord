@@ -65,22 +65,42 @@ struct DateFormatter {
 
 // MARK: - File Size Formatter
 struct FileSizeFormatter {
-    static func formatFileSize(_ size: Int?) -> String {
+    static func formatFileSize(_ size: String?) -> String {
         guard let size = size else { return "Unknown" }
         
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useMB, .useGB]
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: Int64(size))
+        // If size is already in human-readable format (e.g., "97.4 MB"), return it as is
+        if size.contains("MB") || size.contains("GB") || size.contains("KB") {
+            return size
+        }
+        
+        // Fallback: try to parse as integer and format
+        if let sizeInt = Int(size) {
+            let formatter = ByteCountFormatter()
+            formatter.allowedUnits = [.useMB, .useGB]
+            formatter.countStyle = .file
+            return formatter.string(fromByteCount: Int64(sizeInt))
+        }
+        
+        return size
     }
     
-    static func formatFileSizeDetailed(_ size: Int?) -> String {
+    static func formatFileSizeDetailed(_ size: String?) -> String {
         guard let size = size else { return "Unknown" }
         
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useKB, .useMB, .useGB]
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: Int64(size))
+        // If size is already in human-readable format, return it as is
+        if size.contains("MB") || size.contains("GB") || size.contains("KB") {
+            return size
+        }
+        
+        // Fallback: try to parse as integer and format
+        if let sizeInt = Int(size) {
+            let formatter = ByteCountFormatter()
+            formatter.allowedUnits = [.useKB, .useMB, .useGB]
+            formatter.countStyle = .file
+            return formatter.string(fromByteCount: Int64(sizeInt))
+        }
+        
+        return size
     }
 }
 
