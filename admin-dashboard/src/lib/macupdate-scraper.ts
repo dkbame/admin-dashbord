@@ -218,46 +218,63 @@ export class MacUpdateScraper {
     try {
       console.log(`Scraping app page: ${appUrl}`)
       
-      // Try Puppeteer first (for local development)
-      if (!process.env.NETLIFY) {
-        try {
-          if (!this.browser) {
-            await this.initBrowser()
-          }
-          
-          const page = await this.browser!.newPage()
-          
-          try {
-            await page.setDefaultTimeout(this.config.timeout)
-            await page.setUserAgent(this.config.userAgent)
-            
-            console.log('Navigating to page with Puppeteer...')
-            await page.goto(appUrl, { waitUntil: 'networkidle2' })
-            await new Promise(resolve => setTimeout(resolve, 3000))
-            
-            const title = await page.title()
-            console.log('Page title:', title)
-            
-            const content = await page.content()
-            console.log('HTML length:', content.length)
-            
-            const $ = cheerio.load(content)
-            const app = this.extractAppData($, appUrl)
-            
-            if (app) {
-              console.log('Successfully scraped with Puppeteer')
-              return app
-            }
-            
-          } finally {
-            await page.close()
-          }
-        } catch (puppeteerError) {
-          console.log('Puppeteer failed, trying fallback method:', puppeteerError)
-        }
+      // Check if we're on Netlify (where Puppeteer doesn't work)
+      const isNetlify = process.env.NETLIFY || process.env.VERCEL || process.env.NODE_ENV === 'production'
+      
+      if (isNetlify) {
+        console.log('Detected Netlify/Vercel environment, using fallback method directly')
+        return await this.scrapeWithFallback(appUrl)
       }
       
-      // Fallback: Use axios + cheerio (works on Netlify)
+      // Try Puppeteer first (for local development)
+      try {
+        if (!this.browser) {
+          await this.initBrowser()
+        }
+        
+        const page = await this.browser!.newPage()
+        
+        try {
+          await page.setDefaultTimeout(this.config.timeout)
+          await page.setUserAgent(this.config.userAgent)
+          
+          console.log('Navigating to page with Puppeteer...')
+          await page.goto(appUrl, { waitUntil: 'networkidle2' })
+          await new Promise(resolve => setTimeout(resolve, 3000))
+          
+          const title = await page.title()
+          console.log('Page title:', title)
+          
+          const content = await page.content()
+          console.log('HTML length:', content.length)
+          
+          const $ = cheerio.load(content)
+          const app = this.extractAppData($, appUrl)
+          
+          if (app) {
+            console.log('Successfully scraped with Puppeteer')
+            return app
+          }
+          
+        } finally {
+          await page.close()
+        }
+      } catch (puppeteerError) {
+        console.log('Puppeteer failed, trying fallback method:', puppeteerError)
+      }
+      
+      // Fallback: Use axios + cheerio
+      return await this.scrapeWithFallback(appUrl)
+      
+    } catch (error) {
+      console.error(`Failed to scrape app page ${appUrl}:`, error)
+      return null
+    }
+  }
+
+  // Fallback scraping method using axios + cheerio
+  private async scrapeWithFallback(appUrl: string): Promise<MacUpdateApp | null> {
+    try {
       console.log('Using fallback scraping method with axios...')
       const response = await axios.get(appUrl, {
         timeout: this.config.timeout,
@@ -286,7 +303,7 @@ export class MacUpdateScraper {
       }
       
     } catch (error) {
-      console.error(`Failed to scrape app page ${appUrl}:`, error)
+      console.error('Fallback method failed:', error)
       return null
     }
   }
