@@ -198,7 +198,7 @@ struct AppDetailsSection: View {
                 DetailRow(title: "Version", value: VersionFormatter.formatVersion(app.version))
                 DetailRow(title: "Size", value: FileSizeFormatter.formatFileSize(app.size))
                 DetailRow(title: "Architecture", value: app.architecture ?? "Unknown")
-                DetailRow(title: "Last Updated", value: DateFormatter.shared.formatDate(app.last_updated))
+                DetailRow(title: "Last Updated", value: app.formattedLastUpdated)
                 DetailRow(title: "Minimum OS", value: MinimumOSFormatter.formatMinimumOS(app.minimum_os_version))
                 
                 if let features = app.features, !features.isEmpty {

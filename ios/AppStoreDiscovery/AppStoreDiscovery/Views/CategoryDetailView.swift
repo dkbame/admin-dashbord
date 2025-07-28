@@ -302,7 +302,7 @@ struct AppDetailsView: View {
                 DetailRow(title: "Version", value: VersionFormatter.formatVersion(app.version))
                 DetailRow(title: "Size", value: FileSizeFormatter.formatFileSize(app.size))
 
-                DetailRow(title: "Last Updated", value: DateFormatter.shared.formatDate(app.last_updated))
+                DetailRow(title: "Last Updated", value: app.formattedLastUpdated)
                 DetailRow(title: "Minimum OS", value: MinimumOSFormatter.formatMinimumOS(app.minimum_os_version))
                 DetailRow(title: "Category", value: "Unknown") // TODO: Add category name
             }
