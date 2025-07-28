@@ -29,6 +29,7 @@ const CATEGORY_MAP: { [key: string]: string } = {
   // Graphics & Design
   'graphics': 'graphics-design',
   'graphic design': 'graphics-design',
+  'graphic-design': 'graphics-design',
   'design': 'graphics-design',
   'photography': 'graphics-design',
   'image editing': 'graphics-design',
@@ -154,16 +155,28 @@ export interface BatchImportResult {
 // Get category ID by name
 async function getCategoryId(categoryName: string): Promise<string | null> {
   try {
+    console.log('Mapping category:', categoryName)
+    
     // Map MacUpdate category to our category slug
-    const searchTerm = categoryName.toLowerCase()
+    const searchTerm = categoryName.toLowerCase().trim()
     let targetSlug = 'utilities' // default fallback
     
-    for (const [key, slug] of Object.entries(CATEGORY_MAP)) {
-      if (searchTerm.includes(key)) {
-        targetSlug = slug
-        break
+    // First try exact matches
+    if (CATEGORY_MAP[searchTerm]) {
+      targetSlug = CATEGORY_MAP[searchTerm]
+      console.log('Exact match found:', searchTerm, '->', targetSlug)
+    } else {
+      // Try partial matches
+      for (const [key, slug] of Object.entries(CATEGORY_MAP)) {
+        if (searchTerm.includes(key) || key.includes(searchTerm)) {
+          targetSlug = slug
+          console.log('Partial match found:', searchTerm, 'includes', key, '->', targetSlug)
+          break
+        }
       }
     }
+    
+    console.log('Final target slug:', targetSlug)
     
     // Get category ID from database
     const { data: categories, error } = await supabase
@@ -177,6 +190,7 @@ async function getCategoryId(categoryName: string): Promise<string | null> {
       return null
     }
     
+    console.log('Category ID found:', categories?.id)
     return categories?.id || null
   } catch (error) {
     console.error('Error in getCategoryId:', error)
