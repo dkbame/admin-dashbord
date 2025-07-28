@@ -497,17 +497,40 @@ export class MacUpdateScraper {
       // Extract category with multiple fallback methods
       let category = ''
       
+      // Method 0: Look for category in JSON data (most reliable)
+      $('script').each((_, script) => {
+        const scriptContent = $(script).html() || ''
+        if (scriptContent.includes('"category"') && scriptContent.includes('"name"')) {
+          try {
+            // Try to find and parse JSON data for category
+            const categoryMatch = scriptContent.match(/"category"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"/)
+            if (categoryMatch && categoryMatch[1]) {
+              category = categoryMatch[1].trim()
+              console.log('Found category from JSON:', category)
+              return false // break the loop
+            }
+          } catch (error) {
+            // Continue to next script if parsing fails
+          }
+        }
+      })
+      
       // Method 1: Look for category links
-      category = $('a[href*="/category/"]').first().text().trim()
+      if (!category) {
+        category = $('a[href*="/category/"]').first().text().trim()
+        if (category) console.log('Found category from links:', category)
+      }
       
       // Method 2: Look for category class
       if (!category) {
         category = $('.category').first().text().trim()
+        if (category) console.log('Found category from class:', category)
       }
       
       // Method 3: Look for any link with category
       if (!category) {
         category = $('a[href*="category"]').first().text().trim()
+        if (category) console.log('Found category from category links:', category)
       }
       
       // Method 4: Look for breadcrumb navigation
@@ -517,6 +540,7 @@ export class MacUpdateScraper {
           const href = $(el).attr('href') || ''
           if (href.includes('/category/') && text && text !== 'Home' && text !== 'Mac') {
             category = text
+            console.log('Found category from breadcrumbs:', category)
             return false // break the loop
           }
         })
@@ -525,6 +549,7 @@ export class MacUpdateScraper {
       // Method 5: Look for category in page metadata
       if (!category) {
         category = $('meta[property="article:section"]').attr('content') || ''
+        if (category) console.log('Found category from metadata:', category)
       }
       
       // Method 6: Look for category in structured data
@@ -534,6 +559,7 @@ export class MacUpdateScraper {
             const data = JSON.parse($(script).html() || '{}')
             if (data.category || data.genre) {
               category = data.category || data.genre
+              console.log('Found category from structured data:', category)
               return false // break the loop
             }
           } catch (error) {
@@ -541,6 +567,28 @@ export class MacUpdateScraper {
           }
         })
       }
+      
+      // Method 7: Look for category in the page props data
+      if (!category) {
+        $('script').each((_, script) => {
+          const scriptContent = $(script).html() || ''
+          if (scriptContent.includes('"pageProps"') && scriptContent.includes('"categoriesData"')) {
+            try {
+              // Try to extract category from the page props
+              const categoryMatch = scriptContent.match(/"name"\s*:\s*"([^"]+)"[^}]*"slug"\s*:\s*"graphic-design"/)
+              if (categoryMatch && categoryMatch[1]) {
+                category = categoryMatch[1].trim()
+                console.log('Found category from page props:', category)
+                return false // break the loop
+              }
+            } catch (error) {
+              // Continue to next script if parsing fails
+            }
+          }
+        })
+      }
+      
+      console.log('Final extracted category:', category)
       
       const description = $('.overview, .description, .app-description').first().text().trim() ||
                          $('p').first().text().trim()
