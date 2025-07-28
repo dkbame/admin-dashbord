@@ -494,9 +494,53 @@ export class MacUpdateScraper {
       const downloadCountText = $('*').filter((_, el) => $(el).text().includes('Downloads')).text().trim() || 
                                $('.downloads').first().text().trim()
       
-      const category = $('a[href*="/category/"]').first().text().trim() || 
-                      $('.category').first().text().trim() ||
-                      $('a[href*="category"]').first().text().trim()
+      // Extract category with multiple fallback methods
+      let category = ''
+      
+      // Method 1: Look for category links
+      category = $('a[href*="/category/"]').first().text().trim()
+      
+      // Method 2: Look for category class
+      if (!category) {
+        category = $('.category').first().text().trim()
+      }
+      
+      // Method 3: Look for any link with category
+      if (!category) {
+        category = $('a[href*="category"]').first().text().trim()
+      }
+      
+      // Method 4: Look for breadcrumb navigation
+      if (!category) {
+        $('.breadcrumb, .breadcrumbs, nav').find('a').each((_, el) => {
+          const text = $(el).text().trim()
+          const href = $(el).attr('href') || ''
+          if (href.includes('/category/') && text && text !== 'Home' && text !== 'Mac') {
+            category = text
+            return false // break the loop
+          }
+        })
+      }
+      
+      // Method 5: Look for category in page metadata
+      if (!category) {
+        category = $('meta[property="article:section"]').attr('content') || ''
+      }
+      
+      // Method 6: Look for category in structured data
+      if (!category) {
+        $('script[type="application/ld+json"]').each((_, script) => {
+          try {
+            const data = JSON.parse($(script).html() || '{}')
+            if (data.category || data.genre) {
+              category = data.category || data.genre
+              return false // break the loop
+            }
+          } catch (error) {
+            // Continue to next script if parsing fails
+          }
+        })
+      }
       
       const description = $('.overview, .description, .app-description').first().text().trim() ||
                          $('p').first().text().trim()

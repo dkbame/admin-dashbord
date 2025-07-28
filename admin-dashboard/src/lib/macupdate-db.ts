@@ -8,36 +8,131 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
 // Category mapping from MacUpdate to our database
 const CATEGORY_MAP: { [key: string]: string } = {
+  // Productivity
   'productivity': 'productivity',
+  'office': 'productivity',
+  'word processing': 'productivity',
+  'spreadsheets': 'productivity',
+  'presentation': 'productivity',
+  'project management': 'productivity',
+  'ai': 'productivity',
+  'artificial intelligence': 'productivity',
+  
+  // Development
   'development': 'development',
-  'design': 'design',
-  'utilities': 'utilities',
-  'entertainment': 'entertainment',
-  'education': 'education',
-  'business': 'business',
+  'developer tools': 'development',
+  'programming': 'development',
+  'coding': 'development',
+  'web development': 'development',
+  'software development': 'development',
+  
+  // Graphics & Design
   'graphics': 'graphics-design',
   'graphic design': 'graphics-design',
+  'design': 'graphics-design',
+  'photography': 'graphics-design',
+  'image editing': 'graphics-design',
+  'photo editing': 'graphics-design',
+  'illustration': 'graphics-design',
+  'drawing': 'graphics-design',
+  '3d': 'graphics-design',
+  '3d modeling': 'graphics-design',
+  'cad': 'graphics-design',
+  'vector': 'graphics-design',
+  'typography': 'graphics-design',
+  'layout': 'graphics-design',
+  'publishing': 'graphics-design',
+  
+  // Video & Audio
   'video': 'video-audio',
   'audio': 'video-audio',
+  'music': 'video-audio',
   'music & audio': 'video-audio',
-  'social': 'social-networking',
-  'games': 'games',
-  'health': 'health-fitness',
-  'health & fitness': 'health-fitness',
-  'lifestyle': 'lifestyle',
-  'lifestyle & hobby': 'lifestyle',
-  'finance': 'finance',
-  'reference': 'reference',
-  'security': 'security',
+  'video editing': 'video-audio',
+  'audio editing': 'video-audio',
+  'media': 'video-audio',
+  'streaming': 'video-audio',
+  'podcast': 'video-audio',
+  
+  // Utilities
+  'utilities': 'utilities',
   'system utilities': 'utilities',
   'internet utilities': 'utilities',
-  'developer tools': 'development',
-  'photography': 'graphics-design',
-  'ai': 'productivity',
   'browsing': 'utilities',
   'customization': 'utilities',
+  'system': 'utilities',
+  'maintenance': 'utilities',
+  'backup': 'utilities',
+  'file management': 'utilities',
+  'disk utilities': 'utilities',
+  
+  // Entertainment
+  'entertainment': 'entertainment',
+  'media player': 'entertainment',
+  'tv': 'entertainment',
+  'movies': 'entertainment',
+  
+  // Games
+  'games': 'games',
+  'gaming': 'games',
+  'game': 'games',
+  
+  // Business
+  'business': 'business',
+  'enterprise': 'business',
+  'accounting': 'business',
+  'crm': 'business',
+  
+  // Education
+  'education': 'education',
+  'learning': 'education',
+  'tutorial': 'education',
+  'training': 'education',
+  'academic': 'education',
+  
+  // Social Networking
+  'social': 'social-networking',
+  'social networking': 'social-networking',
+  'communication': 'social-networking',
+  'messaging': 'social-networking',
+  'chat': 'social-networking',
+  
+  // Health & Fitness
+  'health': 'health-fitness',
+  'health & fitness': 'health-fitness',
+  'fitness': 'health-fitness',
+  'medical': 'health-fitness',
   'medical software': 'health-fitness',
-  'travel': 'lifestyle'
+  'wellness': 'health-fitness',
+  
+  // Lifestyle
+  'lifestyle': 'lifestyle',
+  'lifestyle & hobby': 'lifestyle',
+  'hobby': 'lifestyle',
+  'travel': 'lifestyle',
+  'cooking': 'lifestyle',
+  'home': 'lifestyle',
+  
+  // Finance
+  'finance': 'finance',
+  'financial': 'finance',
+  'banking': 'finance',
+  'investment': 'finance',
+  'budget': 'finance',
+  
+  // Security
+  'security': 'security',
+  'antivirus': 'security',
+  'firewall': 'security',
+  'encryption': 'security',
+  'privacy': 'security',
+  
+  // Reference
+  'reference': 'reference',
+  'dictionary': 'reference',
+  'encyclopedia': 'reference',
+  'research': 'reference',
+  'documentation': 'reference'
 }
 
 export interface ImportResult {
