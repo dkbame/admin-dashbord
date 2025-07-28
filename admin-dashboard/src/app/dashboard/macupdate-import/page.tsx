@@ -9,10 +9,6 @@ import {
   Grid,
   Button,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Alert,
   CircularProgress,
   LinearProgress,
@@ -22,33 +18,24 @@ import {
   ListItemText,
   ListItemSecondaryAction,
   IconButton,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Switch,
-  FormControlLabel,
-  Divider,
   Paper,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
-  TableRow
+  TableRow,
+  Divider
 } from '@mui/material'
 import {
   CloudDownload,
-  ExpandMore,
   CheckCircle,
   Error as ErrorIcon,
   Warning,
   Info,
   PlayArrow,
-  Stop,
   Refresh,
-  Settings,
-  Analytics,
-  History
+  Settings
 } from '@mui/icons-material'
 
 interface MacUpdateApp {
@@ -66,10 +53,12 @@ interface MacUpdateApp {
   screenshots: string[]
   icon_url: string
   macupdate_url: string
+  developer_website_url?: string
   release_date?: Date
   last_updated: Date
   file_size?: string
   requirements?: string
+  architecture?: string
 }
 
 interface ImportResult {
@@ -81,75 +70,75 @@ interface ImportResult {
   metadata?: boolean
 }
 
-interface ScrapingConfig {
-  pageLimit: number
-  minRating: number
-  priceFilter: 'all' | 'free' | 'paid'
-  category: string
-  delayBetweenRequests: number
-  timeout: number
+interface CategoryPreview {
+  categoryName: string
+  totalApps: number
+  newApps: number
+  existingApps: number
+  appUrls: string[]
+  appPreviews: Array<{
+    name: string
+    developer: string
+    price: number | null
+    rating: number | null
+    url: string
+  }>
 }
 
-const MACUPDATE_CATEGORIES = [
-  'all',
-  'AI',
-  'Browsing',
-  'Business',
-  'Customization',
-  'Developer Tools',
-  'Education',
-  'Finance',
-  'Games',
-  'Graphic Design',
-  'Health & Fitness',
-  'Internet Utilities',
-  'Lifestyle & Hobby',
-  'Medical Software',
-  'Music & Audio',
-  'Photography',
-  'Productivity',
-  'Security',
-  'System Utilities',
-  'Travel',
-  'Video'
+// Popular MacUpdate categories for quick access
+const POPULAR_CATEGORIES = [
+  {
+    name: 'Developer Tools',
+    url: 'https://www.macupdate.com/explore/categories/developer-tools',
+    description: 'IDEs, compilers, and development utilities'
+  },
+  {
+    name: 'Graphics & Design',
+    url: 'https://www.macupdate.com/explore/categories/graphic-design',
+    description: 'Design software, image editors, and creative tools'
+  },
+  {
+    name: 'Productivity',
+    url: 'https://www.macupdate.com/explore/categories/productivity',
+    description: 'Office apps, task managers, and productivity tools'
+  },
+  {
+    name: 'Utilities',
+    url: 'https://www.macupdate.com/explore/categories/system-utilities',
+    description: 'System utilities, maintenance, and optimization tools'
+  },
+  {
+    name: 'Security',
+    url: 'https://www.macupdate.com/explore/categories/security',
+    description: 'Antivirus, VPN, and security applications'
+  }
 ]
 
 export default function MacUpdateImportPage() {
-  const [config, setConfig] = useState<ScrapingConfig>({
-    pageLimit: 2,
-    minRating: 0,
-    priceFilter: 'all',
-    category: 'all',
-    delayBetweenRequests: 2000,
-    timeout: 30000
-  })
-  
+  // State for single app import
   const [manualUrl, setManualUrl] = useState('')
-  const [isScraping, setIsScraping] = useState(false)
+  const [isManualScraping, setIsManualScraping] = useState(false)
+  const [scrapedApp, setScrapedApp] = useState<MacUpdateApp | null>(null)
+  
+  // State for category import
+  const [categoryUrl, setCategoryUrl] = useState('')
+  const [isCategoryScraping, setIsCategoryScraping] = useState(false)
+  const [categoryPreview, setCategoryPreview] = useState<CategoryPreview | null>(null)
+  const [selectedApps, setSelectedApps] = useState<string[]>([])
+  
+  // State for import process
   const [isImporting, setIsImporting] = useState(false)
-  const [scrapingProgress, setScrapingProgress] = useState(0)
   const [importProgress, setImportProgress] = useState(0)
-  const [scrapedApps, setScrapedApps] = useState<MacUpdateApp[]>([])
   const [importResults, setImportResults] = useState<ImportResult[]>([])
+  
+  // General state
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [showResults, setShowResults] = useState(false)
   const [stats, setStats] = useState({
     totalApps: 0,
     macUpdateApps: 0,
     recentImports: 0
   })
-  
-  // Duplicate cleanup state
-  const [duplicates, setDuplicates] = useState<Array<{
-    name: string
-    count: number
-    appIds: string[]
-    developers: string[]
-  }>>([])
-  const [totalDuplicates, setTotalDuplicates] = useState(0)
-  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false)
-  const [isRemovingDuplicates, setIsRemovingDuplicates] = useState(false)
 
   // Load stats on component mount
   useEffect(() => {
@@ -168,130 +157,25 @@ export default function MacUpdateImportPage() {
     }
   }
 
-  const handleCheckDuplicates = async () => {
-    setIsCheckingDuplicates(true)
-    setError(null)
-    setSuccess(null)
-
-    try {
-      const response = await fetch('/api/macupdate-cleanup-duplicates?action=find')
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          setDuplicates(data.data.duplicates)
-          setTotalDuplicates(data.data.totalDuplicates)
-          if (data.data.totalDuplicates > 0) {
-            setSuccess(`Found ${data.data.totalDuplicates} duplicate apps across ${data.data.duplicates.length} app names`)
-          } else {
-            setSuccess('No duplicate apps found!')
-          }
-        } else {
-          setError(data.error || 'Failed to check for duplicates')
-        }
-      } else {
-        setError('Failed to check for duplicates')
-      }
-    } catch (error) {
-      setError('Error checking for duplicates')
-    } finally {
-      setIsCheckingDuplicates(false)
-    }
-  }
-
-  const handleRemoveDuplicates = async () => {
-    setIsRemovingDuplicates(true)
-    setError(null)
-    setSuccess(null)
-
-    try {
-      const response = await fetch('/api/macupdate-cleanup-duplicates?action=remove')
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          setSuccess(`Successfully removed ${data.data.removed} duplicate apps. Kept ${data.data.kept} apps.`)
-          if (data.data.errors.length > 0) {
-            setError(`Some errors occurred: ${data.data.errors.join(', ')}`)
-          }
-          // Refresh duplicates list
-          setDuplicates([])
-          setTotalDuplicates(0)
-          // Refresh stats
-          loadStats()
-        } else {
-          setError(data.error || 'Failed to remove duplicates')
-        }
-      } else {
-        setError('Failed to remove duplicates')
-      }
-    } catch (error) {
-      setError('Error removing duplicates')
-    } finally {
-      setIsRemovingDuplicates(false)
-    }
-  }
-
-  const handleScrape = async () => {
-    setIsScraping(true)
-    setScrapingProgress(0)
-    setScrapedApps([])
-    setError(null)
-    setSuccess(null)
-
-    try {
-      console.log('Starting MacUpdate scraping with config:', config)
-      
-      const response = await fetch('/api/macupdate-scraper', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'scrape-listings',
-          config
-        })
-      })
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      
-      const data = await response.json()
-      
-      if (data.success && data.apps) {
-        setScrapedApps(data.apps)
-        setSuccess(`Successfully scraped ${data.apps.length} apps from MacUpdate`)
-        setScrapingProgress(100)
-      } else {
-        setError(data.error || 'Failed to scrape apps')
-      }
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Scraping failed'
-      setError(errorMessage)
-    } finally {
-      setIsScraping(false)
-    }
-  }
-
+  // Single app scraping
   const handleManualScrape = async () => {
     if (!manualUrl.trim()) {
-      setError('Please enter a MacUpdate URL')
+      setError('Please enter a MacUpdate app URL')
       return
     }
 
-    setIsScraping(true)
-    setScrapingProgress(0)
-    setScrapedApps([])
+    setIsManualScraping(true)
     setError(null)
     setSuccess(null)
+    setScrapedApp(null)
 
     try {
-      console.log('Starting manual MacUpdate scraping for URL:', manualUrl)
-      
       const response = await fetch('/api/macupdate-scraper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'scrape-app',
-          appUrl: manualUrl
+          appUrl: manualUrl.trim()
         })
       })
       
@@ -302,24 +186,23 @@ export default function MacUpdateImportPage() {
       const data = await response.json()
       
       if (data.success && data.app) {
-        setScrapedApps([data.app])
-        setSuccess(`Successfully scraped app: ${data.app.name}`)
-        setScrapingProgress(100)
+        setScrapedApp(data.app)
+        setSuccess(`Successfully scraped "${data.app.name}" by ${data.app.developer}`)
       } else {
         setError(data.error || 'Failed to scrape app')
       }
 
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Manual scraping failed'
+      const errorMessage = err instanceof Error ? err.message : 'Failed to scrape app'
       setError(errorMessage)
     } finally {
-      setIsScraping(false)
+      setIsManualScraping(false)
     }
   }
 
-  const handleImport = async () => {
-    if (scrapedApps.length === 0) {
-      setError('No apps to import. Please scrape apps first.')
+  const handleImportSingleApp = async () => {
+    if (!scrapedApp) {
+      setError('No app to import')
       return
     }
 
@@ -332,7 +215,7 @@ export default function MacUpdateImportPage() {
       const response = await fetch('/api/macupdate-import/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apps: scrapedApps })
+        body: JSON.stringify({ apps: [scrapedApp] })
       })
       
       if (!response.ok) {
@@ -345,7 +228,7 @@ export default function MacUpdateImportPage() {
         setImportResults(data.results)
         setSuccess(`Import completed: ${data.successful} successful, ${data.failed} failed`)
         setImportProgress(100)
-        loadStats() // Refresh stats
+        loadStats()
       } else {
         setError(data.error || 'Import failed')
       }
@@ -358,10 +241,169 @@ export default function MacUpdateImportPage() {
     }
   }
 
-  const handleScrapeAndImport = async () => {
-    await handleScrape()
-    if (scrapedApps.length > 0) {
-      await handleImport()
+  // Category scraping
+  const handleCategoryScrape = async () => {
+    if (!categoryUrl.trim()) {
+      setError('Please enter a MacUpdate category URL')
+      return
+    }
+
+    setIsCategoryScraping(true)
+    setError(null)
+    setSuccess(null)
+    setCategoryPreview(null)
+    setSelectedApps([])
+
+    try {
+      const response = await fetch('/api/macupdate-category-scraper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          categoryUrl: categoryUrl.trim(),
+          limit: 20
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setCategoryPreview(data)
+        setSuccess(`Found ${data.newApps} new apps in ${data.categoryName} (${data.existingApps} already exist)`)
+      } else {
+        setError(data.error || 'Failed to scrape category')
+      }
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to scrape category'
+      setError(errorMessage)
+    } finally {
+      setIsCategoryScraping(false)
+    }
+  }
+
+  const handleSelectAllApps = () => {
+    if (categoryPreview) {
+      setSelectedApps(categoryPreview.appUrls)
+    }
+  }
+
+  const handleDeselectAllApps = () => {
+    setSelectedApps([])
+  }
+
+  const handleToggleApp = (appUrl: string) => {
+    setSelectedApps(prev => 
+      prev.includes(appUrl) 
+        ? prev.filter(url => url !== appUrl)
+        : [...prev, appUrl]
+    )
+  }
+
+  const handleImportSelectedApps = async () => {
+    if (selectedApps.length === 0) {
+      setError('Please select at least one app to import')
+      return
+    }
+
+    setIsImporting(true)
+    setImportProgress(0)
+    setImportResults([])
+    setError(null)
+
+    try {
+      const totalApps = selectedApps.length
+      let imported = 0
+      let skipped = 0
+
+      for (const appUrl of selectedApps) {
+        try {
+          const response = await fetch('/api/macupdate-scraper', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              action: 'scrape-app',
+              appUrl: appUrl
+            })
+          })
+          
+          if (response.ok) {
+            const data = await response.json()
+            if (data.success && data.app) {
+              const importResponse = await fetch('/api/macupdate-import/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ apps: [data.app] })
+              })
+              
+              if (importResponse.ok) {
+                const importData = await importResponse.json()
+                if (importData.success) {
+                  imported++
+                  setImportResults(prev => [...prev, {
+                    success: true,
+                    appId: importData.results[0]?.appId,
+                    message: 'Imported successfully',
+                    isNew: importData.results[0]?.isNew || false
+                  }])
+                } else {
+                  skipped++
+                  setImportResults(prev => [...prev, {
+                    success: false,
+                    message: importData.error || 'Import failed',
+                    isNew: false
+                  }])
+                }
+              } else {
+                skipped++
+                setImportResults(prev => [...prev, {
+                  success: false,
+                  message: 'Import failed',
+                  isNew: false
+                }])
+              }
+            } else {
+              skipped++
+              setImportResults(prev => [...prev, {
+                success: false,
+                message: data.error || 'Scraping failed',
+                isNew: false
+              }])
+            }
+          } else {
+            skipped++
+            setImportResults(prev => [...prev, {
+              success: false,
+              message: 'Scraping failed',
+              isNew: false
+            }])
+          }
+        } catch (error) {
+          skipped++
+          setImportResults(prev => [...prev, {
+            success: false,
+            message: 'Error processing app',
+            isNew: false
+          }])
+        }
+
+        const progress = ((imported + skipped) / totalApps) * 100
+        setImportProgress(progress)
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+
+      setSuccess(`Import completed: ${imported} imported, ${skipped} skipped`)
+      setImportProgress(100)
+      loadStats()
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Import failed'
+      setError(errorMessage)
+    } finally {
+      setIsImporting(false)
     }
   }
 
@@ -371,17 +413,15 @@ export default function MacUpdateImportPage() {
 
   const successCount = importResults.filter(r => r.success).length
   const errorCount = importResults.filter(r => !r.success).length
-  const newAppsCount = importResults.filter(r => r.success && r.isNew).length
-  const existingAppsCount = importResults.filter(r => r.success && !r.isNew).length
 
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
-        MacUpdate Scraper & Importer
+        MacUpdate Import
       </Typography>
       
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-        Scrape macOS applications from MacUpdate and import them into your database.
+        Import macOS applications from MacUpdate with smart deduplication.
       </Typography>
 
       {/* Statistics Cards */}
@@ -424,71 +464,6 @@ export default function MacUpdateImportPage() {
         </Grid>
       </Grid>
 
-      {/* Duplicate Cleanup Section */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Duplicate App Cleanup
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Check for and remove duplicate MacUpdate apps that may have been imported multiple times.
-          </Typography>
-          
-          <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-            <Button
-              variant="outlined"
-              startIcon={isCheckingDuplicates ? <CircularProgress size={20} /> : <Refresh />}
-              onClick={handleCheckDuplicates}
-              disabled={isCheckingDuplicates || isRemovingDuplicates}
-            >
-              {isCheckingDuplicates ? 'Checking...' : 'Check for Duplicates'}
-            </Button>
-            
-            {totalDuplicates > 0 && (
-              <Button
-                variant="contained"
-                color="warning"
-                startIcon={isRemovingDuplicates ? <CircularProgress size={20} /> : <ErrorIcon />}
-                onClick={handleRemoveDuplicates}
-                disabled={isCheckingDuplicates || isRemovingDuplicates}
-              >
-                {isRemovingDuplicates ? 'Removing...' : `Remove ${totalDuplicates} Duplicates`}
-              </Button>
-            )}
-          </Box>
-
-          {duplicates.length > 0 && (
-            <Box>
-              <Typography variant="subtitle2" gutterBottom>
-                Found Duplicates:
-              </Typography>
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>App Name</TableCell>
-                      <TableCell>Count</TableCell>
-                      <TableCell>Developers</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {duplicates.map((duplicate, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{duplicate.name}</TableCell>
-                        <TableCell>{duplicate.count}</TableCell>
-                        <TableCell>
-                          {duplicate.developers.join(', ')}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Error/Success Messages */}
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
@@ -503,181 +478,118 @@ export default function MacUpdateImportPage() {
       )}
 
       <Grid container spacing={3}>
-        {/* Configuration Panel */}
+        {/* Import Methods */}
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Manual App Scraping
+                Import Methods
               </Typography>
 
-              <TextField
-                fullWidth
-                label="MacUpdate App URL"
-                placeholder="https://istat-menus.macupdate.com/"
-                value={manualUrl}
-                onChange={(e) => setManualUrl(e.target.value)}
-                sx={{ mb: 2 }}
-                helperText="Enter a specific MacUpdate app URL to scrape"
-              />
-
-              <Button
-                fullWidth
-                variant="contained"
-                color="primary"
-                startIcon={isScraping ? <CircularProgress size={20} /> : <CloudDownload />}
-                onClick={handleManualScrape}
-                disabled={isScraping || isImporting || !manualUrl.trim()}
-                sx={{ mb: 3 }}
-              >
-                {isScraping ? 'Scraping...' : 'Scrape Single App'}
-              </Button>
+              {/* Single App Import */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Single App Import
+                </Typography>
+                <TextField
+                  fullWidth
+                  label="MacUpdate App URL"
+                  placeholder="https://istat-menus.macupdate.com/"
+                  value={manualUrl}
+                  onChange={(e) => setManualUrl(e.target.value)}
+                  sx={{ mb: 2 }}
+                  helperText="Enter a specific MacUpdate app URL"
+                />
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={isManualScraping ? <CircularProgress size={20} /> : <CloudDownload />}
+                  onClick={handleManualScrape}
+                  disabled={isManualScraping || isImporting || !manualUrl.trim()}
+                  sx={{ mb: 2 }}
+                >
+                  {isManualScraping ? 'Scraping...' : 'Scrape Single App'}
+                </Button>
+                {scrapedApp && (
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="success"
+                    onClick={handleImportSingleApp}
+                    disabled={isImporting}
+                  >
+                    Import "{scrapedApp.name}"
+                  </Button>
+                )}
+              </Box>
 
               <Divider sx={{ my: 3 }} />
 
-              <Typography variant="h6" gutterBottom>
-                Bulk Scraping Configuration
-              </Typography>
-
-              <TextField
-                fullWidth
-                type="number"
-                label="Page Limit"
-                value={config.pageLimit}
-                onChange={(e) => setConfig({ ...config, pageLimit: parseInt(e.target.value) })}
-                sx={{ mb: 2 }}
-                inputProps={{ min: 1, max: 10 }}
-                helperText="Number of MacUpdate pages to scrape (max 10 for Netlify timeout)"
-              />
-
-              <TextField
-                fullWidth
-                type="number"
-                label="Min Rating"
-                value={config.minRating}
-                onChange={(e) => setConfig({ ...config, minRating: parseFloat(e.target.value) })}
-                sx={{ mb: 2 }}
-                inputProps={{ min: 0, max: 5, step: 0.1 }}
-                helperText="Minimum rating (0 for all apps, 3.5+ for established apps)"
-              />
-
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Price Filter</InputLabel>
-                <Select
-                  value={config.priceFilter}
-                  label="Price Filter"
-                  onChange={(e) => setConfig({ ...config, priceFilter: e.target.value as any })}
+              {/* Category Import */}
+              <Box>
+                <Typography variant="subtitle1" gutterBottom>
+                  Category Import (0-20 Apps)
+                </Typography>
+                <TextField
+                  fullWidth
+                  label="MacUpdate Category URL"
+                  placeholder="https://www.macupdate.com/explore/categories/developer-tools"
+                  value={categoryUrl}
+                  onChange={(e) => setCategoryUrl(e.target.value)}
+                  sx={{ mb: 2 }}
+                  helperText="Enter a MacUpdate category URL"
+                />
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={isCategoryScraping ? <CircularProgress size={20} /> : <CloudDownload />}
+                  onClick={handleCategoryScrape}
+                  disabled={isCategoryScraping || isImporting || !categoryUrl.trim()}
+                  sx={{ mb: 2 }}
                 >
-                  <MenuItem value="all">All Apps</MenuItem>
-                  <MenuItem value="free">Free Apps</MenuItem>
-                  <MenuItem value="paid">Paid Apps</MenuItem>
-                </Select>
-              </FormControl>
+                  {isCategoryScraping ? 'Scraping Category...' : 'Scrape Category'}
+                </Button>
+              </Box>
 
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Category</InputLabel>
-                <Select
-                  value={config.category}
-                  label="Category"
-                  onChange={(e) => setConfig({ ...config, category: e.target.value })}
-                >
-                  {MACUPDATE_CATEGORIES.map((cat) => (
-                    <MenuItem key={cat} value={cat}>
-                      {cat === 'all' ? 'All Categories' : cat}
-                    </MenuItem>
+              {/* Popular Categories */}
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Popular Categories
+                </Typography>
+                <Grid container spacing={1}>
+                  {POPULAR_CATEGORIES.map((category) => (
+                    <Grid item xs={12} sm={6} key={category.name}>
+                      <Button
+                        fullWidth
+                        variant="text"
+                        size="small"
+                        onClick={() => setCategoryUrl(category.url)}
+                        sx={{ justifyContent: 'flex-start', textAlign: 'left' }}
+                      >
+                        <Box>
+                          <Typography variant="body2" fontWeight="medium">
+                            {category.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {category.description}
+                          </Typography>
+                        </Box>
+                      </Button>
+                    </Grid>
                   ))}
-                </Select>
-              </FormControl>
-
-              <Accordion>
-                <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography>Advanced Settings</Typography>
-                </AccordionSummary>
-                <AccordionDetails>
-                  <Grid container spacing={2}>
-                    <Grid item xs={6}>
-                      <TextField
-                        fullWidth
-                        type="number"
-                        label="Delay (ms)"
-                        value={config.delayBetweenRequests}
-                        onChange={(e) => setConfig({ ...config, delayBetweenRequests: parseInt(e.target.value) })}
-                        inputProps={{ min: 1000, max: 10000 }}
-                        helperText="Delay between requests"
-                      />
-                    </Grid>
-                    <Grid item xs={6}>
-                      <TextField
-                        fullWidth
-                        type="number"
-                        label="Timeout (ms)"
-                        value={config.timeout}
-                        onChange={(e) => setConfig({ ...config, timeout: parseInt(e.target.value) })}
-                        inputProps={{ min: 10000, max: 60000 }}
-                        helperText="Request timeout"
-                      />
-                    </Grid>
-                  </Grid>
-                </AccordionDetails>
-              </Accordion>
-
-              <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                <Button
-                  variant="contained"
-                  startIcon={isScraping ? <CircularProgress size={20} /> : <CloudDownload />}
-                  onClick={handleScrape}
-                  disabled={isScraping || isImporting}
-                  fullWidth
-                >
-                  {isScraping ? 'Scraping...' : 'Scrape Apps'}
-                </Button>
-                
-                <Button
-                  variant="contained"
-                  color="success"
-                  startIcon={isImporting ? <CircularProgress size={20} /> : <PlayArrow />}
-                  onClick={handleImport}
-                  disabled={isImporting || scrapedApps.length === 0}
-                  fullWidth
-                >
-                  {isImporting ? 'Importing...' : 'Import Apps'}
-                </Button>
-                
-                <Button
-                  variant="contained"
-                  color="primary"
-                  startIcon={isScraping || isImporting ? <CircularProgress size={20} /> : <PlayArrow />}
-                  onClick={handleScrapeAndImport}
-                  disabled={isScraping || isImporting}
-                  fullWidth
-                >
-                  {isScraping || isImporting ? 'Processing...' : 'Scrape & Import'}
-                </Button>
+                </Grid>
               </Box>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* Progress and Results */}
+        {/* Results and Progress */}
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Progress & Results
+                Results & Progress
               </Typography>
-
-              {/* Scraping Progress */}
-              {isScraping && (
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="body2" gutterBottom>
-                    Scraping Progress
-                  </Typography>
-                  <LinearProgress variant="determinate" value={scrapingProgress} />
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    {Math.round(scrapingProgress)}% Complete
-                  </Typography>
-                </Box>
-              )}
 
               {/* Import Progress */}
               {isImporting && (
@@ -692,32 +604,67 @@ export default function MacUpdateImportPage() {
                 </Box>
               )}
 
-              {/* Scraped Apps Summary */}
-              {scrapedApps.length > 0 && (
+              {/* Category Preview */}
+              {categoryPreview && (
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" gutterBottom>
-                    Scraped Apps: {scrapedApps.length}
+                    Category: {categoryPreview.categoryName}
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
                     <Chip
-                      icon={<Info />}
-                      label={`${scrapedApps.filter(a => a.price === 0).length} Free`}
+                      icon={<CheckCircle />}
+                      label={`${categoryPreview.newApps} New Apps`}
                       color="success"
                       variant="outlined"
                     />
                     <Chip
-                      icon={<Info />}
-                      label={`${scrapedApps.filter(a => a.price && a.price > 0).length} Paid`}
-                      color="primary"
+                      icon={<Warning />}
+                      label={`${categoryPreview.existingApps} Already Exist`}
+                      color="warning"
                       variant="outlined"
                     />
                     <Chip
                       icon={<Info />}
-                      label={`${scrapedApps.filter(a => a.rating && a.rating >= 4).length} 4+ Stars`}
-                      color="warning"
+                      label={`${selectedApps.length} Selected`}
+                      color="primary"
                       variant="outlined"
                     />
                   </Box>
+                  
+                  {categoryPreview.newApps > 0 && (
+                    <Box sx={{ mb: 2 }}>
+                      <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={handleSelectAllApps}
+                          disabled={selectedApps.length === categoryPreview.appUrls.length}
+                        >
+                          Select All
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={handleDeselectAllApps}
+                          disabled={selectedApps.length === 0}
+                        >
+                          Deselect All
+                        </Button>
+                      </Box>
+                      
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        color="success"
+                        startIcon={isImporting ? <CircularProgress size={20} /> : <PlayArrow />}
+                        onClick={handleImportSelectedApps}
+                        disabled={isImporting || selectedApps.length === 0}
+                        sx={{ mb: 2 }}
+                      >
+                        {isImporting ? 'Importing...' : `Import ${selectedApps.length} Selected Apps`}
+                      </Button>
+                    </Box>
+                  )}
                 </Box>
               )}
 
@@ -740,74 +687,69 @@ export default function MacUpdateImportPage() {
                       color="error"
                       variant="outlined"
                     />
-                    <Chip
-                      icon={<Info />}
-                      label={`${newAppsCount} New`}
-                      color="info"
-                      variant="outlined"
-                    />
-                    <Chip
-                      icon={<Info />}
-                      label={`${existingAppsCount} Existing`}
-                      color="warning"
-                      variant="outlined"
-                    />
                   </Box>
                 </Box>
               )}
 
-              {/* Show Results Button */}
-              {importResults.length > 0 && (
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => setShowResults(!showResults)}
-                  sx={{ mb: 2 }}
-                >
-                  {showResults ? 'Hide' : 'Show'} Detailed Results
-                </Button>
-              )}
-
-              {/* Detailed Results */}
-              {showResults && importResults.length > 0 && (
-                <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>App</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Details</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {importResults.map((result, index) => (
-                        <TableRow key={index}>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight="medium">
-                              {scrapedApps[index]?.name || 'Unknown'}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {scrapedApps[index]?.developer || 'Unknown'}
-                            </Typography>
+              {/* Category App List */}
+              {categoryPreview && categoryPreview.appPreviews.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Available Apps
+                  </Typography>
+                  <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell padding="checkbox">
+                            <input
+                              type="checkbox"
+                              checked={selectedApps.length === categoryPreview.appUrls.length}
+                              onChange={(e) => e.target.checked ? handleSelectAllApps() : handleDeselectAllApps()}
+                            />
                           </TableCell>
-                          <TableCell>
-                            {getStatusIcon(result.success)}
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2">
-                              {result.message}
-                            </Typography>
-                            {result.screenshots && (
-                              <Typography variant="caption" display="block">
-                                Screenshots: {result.screenshots}
-                              </Typography>
-                            )}
-                          </TableCell>
+                          <TableCell>App</TableCell>
+                          <TableCell>Developer</TableCell>
+                          <TableCell>Price</TableCell>
+                          <TableCell>Rating</TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                      </TableHead>
+                      <TableBody>
+                        {categoryPreview.appPreviews.map((app, index) => (
+                          <TableRow key={index}>
+                            <TableCell padding="checkbox">
+                              <input
+                                type="checkbox"
+                                checked={selectedApps.includes(app.url)}
+                                onChange={() => handleToggleApp(app.url)}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" fontWeight="medium">
+                                {app.name}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">
+                                {app.developer}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">
+                                {app.price === 0 ? 'Free' : app.price ? `$${app.price}` : 'Unknown'}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">
+                                {app.rating ? `${app.rating}/5` : 'No rating'}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
               )}
             </CardContent>
           </Card>

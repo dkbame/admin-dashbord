@@ -1,6 +1,7 @@
 import puppeteer, { Browser, LaunchOptions } from 'puppeteer'
 import * as cheerio from 'cheerio'
 import axios from 'axios'
+import { supabase } from './supabase'
 
 // Import Chromium for Netlify
 let chromium: any = null
@@ -52,6 +53,14 @@ export interface ScrapingResult {
   totalFound: number
   errors: string[]
   warnings: string[]
+}
+
+export interface CategoryScrapingResult {
+  appUrls: string[]
+  totalApps: number
+  newApps: number
+  existingApps: number
+  categoryName: string
 }
 
 // Default configuration optimized for Netlify
@@ -936,6 +945,212 @@ export class MacUpdateScraper {
     }
     
     return true
+  }
+}
+
+export class MacUpdateCategoryScraper {
+  private scraper: MacUpdateScraper
+
+  constructor() {
+    this.scraper = new MacUpdateScraper()
+  }
+
+  /**
+   * Scrape a MacUpdate category page to extract app URLs
+   */
+  async scrapeCategoryPage(categoryUrl: string, limit: number = 20): Promise<CategoryScrapingResult> {
+    try {
+      console.log(`Scraping category page: ${categoryUrl}`)
+      
+      // Extract category name from URL
+      const categoryName = this.extractCategoryName(categoryUrl)
+      
+      // Scrape the category page using axios + cheerio (same as scraper fallback)
+      const response = await axios.get(categoryUrl, {
+        timeout: 10000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1'
+        }
+      })
+      
+      const $ = cheerio.load(response.data)
+      
+      // Extract app URLs from the category listing
+      const appUrls: string[] = []
+      
+      // Look for app links in the category page
+      // MacUpdate category pages typically have app links in various formats
+      $('a[href*=".macupdate.com/"]').each((_, element) => {
+        const href = $(element).attr('href')
+        if (href && this.isValidAppUrl(href)) {
+          const fullUrl = href.startsWith('http') ? href : `https://www.macupdate.com${href}`
+          if (!appUrls.includes(fullUrl)) {
+            appUrls.push(fullUrl)
+          }
+        }
+      })
+      
+      // Alternative selectors for app links
+      $('.app-item a, .app-link, [data-app-url]').each((_, element) => {
+        const href = $(element).attr('href') || $(element).attr('data-app-url')
+        if (href && this.isValidAppUrl(href)) {
+          const fullUrl = href.startsWith('http') ? href : `https://www.macupdate.com${href}`
+          if (!appUrls.includes(fullUrl)) {
+            appUrls.push(fullUrl)
+          }
+        }
+      })
+      
+      // Look for app cards or listings
+      $('.app-card, .app-listing, .product-item').each((_, element) => {
+        const link = $(element).find('a[href*=".macupdate.com/"]').first()
+        const href = link.attr('href')
+        if (href && this.isValidAppUrl(href)) {
+          const fullUrl = href.startsWith('http') ? href : `https://www.macupdate.com${href}`
+          if (!appUrls.includes(fullUrl)) {
+            appUrls.push(fullUrl)
+          }
+        }
+      })
+      
+      console.log(`Found ${appUrls.length} app URLs in category page`)
+      
+      // Limit the number of URLs
+      const limitedUrls = appUrls.slice(0, limit)
+      
+      // Check which apps already exist in database
+      const { newApps, existingApps } = await this.checkExistingApps(limitedUrls)
+      
+      return {
+        appUrls: newApps,
+        totalApps: limitedUrls.length,
+        newApps: newApps.length,
+        existingApps: existingApps.length,
+        categoryName
+      }
+      
+    } catch (error) {
+      console.error('Error scraping category page:', error)
+      throw new Error(`Failed to scrape category page: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  /**
+   * Check which apps already exist in the database
+   */
+  private async checkExistingApps(appUrls: string[]): Promise<{ newApps: string[], existingApps: string[] }> {
+    const newApps: string[] = []
+    const existingApps: string[] = []
+    
+    for (const url of appUrls) {
+      try {
+        // Check if app exists by URL
+        const { data: existingApp } = await supabase
+          .from('apps')
+          .select('id')
+          .eq('macupdate_url', url)
+          .single()
+        
+        if (existingApp) {
+          existingApps.push(url)
+        } else {
+          newApps.push(url)
+        }
+      } catch (error) {
+        // App doesn't exist, add to new apps
+        newApps.push(url)
+      }
+    }
+    
+    return { newApps, existingApps }
+  }
+
+  /**
+   * Extract category name from URL
+   */
+  private extractCategoryName(categoryUrl: string): string {
+    try {
+      const url = new URL(categoryUrl)
+      const pathParts = url.pathname.split('/')
+      const categoryPart = pathParts[pathParts.length - 1]
+      
+      // Convert kebab-case to Title Case
+      return categoryPart
+        .split('-')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ')
+    } catch (error) {
+      return 'Unknown Category'
+    }
+  }
+
+  /**
+   * Check if URL is a valid MacUpdate app URL
+   */
+  private isValidAppUrl(url: string): boolean {
+    return url.includes('.macupdate.com/') && 
+           !url.includes('/explore/') && 
+           !url.includes('/categories/') &&
+           !url.includes('/search') &&
+           !url.includes('/about') &&
+           !url.includes('/contact')
+  }
+
+  /**
+   * Get preview data for apps without importing them
+   */
+  async getAppPreview(appUrl: string): Promise<Partial<MacUpdateApp> | null> {
+    try {
+      const response = await axios.get(appUrl, {
+        timeout: 10000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1'
+        }
+      })
+      
+      const $ = cheerio.load(response.data)
+      
+      // Extract basic app info for preview
+      const name = $('h1').first().text().trim() || 
+                   $('.app-title').text().trim() ||
+                   $('title').text().replace(' - MacUpdate', '').trim()
+      
+      const developer = $('.developer-name').text().trim() ||
+                       $('a[href*="/developer/"]').first().text().trim() ||
+                       'Unknown Developer'
+      
+      const priceText = $('.price').text().trim() ||
+                       $('.app-price').text().trim()
+      
+      const price = priceText === 'Free' ? 0 : 
+                   parseFloat(priceText.replace(/[^0-9.]/g, '')) || null
+      
+      const ratingText = $('.rating').text().trim() ||
+                        $('.app-rating').text().trim()
+      
+      const rating = parseFloat(ratingText) || null
+      
+      return {
+        name,
+        developer,
+        price,
+        rating,
+        macupdate_url: appUrl
+      }
+    } catch (error) {
+      console.error('Error getting app preview:', error)
+      return null
+    }
   }
 }
 
