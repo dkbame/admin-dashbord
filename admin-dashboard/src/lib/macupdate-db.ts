@@ -21,6 +21,7 @@ const CATEGORY_MAP: { [key: string]: string } = {
   // Development
   'development': 'development',
   'developer tools': 'development',
+  'Developer Tools': 'development',
   'programming': 'development',
   'coding': 'development',
   'web development': 'development',

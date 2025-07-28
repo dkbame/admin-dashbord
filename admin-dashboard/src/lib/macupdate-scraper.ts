@@ -983,9 +983,11 @@ export class MacUpdateCategoryScraper {
       // Extract app URLs from the category listing
       const appUrls: string[] = []
       
-      // Look for app links in the category page
-      // MacUpdate category pages typically have app links in various formats
-      $('a[href*=".macupdate.com/"]').each((_, element) => {
+      // Based on the MacUpdate Developer Tools page structure, look for app listings
+      // The apps are typically in a grid/list format with app names as links
+      
+      // Look for app title links (h3 elements with app names)
+      $('h3 a[href*=".macupdate.com/"]').each((_, element) => {
         const href = $(element).attr('href')
         if (href && this.isValidAppUrl(href)) {
           const fullUrl = href.startsWith('http') ? href : `https://www.macupdate.com${href}`
@@ -995,9 +997,9 @@ export class MacUpdateCategoryScraper {
         }
       })
       
-      // Alternative selectors for app links
-      $('.app-item a, .app-link, [data-app-url]').each((_, element) => {
-        const href = $(element).attr('href') || $(element).attr('data-app-url')
+      // Look for app links in the main content area
+      $('main a[href*=".macupdate.com/"], .content a[href*=".macupdate.com/"]').each((_, element) => {
+        const href = $(element).attr('href')
         if (href && this.isValidAppUrl(href)) {
           const fullUrl = href.startsWith('http') ? href : `https://www.macupdate.com${href}`
           if (!appUrls.includes(fullUrl)) {
@@ -1006,8 +1008,8 @@ export class MacUpdateCategoryScraper {
         }
       })
       
-      // Look for app cards or listings
-      $('.app-card, .app-listing, .product-item').each((_, element) => {
+      // Look for app cards or product listings
+      $('.product, .app-item, .app-card, [class*="app"], [class*="product"]').each((_, element) => {
         const link = $(element).find('a[href*=".macupdate.com/"]').first()
         const href = link.attr('href')
         if (href && this.isValidAppUrl(href)) {
@@ -1017,6 +1019,10 @@ export class MacUpdateCategoryScraper {
           }
         }
       })
+      
+      // For now, return empty array since category pages don't have direct app links
+      // The actual apps are loaded dynamically or require different approach
+      console.log('Category page structure detected - no direct app links found')
       
       console.log(`Found ${appUrls.length} app URLs in category page`)
       
