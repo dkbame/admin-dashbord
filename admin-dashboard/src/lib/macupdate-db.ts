@@ -155,45 +155,66 @@ export interface BatchImportResult {
 // Get category ID by name
 async function getCategoryId(categoryName: string): Promise<string | null> {
   try {
-    console.log('Mapping category:', categoryName)
+    console.log('=== CATEGORY MAPPING DEBUG ===')
+    console.log('Input category name:', categoryName)
     
     // Map MacUpdate category to our category slug
     const searchTerm = categoryName.toLowerCase().trim()
+    console.log('Search term (lowercase):', searchTerm)
+    
     let targetSlug = 'utilities' // default fallback
+    let matchType = 'default'
     
     // First try exact matches
     if (CATEGORY_MAP[searchTerm]) {
       targetSlug = CATEGORY_MAP[searchTerm]
-      console.log('Exact match found:', searchTerm, '->', targetSlug)
+      matchType = 'exact'
+      console.log('✅ Exact match found:', searchTerm, '->', targetSlug)
     } else {
+      console.log('❌ No exact match found, trying partial matches...')
       // Try partial matches
       for (const [key, slug] of Object.entries(CATEGORY_MAP)) {
         if (searchTerm.includes(key) || key.includes(searchTerm)) {
           targetSlug = slug
-          console.log('Partial match found:', searchTerm, 'includes', key, '->', targetSlug)
+          matchType = 'partial'
+          console.log('✅ Partial match found:', searchTerm, 'includes', key, '->', targetSlug)
           break
         }
       }
     }
     
-    console.log('Final target slug:', targetSlug)
+    console.log('Final target slug:', targetSlug, '(match type:', matchType, ')')
     
     // Get category ID from database
     const { data: categories, error } = await supabase
       .from('categories')
-      .select('id')
+      .select('id, name, slug')
       .eq('slug', targetSlug)
       .single()
     
     if (error) {
-      console.error('Error fetching category:', error)
+      console.error('❌ Error fetching category:', error)
+      console.log('Trying to find any category with slug:', targetSlug)
+      
+      // Let's see what categories exist
+      const { data: allCategories, error: listError } = await supabase
+        .from('categories')
+        .select('id, name, slug')
+        .limit(10)
+      
+      if (listError) {
+        console.error('❌ Error listing categories:', listError)
+      } else {
+        console.log('Available categories:', allCategories)
+      }
+      
       return null
     }
     
-    console.log('Category ID found:', categories?.id)
+    console.log('✅ Category found in database:', categories)
     return categories?.id || null
   } catch (error) {
-    console.error('Error in getCategoryId:', error)
+    console.error('❌ Error in getCategoryId:', error)
     return null
   }
 }
