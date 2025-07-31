@@ -278,7 +278,11 @@ export default function MacUpdateImportPage() {
       
       if (data.success) {
         setCategoryPreview(data)
-        setSuccess(`Found ${data.newApps} new apps in batch ${data.pagination?.currentPage || 1} of ${data.pagination?.totalPages || 1} (${data.existingApps} already exist and were filtered out)`)
+        if (data.newApps > 0) {
+          setSuccess(`Found ${data.newApps} new apps in batch ${data.pagination?.currentPage || 1} of ${data.pagination?.totalPages || 1} (${data.existingApps} already exist and were filtered out)`)
+        } else {
+          setSuccess(`No new apps found. All ${data.existingApps} apps in this category already exist in the database.`)
+        }
       } else {
         setError(data.error || 'Failed to scrape category')
       }

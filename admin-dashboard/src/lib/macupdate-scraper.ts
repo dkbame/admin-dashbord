@@ -1122,41 +1122,10 @@ export class MacUpdateCategoryScraper {
       // Extract category name from URL
       const categoryName = this.extractCategoryName(categoryUrl)
       
-      // Scrape the category page (all apps are on one page)
-      const response = await axios.get(categoryUrl, {
-        timeout: 10000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
-          'Accept-Encoding': 'gzip, deflate',
-          'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1'
-        }
-      })
+      // Use Puppeteer to handle JavaScript-rendered content
+      const allAppUrls = await this.scrapeAllAppUrlsWithPuppeteer(categoryUrl)
       
-      // Extract ALL app URLs from the page
-      const allAppUrls: string[] = []
-      const htmlContent = response.data
-      
-      // Look for custom_url patterns in the HTML
-      const customUrlMatches = htmlContent.match(/"custom_url":"([^"]+)"/g)
-      if (customUrlMatches) {
-        console.log(`Found ${customUrlMatches.length} total app URLs on the page`)
-        customUrlMatches.forEach((match: string) => {
-          const urlMatch = match.match(/"custom_url":"([^"]+)"/)
-          if (urlMatch && urlMatch[1]) {
-            const url = urlMatch[1]
-            if (this.isValidAppUrl(url)) {
-              if (!allAppUrls.includes(url)) {
-                allAppUrls.push(url)
-              }
-            }
-          }
-        })
-      }
-      
-      console.log(`Found ${allAppUrls.length} unique app URLs on the page`)
+      console.log(`Found ${allAppUrls.length} total app URLs on the page`)
       
       // Check which apps already exist in database
       const { newApps, existingApps } = await this.checkExistingApps(allAppUrls)
@@ -1185,6 +1154,124 @@ export class MacUpdateCategoryScraper {
     } catch (error) {
       console.error('Error getting new apps:', error)
       throw new Error(`Failed to get new apps: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  /**
+   * Scrape all app URLs using Puppeteer to handle JavaScript rendering
+   */
+  private async scrapeAllAppUrlsWithPuppeteer(categoryUrl: string): Promise<string[]> {
+    let browser;
+    try {
+      // Import puppeteer dynamically
+      const puppeteer = await import('puppeteer');
+      
+      // Launch browser
+      browser = await puppeteer.default.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+      });
+      
+      const page = await browser.newPage();
+      
+      // Set user agent
+      await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      
+      console.log(`Navigating to: ${categoryUrl}`);
+      await page.goto(categoryUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+      
+      // Wait for the content to load and scroll to load more apps
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Scroll down to trigger loading of more apps
+      await page.evaluate(() => {
+        window.scrollTo(0, document.body.scrollHeight);
+      });
+      
+      // Wait for any additional content to load
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Extract all app URLs from the page
+      const appUrls = await page.evaluate(() => {
+        const urls: string[] = [];
+        
+        // Look for custom_url patterns in the page content
+        const pageContent = document.documentElement.outerHTML;
+        const customUrlMatches = pageContent.match(/"custom_url":"([^"]+)"/g);
+        
+        if (customUrlMatches) {
+          customUrlMatches.forEach((match: string) => {
+            const urlMatch = match.match(/"custom_url":"([^"]+)"/);
+            if (urlMatch && urlMatch[1]) {
+              const url = urlMatch[1];
+              if (url.includes('/app/') && !urls.includes(url)) {
+                urls.push(url);
+              }
+            }
+          });
+        }
+        
+        return urls;
+      });
+      
+      console.log(`Extracted ${appUrls.length} app URLs using Puppeteer`);
+      return appUrls;
+      
+    } catch (error) {
+      console.error('Error scraping with Puppeteer:', error);
+      
+      // Fallback to axios if Puppeteer fails
+      console.log('Falling back to axios scraping...');
+      return await this.scrapeAllAppUrlsWithAxios(categoryUrl);
+      
+    } finally {
+      if (browser) {
+        await browser.close();
+      }
+    }
+  }
+
+  /**
+   * Fallback method using axios (for when Puppeteer is not available)
+   */
+  private async scrapeAllAppUrlsWithAxios(categoryUrl: string): Promise<string[]> {
+    try {
+      const response = await axios.get(categoryUrl, {
+        timeout: 10000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1'
+        }
+      });
+      
+      const allAppUrls: string[] = [];
+      const htmlContent = response.data;
+      
+      // Look for custom_url patterns in the HTML
+      const customUrlMatches = htmlContent.match(/"custom_url":"([^"]+)"/g);
+      if (customUrlMatches) {
+        console.log(`Found ${customUrlMatches.length} custom_url matches`);
+        customUrlMatches.forEach((match: string) => {
+          const urlMatch = match.match(/"custom_url":"([^"]+)"/);
+          if (urlMatch && urlMatch[1]) {
+            const url = urlMatch[1];
+            if (this.isValidAppUrl(url) && !allAppUrls.includes(url)) {
+              allAppUrls.push(url);
+            }
+          }
+        });
+      }
+      
+      console.log(`Found ${allAppUrls.length} unique app URLs with axios fallback`);
+      return allAppUrls;
+      
+    } catch (error) {
+      console.error('Error with axios fallback:', error);
+      return [];
     }
   }
 

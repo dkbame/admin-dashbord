@@ -36,8 +36,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Mark this batch as processed
-    await categoryScraper.markAppsAsProcessed(categoryUrl, result.newApps, result.categoryName)
+    // Mark this batch as processed only if there are apps to process
+    if (result.newApps > 0) {
+      await categoryScraper.markAppsAsProcessed(categoryUrl, result.newApps, result.categoryName)
+    } else {
+      console.log('No new apps to process, skipping import session creation')
+    }
 
     return NextResponse.json({
       success: true,
