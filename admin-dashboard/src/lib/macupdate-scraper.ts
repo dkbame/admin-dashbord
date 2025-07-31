@@ -1126,8 +1126,8 @@ export class MacUpdateCategoryScraper {
       // Extract category name from URL
       const categoryName = this.extractCategoryName(categoryUrl)
       
-      // Use Puppeteer to handle JavaScript-rendered content
-      const allAppUrls = await this.scrapeAllAppUrlsWithPuppeteer(categoryUrl)
+      // Use axios scraping directly (Puppeteer doesn't work in Netlify server environment)
+      const allAppUrls = await this.scrapeAllAppUrlsWithAxios(categoryUrl)
       
       console.log(`Found ${allAppUrls.length} total app URLs on the page`)
       
@@ -1240,15 +1240,19 @@ export class MacUpdateCategoryScraper {
    */
   private async scrapeAllAppUrlsWithAxios(categoryUrl: string): Promise<string[]> {
     try {
+      console.log(`Scraping with axios: ${categoryUrl}`)
+      
       const response = await axios.get(categoryUrl, {
-        timeout: 10000,
+        timeout: 15000,
         headers: {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.5',
           'Accept-Encoding': 'gzip, deflate',
           'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1'
+          'Upgrade-Insecure-Requests': '1',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         }
       });
       
@@ -1258,7 +1262,7 @@ export class MacUpdateCategoryScraper {
       // Look for custom_url patterns in the HTML
       const customUrlMatches = htmlContent.match(/"custom_url":"([^"]+)"/g);
       if (customUrlMatches) {
-        console.log(`Found ${customUrlMatches.length} custom_url matches`);
+        console.log(`Found ${customUrlMatches.length} custom_url matches in HTML`);
         customUrlMatches.forEach((match: string) => {
           const urlMatch = match.match(/"custom_url":"([^"]+)"/);
           if (urlMatch && urlMatch[1]) {
@@ -1270,11 +1274,33 @@ export class MacUpdateCategoryScraper {
         });
       }
       
-      console.log(`Found ${allAppUrls.length} unique app URLs with axios fallback`);
+      // Also look for app links in the HTML structure
+      const appLinkMatches = htmlContent.match(/href="\/app\/[^"]+"/g);
+      if (appLinkMatches) {
+        console.log(`Found ${appLinkMatches.length} app link matches in HTML`);
+        appLinkMatches.forEach((match: string) => {
+          const urlMatch = match.match(/href="([^"]+)"/);
+          if (urlMatch && urlMatch[1]) {
+            const url = `https://www.macupdate.com${urlMatch[1]}`;
+            if (this.isValidAppUrl(url) && !allAppUrls.includes(url)) {
+              allAppUrls.push(url);
+            }
+          }
+        });
+      }
+      
+      console.log(`Found ${allAppUrls.length} unique app URLs with axios scraping`);
+      
+      // If we found very few apps, it might mean they're loaded via JavaScript
+      if (allAppUrls.length < 10) {
+        console.log(`Warning: Only found ${allAppUrls.length} apps. This might be due to JavaScript-loaded content.`);
+        console.log('This is expected behavior - we\'ll process the apps we can find.');
+      }
+      
       return allAppUrls;
       
     } catch (error) {
-      console.error('Error with axios fallback:', error);
+      console.error('Error with axios scraping:', error);
       return [];
     }
   }
