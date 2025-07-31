@@ -12,15 +12,34 @@ struct CategoryDetailView: View {
     let apiService: APIService
     @Environment(\.dismiss) private var dismiss
     
-    private var categoryApps: [AppModel] {
-        apiService.apps.filter { $0.category_id == category.id }
+    @State private var categoryApps: [AppModel] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    
+    init(category: Category, apiService: APIService) {
+        self.category = category
+        self.apiService = apiService
+        print("[DEBUG] CategoryDetailView - Initialized for category: \(category.name)")
     }
     
     var body: some View {
         NavigationView {
             VStack {
-                if categoryApps.isEmpty {
-                    EmptyStateView(category: category)
+                if isLoading {
+                    LoadingView()
+                } else if let errorMessage = errorMessage {
+                    ErrorView(message: errorMessage, retryAction: loadCategoryApps)
+                } else if categoryApps.isEmpty {
+                    VStack(spacing: 20) {
+                        Text("No apps found in \(category.name)")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        
+                        Button("Refresh") {
+                            loadCategoryApps()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
                 } else {
                     AppListView(apps: categoryApps)
                 }
@@ -28,13 +47,98 @@ struct CategoryDetailView: View {
             .navigationTitle(category.name)
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Refresh") {
+                        loadCategoryApps()
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
                 }
             }
+            .onAppear {
+                print("[DEBUG] CategoryDetailView - onAppear triggered for category: \(category.name)")
+                loadCategoryApps()
+            }
         }
+    }
+    
+    private func loadCategoryApps() {
+        Task {
+            print("[DEBUG] CategoryDetailView - Starting to load apps for category: \(category.name) (ID: \(category.id))")
+            
+            await MainActor.run {
+                isLoading = true
+                errorMessage = nil
+                categoryApps = [] // Clear existing apps
+            }
+            
+            do {
+                let apps = await apiService.fetchAppsByCategory(categoryId: category.id)
+                print("[DEBUG] CategoryDetailView - Successfully fetched \(apps.count) apps for category: \(category.name)")
+                
+                await MainActor.run {
+                    self.categoryApps = apps
+                    self.isLoading = false
+                    print("[DEBUG] CategoryDetailView - Updated UI with \(self.categoryApps.count) apps")
+                }
+            } catch {
+                print("[DEBUG] CategoryDetailView - Error loading apps: \(error.localizedDescription)")
+                await MainActor.run {
+                    self.errorMessage = "Failed to load apps: \(error.localizedDescription)"
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Loading View
+struct LoadingView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            ProgressView()
+                .scaleEffect(1.5)
+            
+            Text("Loading apps...")
+                .font(.body)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
+    }
+}
+
+// MARK: - Error View
+struct ErrorView: View {
+    let message: String
+    let retryAction: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 60))
+                .foregroundColor(.orange)
+            
+            Text("Error Loading Apps")
+                .font(.title2)
+                .fontWeight(.semibold)
+            
+            Text(message)
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            Button("Retry") {
+                retryAction()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
     }
 }
 

@@ -62,8 +62,10 @@ struct CategoriesView: View {
                 ], spacing: 20) {
                     ForEach(apiService.categories, id: \.id) { category in
                         CategoryCard(category: category) {
+                            print("[DEBUG] CategoriesView - Category tapped: \(category.name)")
                             selectedCategory = category
                             showingCategoryDetail = true
+                            print("[DEBUG] CategoriesView - showingCategoryDetail set to true")
                         }
                     }
                 }
@@ -76,6 +78,12 @@ struct CategoriesView: View {
             .sheet(isPresented: $showingCategoryDetail) {
                 if let category = selectedCategory {
                     CategoryDetailView(category: category, apiService: apiService)
+                }
+            }
+            .onChange(of: showingCategoryDetail) { newValue in
+                print("[DEBUG] CategoriesView - showingCategoryDetail changed to: \(newValue)")
+                if newValue, let category = selectedCategory {
+                    print("[DEBUG] CategoriesView - Presenting CategoryDetailView for: \(category.name)")
                 }
             }
         }

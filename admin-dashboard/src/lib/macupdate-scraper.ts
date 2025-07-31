@@ -965,7 +965,7 @@ export class MacUpdateCategoryScraper {
       // Extract category name from URL
       const categoryName = this.extractCategoryName(categoryUrl)
       
-      // Scrape the category page using axios + cheerio (same as scraper fallback)
+      // Scrape the category page using axios + cheerio
       const response = await axios.get(categoryUrl, {
         timeout: 10000,
         headers: {
@@ -978,51 +978,30 @@ export class MacUpdateCategoryScraper {
         }
       })
       
-      const $ = cheerio.load(response.data)
-      
-      // Extract app URLs from the category listing
+      // Extract app URLs from the embedded JSON data using regex
       const appUrls: string[] = []
+      const htmlContent = response.data
       
-      // Based on the MacUpdate Developer Tools page structure, look for app listings
-      // The apps are typically in a grid/list format with app names as links
-      
-      // Look for app title links (h3 elements with app names)
-      $('h3 a[href*=".macupdate.com/"]').each((_, element) => {
-        const href = $(element).attr('href')
-        if (href && this.isValidAppUrl(href)) {
-          const fullUrl = href.startsWith('http') ? href : `https://www.macupdate.com${href}`
-          if (!appUrls.includes(fullUrl)) {
-            appUrls.push(fullUrl)
+      // Look for custom_url patterns in the HTML
+      const customUrlMatches = htmlContent.match(/"custom_url":"([^"]+)"/g)
+      if (customUrlMatches) {
+        console.log(`Found ${customUrlMatches.length} custom_url matches`)
+        customUrlMatches.forEach((match: string) => {
+          const urlMatch = match.match(/"custom_url":"([^"]+)"/)
+          if (urlMatch && urlMatch[1]) {
+            const url = urlMatch[1]
+            console.log(`Checking URL: ${url}`)
+            if (this.isValidAppUrl(url)) {
+              console.log(`Valid URL: ${url}`)
+              if (!appUrls.includes(url)) {
+                appUrls.push(url)
+              }
+            } else {
+              console.log(`Invalid URL: ${url}`)
+            }
           }
-        }
-      })
-      
-      // Look for app links in the main content area
-      $('main a[href*=".macupdate.com/"], .content a[href*=".macupdate.com/"]').each((_, element) => {
-        const href = $(element).attr('href')
-        if (href && this.isValidAppUrl(href)) {
-          const fullUrl = href.startsWith('http') ? href : `https://www.macupdate.com${href}`
-          if (!appUrls.includes(fullUrl)) {
-            appUrls.push(fullUrl)
-          }
-        }
-      })
-      
-      // Look for app cards or product listings
-      $('.product, .app-item, .app-card, [class*="app"], [class*="product"]').each((_, element) => {
-        const link = $(element).find('a[href*=".macupdate.com/"]').first()
-        const href = link.attr('href')
-        if (href && this.isValidAppUrl(href)) {
-          const fullUrl = href.startsWith('http') ? href : `https://www.macupdate.com${href}`
-          if (!appUrls.includes(fullUrl)) {
-            appUrls.push(fullUrl)
-          }
-        }
-      })
-      
-      // For now, return empty array since category pages don't have direct app links
-      // The actual apps are loaded dynamically or require different approach
-      console.log('Category page structure detected - no direct app links found')
+        })
+      }
       
       console.log(`Found ${appUrls.length} app URLs in category page`)
       
@@ -1099,12 +1078,29 @@ export class MacUpdateCategoryScraper {
    * Check if URL is a valid MacUpdate app URL
    */
   private isValidAppUrl(url: string): boolean {
-    return url.includes('.macupdate.com/') && 
+    // Must be a MacUpdate app page
+    return url.includes('.macupdate.com') && 
            !url.includes('/explore/') && 
            !url.includes('/categories/') &&
            !url.includes('/search') &&
            !url.includes('/about') &&
-           !url.includes('/contact')
+           !url.includes('/contact') &&
+           !url.includes('/best-picks') &&
+           !url.includes('/reviews') &&
+           !url.includes('/articles') &&
+           !url.includes('/help') &&
+           !url.includes('/terms') &&
+           !url.includes('/privacy') &&
+           !url.includes('/cookie') &&
+           !url.includes('/rss') &&
+           !url.includes('/developer/') &&
+           !url.includes('/comparisons') &&
+           !url.includes('/how-to') &&
+           !url.includes('/content/') &&
+           !url.includes('/discontinued-apps') &&
+           !url.includes('/article/') &&
+           // Must be a subdomain (appname.macupdate.com)
+           !!url.match(/^https:\/\/[^.]+\.macupdate\.com$/)
   }
 
   /**
@@ -1126,25 +1122,86 @@ export class MacUpdateCategoryScraper {
       
       const $ = cheerio.load(response.data)
       
-      // Extract basic app info for preview
-      const name = $('h1').first().text().trim() || 
-                   $('.app-title').text().trim() ||
-                   $('title').text().replace(' - MacUpdate', '').trim()
+      // Extract app name - look for the main app title
+      let name = $('h1').first().text().trim()
+      if (!name) {
+        // Try alternative selectors for app name
+        name = $('.app-title, .product-title, h2').first().text().trim()
+      }
+      if (!name) {
+        // Fallback to page title
+        name = $('title').text().replace(' - MacUpdate', '').trim()
+      }
       
-      const developer = $('.developer-name').text().trim() ||
-                       $('a[href*="/developer/"]').first().text().trim() ||
-                       'Unknown Developer'
+      // Clean up the name - remove "Download" prefix if present
+      if (name.startsWith('Download ')) {
+        name = name.replace('Download ', '')
+      }
       
-      const priceText = $('.price').text().trim() ||
-                       $('.app-price').text().trim()
+      // Extract developer name from the embedded JSON data
+      let developer = 'Unknown Developer'
+      const htmlContent = response.data
       
-      const price = priceText === 'Free' ? 0 : 
-                   parseFloat(priceText.replace(/[^0-9.]/g, '')) || null
+      // Look for developer name in the JSON data
+      const developerMatch = htmlContent.match(/"developer":\s*{\s*"name":\s*"([^"]+)"/)
+      if (developerMatch && developerMatch[1]) {
+        developer = developerMatch[1]
+      } else {
+        // Fallback to HTML selectors
+        developer = $('.developer-name, .developer, [class*="developer"]').text().trim()
+        if (!developer) {
+          // Look for developer links
+          developer = $('a[href*="/developer/"]').first().text().trim()
+        }
+        if (!developer) {
+          developer = 'Unknown Developer'
+        }
+      }
       
-      const ratingText = $('.rating').text().trim() ||
-                        $('.app-rating').text().trim()
+      // Extract price from the embedded JSON data
+      let price: number | null = null
+      const priceMatch = htmlContent.match(/"price":\s*{\s*"value":\s*(\d+)/)
+      if (priceMatch && priceMatch[1]) {
+        price = parseInt(priceMatch[1]) / 100 // Convert cents to dollars
+      } else {
+        // Fallback to HTML selectors
+        const priceText = $('.price, .app-price, [class*="price"]').text().trim()
+        if (priceText) {
+          if (priceText.toLowerCase() === 'free') {
+            price = 0
+          } else {
+            // Extract numeric value from price text
+            const priceMatch = priceText.match(/[\d,]+\.?\d*/)
+            if (priceMatch) {
+              price = parseFloat(priceMatch[0].replace(/,/g, ''))
+            }
+          }
+        }
+      }
       
-      const rating = parseFloat(ratingText) || null
+      // Extract rating from the embedded JSON data
+      let rating: number | null = null
+      const ratingMatch = htmlContent.match(/"rating":\s*([\d.]+)/)
+      if (ratingMatch && ratingMatch[1]) {
+        rating = parseFloat(ratingMatch[1])
+      } else {
+        // Fallback to HTML selectors
+        const ratingText = $('.rating, .app-rating, [class*="rating"]').text().trim()
+        if (ratingText) {
+          const ratingMatch = ratingText.match(/[\d.]+/)
+          if (ratingMatch) {
+            rating = parseFloat(ratingMatch[0])
+          }
+        }
+      }
+      
+      console.log(`[DEBUG] getAppPreview - Extracted data for ${name}:`, {
+        name,
+        developer,
+        price,
+        rating,
+        url: appUrl
+      })
       
       return {
         name,

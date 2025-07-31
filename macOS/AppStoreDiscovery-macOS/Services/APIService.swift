@@ -331,6 +331,28 @@ class APIService: ObservableObject {
         return []
     }
     
+    func fetchAppsByCategory(categoryId: String) async -> [AppModel] {
+        do {
+            print("[DEBUG] fetchAppsByCategory - Starting fetch for category: \(categoryId)")
+            
+            let response = try await SupabaseManager.shared.fetchAppsByCategoryWithRetry(categoryId: categoryId)
+            
+            print("[DEBUG] fetchAppsByCategory - Response status: \(response.status)")
+            
+            if response.status == 200 {
+                let apps = try JSONDecoder().decode([AppModel].self, from: response.data)
+                print("[DEBUG] fetchAppsByCategory - Successfully fetched \(apps.count) apps")
+                return apps
+            } else {
+                let errorString = String(data: response.data, encoding: .utf8) ?? "Unknown error (status: \(response.status))"
+                print("[DEBUG] fetchAppsByCategory - Error: \(errorString)")
+            }
+        } catch {
+            print("[DEBUG] fetchAppsByCategory - Exception: \(error.localizedDescription)")
+        }
+        return []
+    }
+    
     func fetchCategoryStats() async -> [CategoryStats] {
         do {
             let response = try await SupabaseManager.shared.client

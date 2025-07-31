@@ -62,13 +62,8 @@ class APIService: ObservableObject {
                 return
             }
             
-            // Use the optimized view for better performance
-            let appsResponse = try await SupabaseManager.shared.client
-                .from("ios_apps_view")
-                .select("*")
-                .eq("status", value: "ACTIVE") // Only fetch active apps
-                .order("created_at", ascending: false)
-                .execute()
+            // Use the enhanced retry method for better reliability
+            let appsResponse = try await SupabaseManager.shared.fetchAppsWithRetry()
             
             print("[DEBUG] fetchApps - Apps response status: \(appsResponse.status)")
             
@@ -76,16 +71,11 @@ class APIService: ObservableObject {
                 do {
                     let apps = try JSONDecoder().decode([AppModel].self, from: appsResponse.data)
                     
-                    // Now fetch screenshots for each app
+                    // Now fetch screenshots for each app with retry
                     var appsWithScreenshots: [AppModel] = []
                     
                     for app in apps {
-                        let screenshotsResponse = try await SupabaseManager.shared.client
-                            .from("screenshots")
-                            .select("*")
-                            .eq("app_id", value: app.id)
-                            .order("display_order")
-                            .execute()
+                        let screenshotsResponse = try await SupabaseManager.shared.fetchScreenshotsWithRetry(appId: app.id)
                         
                         print("[DEBUG] Screenshots for app \(app.name) (ID: \(app.id)):")
                         print("[DEBUG] Screenshots response status: \(screenshotsResponse.status)")
@@ -223,10 +213,8 @@ class APIService: ObservableObject {
                 return
             }
             
-            let response = try await SupabaseManager.shared.client
-                .from("categories")
-                .select()
-                .execute()
+            // Use the enhanced retry method for better reliability
+            let response = try await SupabaseManager.shared.fetchCategoriesWithRetry()
             
             guard !Task.isCancelled else {
                 print("[DEBUG] fetchCategories - Task cancelled after API call")
@@ -365,6 +353,47 @@ class APIService: ObservableObject {
             print("[DEBUG] searchApps - Error: \(error.localizedDescription)")
         }
         return []
+    }
+    
+    func fetchAppsByCategory(categoryId: String) async -> [AppModel] {
+        do {
+            print("[DEBUG] fetchAppsByCategory - Starting fetch for category: \(categoryId)")
+            print("[DEBUG] fetchAppsByCategory - Current thread: \(Thread.isMainThread ? "Main" : "Background")")
+            
+            // Add a small delay to prevent overwhelming the API
+            try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+            
+            print("[DEBUG] fetchAppsByCategory - About to call SupabaseManager.fetchAppsByCategoryWithRetry")
+            
+            let response = try await SupabaseManager.shared.fetchAppsByCategoryWithRetry(categoryId: categoryId)
+            
+            print("[DEBUG] fetchAppsByCategory - Response received, status: \(response.status)")
+            print("[DEBUG] fetchAppsByCategory - Response data length: \(response.data.count) bytes")
+            
+            if response.status == 200 {
+                let apps = try JSONDecoder().decode([AppModel].self, from: response.data)
+                print("[DEBUG] fetchAppsByCategory - Successfully decoded \(apps.count) apps")
+                
+                // Log first few apps for debugging
+                for (index, app) in apps.prefix(3).enumerated() {
+                    print("[DEBUG] fetchAppsByCategory - App \(index + 1): \(app.name) by \(app.developer)")
+                }
+                
+                return apps
+            } else {
+                print("[DEBUG] fetchAppsByCategory - Non-200 status: \(response.status)")
+                return []
+            }
+        } catch {
+            print("[DEBUG] fetchAppsByCategory - Error occurred: \(error.localizedDescription)")
+            print("[DEBUG] fetchAppsByCategory - Error type: \(type(of: error))")
+            
+            if let decodingError = error as? DecodingError {
+                print("[DEBUG] fetchAppsByCategory - Decoding error details: \(decodingError)")
+            }
+            
+            return []
+        }
     }
     
     func fetchCategoryStats() async -> [CategoryStats] {

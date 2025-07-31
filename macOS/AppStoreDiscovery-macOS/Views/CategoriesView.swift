@@ -184,12 +184,9 @@ struct CategoryDetailView: View {
     @EnvironmentObject var apiService: APIService
     @State private var categoryApps: [AppModel] = []
     @State private var isLoading = false
+    @State private var errorMessage: String?
     @Binding var selectedApp: AppModel?
     @Binding var showingAppDetail: Bool
-    
-    private var filteredApps: [AppModel] {
-        apiService.apps.filter { $0.category_id == category.id }
-    }
     
     var body: some View {
         ScrollView {
@@ -200,15 +197,53 @@ struct CategoryDetailView: View {
                         .font(.largeTitle)
                         .fontWeight(.bold)
                     
-                    Text("\(filteredApps.count) apps available")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    if isLoading {
+                        Text("Loading apps...")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("\(categoryApps.count) apps available")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal)
                 
                 // Apps grid
-                if filteredApps.isEmpty {
+                if isLoading {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        
+                        Text("Loading apps...")
+                            .font(.title3)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(height: 200)
+                } else if let errorMessage = errorMessage {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 60))
+                            .foregroundColor(.orange)
+                        
+                        Text("Error Loading Apps")
+                            .font(.title3)
+                            .foregroundColor(.secondary)
+                        
+                        Text(errorMessage)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                        
+                        Button("Retry") {
+                            loadCategoryApps()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .frame(height: 200)
+                } else if categoryApps.isEmpty {
                     VStack(spacing: 16) {
                         Image(systemName: "folder")
                             .font(.system(size: 60))
@@ -221,7 +256,7 @@ struct CategoryDetailView: View {
                     .frame(height: 200)
                 } else {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 16) {
-                        ForEach(filteredApps, id: \.id) { app in
+                        ForEach(categoryApps, id: \.id) { app in
                             AppCard(app: app, style: .standard, selectedApp: $selectedApp, showingAppDetail: $showingAppDetail)
                         }
                     }
@@ -231,6 +266,25 @@ struct CategoryDetailView: View {
             .padding(.vertical)
         }
         .navigationTitle(category.name)
+        .onAppear {
+            loadCategoryApps()
+        }
+    }
+    
+    private func loadCategoryApps() {
+        Task {
+            await MainActor.run {
+                isLoading = true
+                errorMessage = nil
+            }
+            
+            let apps = await apiService.fetchAppsByCategory(categoryId: category.id)
+            
+            await MainActor.run {
+                self.categoryApps = apps
+                self.isLoading = false
+            }
+        }
     }
 }
 
