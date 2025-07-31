@@ -1167,89 +1167,50 @@ export class MacUpdateCategoryScraper {
    */
   private async scrapeMultiplePages(categoryUrl: string): Promise<string[]> {
     const allAppUrls: string[] = [];
-    const maxPages = 5; // Try first 5 pages to get more apps
+    const maxPages = 10; // Increase to get more apps since HTML scraping is working well
     
-    // First, try to get category ID and use API if possible
-    const categoryId = this.getCategoryIdFromUrl(categoryUrl);
-    if (categoryId) {
-      console.log(`Trying API first for category ${categoryId}...`);
-      
-      for (let page = 1; page <= maxPages; page++) {
-        const apiApps = await this.tryMacUpdateAPI(categoryId, page);
+    console.log(`Starting HTML scraping for up to ${maxPages} pages...`);
+    
+    for (let page = 1; page <= maxPages; page++) {
+      try {
+        console.log(`Scraping page ${page} with HTML...`);
         
-        if (apiApps.length > 0) {
-          console.log(`API returned ${apiApps.length} apps for page ${page}`);
-          
-          // Convert API apps to URLs
-          apiApps.forEach((app: any) => {
-            if (app.custom_url) {
-              const url = `https://www.macupdate.com${app.custom_url}`;
-              if (!allAppUrls.includes(url)) {
-                allAppUrls.push(url);
-              }
-            }
-          });
-          
-          // If we got fewer apps than expected, this might be the last page
-          if (apiApps.length < 20) {
-            console.log(`Page ${page} has fewer apps, likely the last page`);
-            break;
+        // Construct page URL
+        let pageUrl = categoryUrl;
+        if (page > 1) {
+          if (categoryUrl.includes('?')) {
+            pageUrl = `${categoryUrl}&page=${page}`;
+          } else {
+            pageUrl = `${categoryUrl}?page=${page}`;
           }
-        } else {
-          console.log(`API failed for page ${page}, switching to HTML scraping`);
+        }
+        
+        const pageUrls = await this.scrapeAllAppUrlsWithAxios(pageUrl);
+        console.log(`Found ${pageUrls.length} apps on page ${page}`);
+        
+        // Add new URLs to our collection
+        pageUrls.forEach(url => {
+          if (!allAppUrls.includes(url)) {
+            allAppUrls.push(url);
+          }
+        });
+        
+        // If we found very few apps on this page, it might be the last page
+        if (pageUrls.length < 5) {
+          console.log(`Page ${page} has very few apps (${pageUrls.length}), likely the last page`);
           break;
         }
         
-        // Small delay between requests
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Small delay between requests to be respectful
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+      } catch (error) {
+        console.log(`Error scraping page ${page}:`, error);
+        break; // Stop if we encounter an error
       }
     }
     
-    // If API didn't work or we need more apps, try HTML scraping
-    if (allAppUrls.length < 50) {
-      console.log(`API only found ${allAppUrls.length} apps, trying HTML scraping for more...`);
-      
-      for (let page = 1; page <= maxPages; page++) {
-        try {
-          console.log(`Scraping page ${page} with HTML...`);
-          
-          // Construct page URL
-          let pageUrl = categoryUrl;
-          if (page > 1) {
-            if (categoryUrl.includes('?')) {
-              pageUrl = `${categoryUrl}&page=${page}`;
-            } else {
-              pageUrl = `${categoryUrl}?page=${page}`;
-            }
-          }
-          
-          const pageUrls = await this.scrapeAllAppUrlsWithAxios(pageUrl);
-          console.log(`Found ${pageUrls.length} apps on page ${page}`);
-          
-          // Add new URLs to our collection
-          pageUrls.forEach(url => {
-            if (!allAppUrls.includes(url)) {
-              allAppUrls.push(url);
-            }
-          });
-          
-          // If we found very few apps on this page, it might be the last page
-          if (pageUrls.length < 5) {
-            console.log(`Page ${page} has very few apps, likely the last page`);
-            break;
-          }
-          
-          // Small delay between requests to be respectful
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-        } catch (error) {
-          console.log(`Error scraping page ${page}:`, error);
-          break; // Stop if we encounter an error
-        }
-      }
-    }
-    
-    console.log(`Total unique apps found: ${allAppUrls.length}`);
+    console.log(`Total unique apps found across ${maxPages} pages: ${allAppUrls.length}`);
     return allAppUrls;
   }
 
@@ -2070,27 +2031,19 @@ export class MacUpdateCategoryScraper {
    */
   async getAppsFromAPI(categoryUrl: string, limit: number = 20): Promise<CategoryScrapingResult> {
     try {
-      console.log(`Getting apps from MacUpdate API: ${categoryUrl}`)
+      console.log(`Getting apps using HTML scraping: ${categoryUrl}`)
       
       // Extract category name from URL
       const categoryName = this.extractCategoryName(categoryUrl)
-      
-      // Get category ID from URL
-      const categoryId = this.getCategoryIdFromUrl(categoryUrl)
-      if (!categoryId) {
-        throw new Error('Could not determine category ID from URL')
-      }
       
       // Get the current page to process
       const processedCount = await this.getProcessedAppsCount(categoryUrl)
       const currentPage = Math.floor(processedCount / limit) + 1
       
-      console.log(`Processing page ${currentPage} for category ${categoryId} (${processedCount} apps already processed)`)
+      console.log(`Processing batch ${currentPage} (${processedCount} apps already processed)`)
       
-      // Since API consistently returns 500 errors in server environments,
-      // skip API attempts and go straight to HTML scraping
-      console.log('Skipping API calls (known to return 500 errors in server environments)')
-      console.log('Using HTML scraping directly...')
+      // Use HTML scraping directly since API consistently returns 500 errors
+      console.log('Using HTML scraping (API consistently returns 500 errors in server environments)')
       
       return await this.getNewAppsOnly(categoryUrl, limit)
       
@@ -2103,47 +2056,7 @@ export class MacUpdateCategoryScraper {
     }
   }
 
-  /**
-   * Try to get apps from MacUpdate API with different approaches
-   */
-  private async tryMacUpdateAPI(categoryId: string, page: number): Promise<any[]> {
-    const apiAttempts = [
-      // Try without any special parameters
-      `https://api.macupdate.com/v1/apps/search/list/50/0?page=${page}&categoriesIds[]=${categoryId}`,
-      // Try with minimal fields
-      `https://api.macupdate.com/v1/apps/search/list/50/0?page=${page}&categoriesIds[]=${categoryId}&_f=title,custom_url`,
-      // Try with different limit
-      `https://api.macupdate.com/v1/apps/search/list/20/0?page=${page}&categoriesIds[]=${categoryId}`,
-      // Try without category filter (get all apps)
-      `https://api.macupdate.com/v1/apps/search/list/50/0?page=${page}`
-    ];
-    
-    for (const apiUrl of apiAttempts) {
-      try {
-        console.log(`Trying API: ${apiUrl}`);
-        
-        const response = await axios.get(apiUrl, {
-          timeout: 10000,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'application/json',
-            'Referer': 'https://www.macupdate.com/'
-          }
-        });
-        
-        if (response.data && response.data.apps && response.data.apps.length > 0) {
-          console.log(`✅ API success! Found ${response.data.apps.length} apps`);
-          return response.data.apps;
-        }
-        
-      } catch (error: any) {
-        console.log(`❌ API attempt failed: ${error.response?.status || 'unknown error'}`);
-        continue;
-      }
-    }
-    
-    return []; // No API attempts worked
-  }
+
 
   /**
    * Get app preview data from API response
