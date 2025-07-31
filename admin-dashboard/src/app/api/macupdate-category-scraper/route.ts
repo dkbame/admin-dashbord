@@ -122,7 +122,7 @@ export async function PUT(request: NextRequest) {
   const startTime = Date.now()
   
   try {
-    const { categoryUrl, limit = 10 } = await request.json()
+    const { categoryUrl, limit = 10, reset = false } = await request.json()
 
     if (!categoryUrl) {
       return NextResponse.json({ 
@@ -130,9 +130,15 @@ export async function PUT(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log('Ultra-fast scraping category (URLs only):', categoryUrl, 'with limit:', limit)
+    console.log('Ultra-fast scraping category (URLs only):', categoryUrl, 'with limit:', limit, 'reset:', reset)
 
     const categoryScraper = new MacUpdateCategoryScraper()
+    
+    // If reset is requested, clear import sessions first
+    if (reset) {
+      console.log('🔄 Manual reset requested, clearing import sessions...')
+      await categoryScraper.clearImportSessionsForCategory(categoryUrl)
+    }
     
     // Ultra-fast mode: only get URLs, skip all database operations
     const result = await categoryScraper.getAppsUrlsOnly(categoryUrl, limit)
@@ -154,7 +160,9 @@ export async function PUT(request: NextRequest) {
         processedPages: result.processedPages
       },
       executionTime,
-      note: 'Ultra-fast mode - URLs only, no database operations or preview data'
+      note: reset ? 
+        'Ultra-fast mode - URLs only, page tracking reset' : 
+        'Ultra-fast mode - URLs only, no database operations or preview data'
     })
 
   } catch (error) {

@@ -131,6 +131,7 @@ export default function MacUpdateImportPage() {
   const [categoryPreview, setCategoryPreview] = useState<CategoryPreview | null>(null)
   const [selectedApps, setSelectedApps] = useState<string[]>([])
   const [includePreviews, setIncludePreviews] = useState(false) // Toggle for preview data
+  const [resetPageTracking, setResetPageTracking] = useState(false) // Toggle for resetting page tracking
   
   // State for import process
   const [isImporting, setIsImporting] = useState(false)
@@ -268,7 +269,8 @@ export default function MacUpdateImportPage() {
         body: JSON.stringify({ 
           categoryUrl: categoryUrl.trim(),
           limit: 10, // Reduced limit to prevent timeout
-          ...(includePreviews && { preview: true }) // Only include preview parameter if needed
+          ...(includePreviews && { preview: true }), // Only include preview parameter if needed
+          ...(resetPageTracking && { reset: true }) // Include reset parameter if requested
         })
       })
       
@@ -588,6 +590,17 @@ export default function MacUpdateImportPage() {
                     type="checkbox"
                     checked={includePreviews}
                     onChange={(e) => setIncludePreviews(e.target.checked)}
+                    style={{ transform: 'scale(1.2)' }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="body2" sx={{ mr: 2 }}>
+                    Reset page tracking (start from page 1)
+                  </Typography>
+                  <input
+                    type="checkbox"
+                    checked={resetPageTracking}
+                    onChange={(e) => setResetPageTracking(e.target.checked)}
                     style={{ transform: 'scale(1.2)' }}
                   />
                 </Box>

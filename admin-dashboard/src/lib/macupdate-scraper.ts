@@ -1802,6 +1802,24 @@ export class MacUpdateCategoryScraper {
 
       console.log('🔍 Looking for processed pages for category URL:', categoryUrl)
 
+      // First, check if there are any apps in the database for this category
+      const { count: appCount, error: countError } = await supabase
+        .from('apps')
+        .select('*', { count: 'exact', head: true })
+
+      if (countError) {
+        console.error('❌ Error checking app count:', countError)
+      } else {
+        console.log(`📊 Total apps in database: ${appCount}`)
+        
+        // If no apps exist in the database, reset page tracking
+        if (appCount === 0) {
+          console.log('🔄 No apps in database, resetting page tracking to start from page 1')
+          await this.clearImportSessionsForCategory(categoryUrl)
+          return []
+        }
+      }
+
       // Get all import sessions for this category URL
       const { data: sessions, error } = await supabase
         .from('import_sessions')
@@ -1838,6 +1856,28 @@ export class MacUpdateCategoryScraper {
     } catch (error) {
       console.error('❌ Error getting processed pages:', error)
       return []
+    }
+  }
+
+  /**
+   * Clear import sessions for a category when database is empty
+   */
+  async clearImportSessionsForCategory(categoryUrl: string): Promise<void> {
+    try {
+      console.log(`🧹 Clearing import sessions for category: ${categoryUrl}`)
+      
+      const { error } = await supabase
+        .from('import_sessions')
+        .delete()
+        .eq('category_url', categoryUrl)
+
+      if (error) {
+        console.error('❌ Error clearing import sessions:', error)
+      } else {
+        console.log('✅ Successfully cleared import sessions for category')
+      }
+    } catch (error) {
+      console.error('❌ Error clearing import sessions:', error)
     }
   }
 
