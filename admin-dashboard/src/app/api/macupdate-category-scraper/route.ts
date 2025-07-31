@@ -17,8 +17,8 @@ export async function POST(request: NextRequest) {
 
     const categoryScraper = new MacUpdateCategoryScraper()
     
-    // Use the new method that only returns apps that don't exist in database
-    const result = await categoryScraper.getNewAppsOnly(categoryUrl, limit)
+    // Use the new pagination method that gets the next unprocessed page
+    const result = await categoryScraper.getNewAppsOnlyWithPagination(categoryUrl, limit)
     
     // Get preview data for each new app
     const appPreviews = []
@@ -43,7 +43,12 @@ export async function POST(request: NextRequest) {
       newApps: result.newApps,
       existingApps: result.existingApps,
       appUrls: result.appUrls,
-      appPreviews
+      appPreviews,
+      pagination: {
+        currentPage: result.currentPage,
+        totalPages: result.totalPages,
+        processedPages: result.processedPages
+      }
     })
 
   } catch (error) {
@@ -70,8 +75,8 @@ export async function GET(request: NextRequest) {
 
     const categoryScraper = new MacUpdateCategoryScraper()
     
-    // Use the new method that only returns apps that don't exist in database
-    const result = await categoryScraper.getNewAppsOnly(categoryUrl, limit)
+    // Use the new pagination method that gets the next unprocessed page
+    const result = await categoryScraper.getNewAppsOnlyWithPagination(categoryUrl, limit)
     
     // Get preview data for each new app
     const appPreviews = []
@@ -96,7 +101,12 @@ export async function GET(request: NextRequest) {
       newApps: result.newApps,
       existingApps: result.existingApps,
       appUrls: result.appUrls,
-      appPreviews
+      appPreviews,
+      pagination: {
+        currentPage: result.currentPage,
+        totalPages: result.totalPages,
+        processedPages: result.processedPages
+      }
     })
 
   } catch (error) {

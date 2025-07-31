@@ -61,6 +61,16 @@ export interface CategoryScrapingResult {
   newApps: number
   existingApps: number
   categoryName: string
+  currentPage: number
+  totalPages: number
+  processedPages: number[]
+}
+
+export interface PaginationInfo {
+  currentPage: number
+  totalPages: number
+  nextPage: number | null
+  processedPages: number[]
 }
 
 // Default configuration optimized for Netlify
@@ -1016,7 +1026,10 @@ export class MacUpdateCategoryScraper {
         totalApps: limitedUrls.length,
         newApps: newApps.length,
         existingApps: existingApps.length,
-        categoryName
+        categoryName,
+        currentPage: 1,
+        totalPages: 1,
+        processedPages: []
       }
       
     } catch (error) {
@@ -1156,7 +1169,10 @@ export class MacUpdateCategoryScraper {
         totalApps: allAppUrls.length,
         newApps: limitedNewApps.length,
         existingApps: existingApps.length,
-        categoryName
+        categoryName,
+        currentPage: 1,
+        totalPages: 1,
+        processedPages: []
       }
       
     } catch (error) {
@@ -1400,6 +1416,209 @@ export class MacUpdateCategoryScraper {
     } catch (error) {
       console.error('Error getting app preview:', error)
       return null
+    }
+  }
+
+  /**
+   * Extract pagination information from category page HTML
+   */
+  private async extractPaginationInfo(htmlContent: string): Promise<PaginationInfo> {
+    try {
+      const $ = cheerio.load(htmlContent)
+      
+      // Find pagination container
+      const pagination = $('.mu_search_results_pagination .muui_pagination')
+      
+      if (pagination.length === 0) {
+        // No pagination found, assume single page
+        return {
+          currentPage: 1,
+          totalPages: 1,
+          nextPage: null,
+          processedPages: []
+        }
+      }
+      
+      // Find current page (has active class)
+      let currentPage = 1
+      pagination.find('.muui_pagination_item_active').each((_, el) => {
+        const pageText = $(el).find('.muui_pagination_item_link').text().trim()
+        const pageNum = parseInt(pageText)
+        if (!isNaN(pageNum)) {
+          currentPage = pageNum
+        }
+      })
+      
+      // Find total pages (last page number)
+      let totalPages = 1
+      const pageItems = pagination.find('.muui_pagination_item')
+      pageItems.each((_, el) => {
+        const pageText = $(el).find('.muui_pagination_item_link').text().trim()
+        const pageNum = parseInt(pageText)
+        if (!isNaN(pageNum) && pageNum > totalPages) {
+          totalPages = pageNum
+        }
+      })
+      
+      // Get processed pages from database
+      const processedPages = await this.getProcessedPagesForCategory()
+      
+      // Find next unprocessed page
+      let nextPage = null
+      for (let page = 1; page <= totalPages; page++) {
+        if (!processedPages.includes(page)) {
+          nextPage = page
+          break
+        }
+      }
+      
+      console.log(`Pagination info: current=${currentPage}, total=${totalPages}, next=${nextPage}, processed=${processedPages}`)
+      
+      return {
+        currentPage,
+        totalPages,
+        nextPage,
+        processedPages
+      }
+    } catch (error) {
+      console.error('Error extracting pagination info:', error)
+      return {
+        currentPage: 1,
+        totalPages: 1,
+        nextPage: null,
+        processedPages: []
+      }
+    }
+  }
+
+  /**
+   * Get processed pages for a category from import sessions
+   */
+  private async getProcessedPagesForCategory(): Promise<number[]> {
+    try {
+      // This would need to be implemented based on how we track processed pages
+      // For now, return empty array - we'll implement this properly
+      return []
+    } catch (error) {
+      console.error('Error getting processed pages:', error)
+      return []
+    }
+  }
+
+  /**
+   * Build category URL with page parameter
+   */
+  private buildCategoryUrlWithPage(baseUrl: string, page: number): string {
+    try {
+      const url = new URL(baseUrl)
+      url.searchParams.set('page', page.toString())
+      return url.toString()
+    } catch (error) {
+      // If URL parsing fails, append page parameter manually
+      const separator = baseUrl.includes('?') ? '&' : '?'
+      return `${baseUrl}${separator}page=${page}`
+    }
+  }
+
+  /**
+   * Get only new apps that don't exist in the database with pagination
+   */
+  async getNewAppsOnlyWithPagination(categoryUrl: string, limit: number = 20): Promise<CategoryScrapingResult> {
+    try {
+      console.log(`Getting new apps with pagination from: ${categoryUrl}`)
+      
+      // Extract category name from URL
+      const categoryName = this.extractCategoryName(categoryUrl)
+      
+      // First, get pagination info from the base category page
+      const baseResponse = await axios.get(categoryUrl, {
+        timeout: 10000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1'
+        }
+      })
+      
+      const paginationInfo = await this.extractPaginationInfo(baseResponse.data)
+      
+      // If no next page available, return empty result
+      if (!paginationInfo.nextPage) {
+        return {
+          appUrls: [],
+          totalApps: 0,
+          newApps: 0,
+          existingApps: 0,
+          categoryName,
+          currentPage: paginationInfo.currentPage,
+          totalPages: paginationInfo.totalPages,
+          processedPages: paginationInfo.processedPages
+        }
+      }
+      
+      // Build URL for the next page to scrape
+      const nextPageUrl = this.buildCategoryUrlWithPage(categoryUrl, paginationInfo.nextPage)
+      console.log(`Scraping next page: ${nextPageUrl}`)
+      
+      // Scrape the next page
+      const response = await axios.get(nextPageUrl, {
+        timeout: 10000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1'
+        }
+      })
+      
+      // Extract app URLs from the page
+      const allAppUrls: string[] = []
+      const htmlContent = response.data
+      
+      // Look for custom_url patterns in the HTML
+      const customUrlMatches = htmlContent.match(/"custom_url":"([^"]+)"/g)
+      if (customUrlMatches) {
+        console.log(`Found ${customUrlMatches.length} custom_url matches on page ${paginationInfo.nextPage}`)
+        customUrlMatches.forEach((match: string) => {
+          const urlMatch = match.match(/"custom_url":"([^"]+)"/)
+          if (urlMatch && urlMatch[1]) {
+            const url = urlMatch[1]
+            if (this.isValidAppUrl(url)) {
+              if (!allAppUrls.includes(url)) {
+                allAppUrls.push(url)
+              }
+            }
+          }
+        })
+      }
+      
+      console.log(`Found ${allAppUrls.length} total app URLs on page ${paginationInfo.nextPage}`)
+      
+      // Check which apps already exist in database
+      const { newApps, existingApps } = await this.checkExistingApps(allAppUrls)
+      
+      // Limit the number of new apps
+      const limitedNewApps = newApps.slice(0, limit)
+      
+      return {
+        appUrls: limitedNewApps,
+        totalApps: allAppUrls.length,
+        newApps: limitedNewApps.length,
+        existingApps: existingApps.length,
+        categoryName,
+        currentPage: paginationInfo.nextPage,
+        totalPages: paginationInfo.totalPages,
+        processedPages: paginationInfo.processedPages
+      }
+      
+    } catch (error) {
+      console.error('Error getting new apps with pagination:', error)
+      throw new Error(`Failed to get new apps with pagination: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 }

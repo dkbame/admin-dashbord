@@ -83,6 +83,11 @@ interface CategoryPreview {
     rating: number | null
     url: string
   }>
+  pagination?: {
+    currentPage: number
+    totalPages: number
+    processedPages: number[]
+  }
 }
 
 // Popular MacUpdate categories for quick access
@@ -660,6 +665,18 @@ export default function MacUpdateImportPage() {
                       variant="outlined"
                     />
                   </Box>
+                  
+                  {/* Pagination Information */}
+                  {categoryPreview.pagination && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Page {categoryPreview.pagination.currentPage} of {categoryPreview.pagination.totalPages}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {categoryPreview.pagination.processedPages.length} pages already processed
+                      </Typography>
+                    </Box>
+                  )}
                   
                   {categoryPreview.newApps > 0 && (
                     <Box sx={{ mb: 2 }}>
