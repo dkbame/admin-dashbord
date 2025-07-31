@@ -13,11 +13,11 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log('Scraping category using MacUpdate API:', categoryUrl, 'with limit:', limit)
+    console.log('Scraping category using HTML scraping:', categoryUrl, 'with limit:', limit)
 
     const categoryScraper = new MacUpdateCategoryScraper()
     
-    // Use the new API method for reliable pagination
+    // Use HTML scraping since MacUpdate API returns 500 errors in server environments
     const result = await categoryScraper.getAppsFromAPI(categoryUrl, limit)
     
     // Get preview data for each new app using API data
