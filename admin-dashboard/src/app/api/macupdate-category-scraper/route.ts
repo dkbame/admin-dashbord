@@ -4,7 +4,7 @@ import { MacUpdateCategoryScraper } from '@/lib/macupdate-scraper'
 export const dynamic = 'force-dynamic'
 
 // Set a maximum execution time to prevent timeouts
-const MAX_EXECUTION_TIME = 25000 // 25 seconds (leaving 5 seconds buffer for Netlify's 30s limit)
+const MAX_EXECUTION_TIME = 20000 // Reduced to 20 seconds (leaving 10 seconds buffer for Netlify's 30s limit)
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
@@ -18,11 +18,11 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log('Scraping category with optimized timeout handling:', categoryUrl, 'with limit:', limit, 'preview:', preview)
+    console.log('Scraping category with aggressive timeout handling:', categoryUrl, 'with limit:', limit, 'preview:', preview)
 
     const categoryScraper = new MacUpdateCategoryScraper()
     
-    // Check execution time periodically
+    // Check execution time more frequently
     const checkTimeout = () => {
       if (Date.now() - startTime > MAX_EXECUTION_TIME) {
         throw new Error('Request timeout - operation taking too long')
@@ -38,8 +38,8 @@ export async function POST(request: NextRequest) {
     
     // Only get preview data if requested and we have time
     if (preview) {
-      // Get preview data for only the first few apps to avoid timeout
-      const maxPreviews = Math.min(5, result.appUrls.length) // Limit to 5 previews max
+      // Get preview data for only the first few apps to avoid timeout - reduced to 3
+      const maxPreviews = Math.min(3, result.appUrls.length) // Reduced from 5 to 3
       
       // If we have API data, use it directly (faster)
       if (result.apiData && result.apiData.apps) {
@@ -117,6 +117,65 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// New PUT method for maximum speed - no preview data at all
+export async function PUT(request: NextRequest) {
+  const startTime = Date.now()
+  
+  try {
+    const { categoryUrl, limit = 10 } = await request.json()
+
+    if (!categoryUrl) {
+      return NextResponse.json({ 
+        error: 'Category URL is required' 
+      }, { status: 400 })
+    }
+
+    console.log('Fast scraping category (no previews):', categoryUrl, 'with limit:', limit)
+
+    const categoryScraper = new MacUpdateCategoryScraper()
+    
+    // Use HTML scraping with reduced workload
+    const result = await categoryScraper.getAppsFromAPI(categoryUrl, limit)
+    
+    // Mark this batch as processed only if there are apps to process
+    if (result.newApps > 0) {
+      await categoryScraper.markAppsAsProcessed(categoryUrl, result.newApps, result.categoryName)
+    } else {
+      console.log('No new apps to process, skipping import session creation')
+    }
+
+    const executionTime = Date.now() - startTime
+    console.log(`Fast category scraping completed in ${executionTime}ms`)
+
+    return NextResponse.json({
+      success: true,
+      categoryName: result.categoryName,
+      totalApps: result.totalApps,
+      newApps: result.newApps,
+      existingApps: result.existingApps,
+      appUrls: result.appUrls,
+      appPreviews: [], // No preview data for maximum speed
+      pagination: {
+        currentPage: result.currentPage,
+        totalPages: result.totalPages,
+        processedPages: result.processedPages
+      },
+      executionTime,
+      note: 'Fast mode - no preview data retrieved for maximum speed and reliability'
+    })
+
+  } catch (error) {
+    const executionTime = Date.now() - startTime
+    console.error('Fast category scraping error:', error, `(execution time: ${executionTime}ms)`)
+    
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Failed to scrape category',
+      executionTime,
+      suggestion: 'Check the category URL or try a different category'
+    }, { status: 500 })
+  }
+}
+
 export async function GET(request: NextRequest) {
   const startTime = Date.now()
   
@@ -132,11 +191,11 @@ export async function GET(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log('Scraping category for NEW apps only (GET) with timeout protection:', categoryUrl, 'with limit:', limit, 'preview:', preview)
+    console.log('Scraping category for NEW apps only (GET) with aggressive timeout protection:', categoryUrl, 'with limit:', limit, 'preview:', preview)
 
     const categoryScraper = new MacUpdateCategoryScraper()
     
-    // Check execution time periodically
+    // Check execution time more frequently
     const checkTimeout = () => {
       if (Date.now() - startTime > MAX_EXECUTION_TIME) {
         throw new Error('Request timeout - operation taking too long')
@@ -152,8 +211,8 @@ export async function GET(request: NextRequest) {
     
     // Only get preview data if requested and we have time
     if (preview) {
-      // Get preview data for only the first few apps to avoid timeout
-      const maxPreviews = Math.min(5, result.appUrls.length) // Limit to 5 previews max
+      // Get preview data for only the first few apps to avoid timeout - reduced to 3
+      const maxPreviews = Math.min(3, result.appUrls.length) // Reduced from 5 to 3
       
       for (let i = 0; i < maxPreviews; i++) {
         checkTimeout()

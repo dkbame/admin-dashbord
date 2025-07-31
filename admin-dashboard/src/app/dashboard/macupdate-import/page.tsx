@@ -130,6 +130,7 @@ export default function MacUpdateImportPage() {
   const [isCategoryScraping, setIsCategoryScraping] = useState(false)
   const [categoryPreview, setCategoryPreview] = useState<CategoryPreview | null>(null)
   const [selectedApps, setSelectedApps] = useState<string[]>([])
+  const [includePreviews, setIncludePreviews] = useState(false) // Toggle for preview data
   
   // State for import process
   const [isImporting, setIsImporting] = useState(false)
@@ -262,12 +263,12 @@ export default function MacUpdateImportPage() {
 
     try {
       const response = await fetch('/api/macupdate-category-scraper', {
-        method: 'POST',
+        method: includePreviews ? 'POST' : 'PUT', // Use POST for previews, PUT for fast mode
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           categoryUrl: categoryUrl.trim(),
           limit: 10, // Reduced limit to prevent timeout
-          preview: true // Keep preview data for UI
+          ...(includePreviews && { preview: true }) // Only include preview parameter if needed
         })
       })
       
@@ -579,10 +580,21 @@ export default function MacUpdateImportPage() {
                   sx={{ mb: 2 }}
                   helperText="Enter a MacUpdate category URL - uses reliable HTML scraping with API fallback"
                 />
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="body2" sx={{ mr: 2 }}>
+                    Include app previews (slower but shows app details)
+                  </Typography>
+                  <input
+                    type="checkbox"
+                    checked={includePreviews}
+                    onChange={(e) => setIncludePreviews(e.target.checked)}
+                    style={{ transform: 'scale(1.2)' }}
+                  />
+                </Box>
                 <Alert severity="info" sx={{ mb: 2 }}>
                   <Typography variant="body2">
-                    <strong>Optimized for reliability:</strong> Limited to 10 apps per batch with timeout protection. 
-                    For large categories, scrape multiple batches to get all apps.
+                    <strong>Optimized for reliability:</strong> Fast mode (default) skips previews for maximum speed. 
+                    Enable previews to see app details but may be slower. Limited to 10 apps per batch with timeout protection.
                   </Typography>
                 </Alert>
                 <Button
