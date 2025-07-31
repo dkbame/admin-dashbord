@@ -7,6 +7,7 @@ import Link from 'next/link'
 import AdminStatus from '@/components/AdminStatus'
 import AppsTable from '@/components/AppsTable'
 import DeleteConfirmationDialog from '@/components/DeleteConfirmationDialog'
+import BulkDeleteConfirmationDialog from '@/components/BulkDeleteConfirmationDialog'
 import DashboardAnalytics from '@/components/DashboardAnalytics'
 import RealtimeNotifications from '@/components/RealtimeNotifications'
 import { useApps } from '@/hooks/useApps'
@@ -142,34 +143,35 @@ export default function DashboardPage() {
     setBulkDeleteError(null)
     
     try {
-      console.log('Bulk Delete: Starting deletion of', appsToDelete.length, 'apps')
+      console.log('Ultra-fast Bulk Delete: Starting deletion of', appsToDelete.length, 'apps')
       
-      // Delete apps one by one using direct API calls
-      for (const appId of appsToDelete) {
-        console.log('Bulk Delete: Deleting app:', appId)
-        
-        const response = await fetch(`/api/direct-delete?appId=${appId}`, {
-          method: 'DELETE'
+      // Use ultra-fast bulk delete API
+      const response = await fetch('/api/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          appIds: appsToDelete,
+          confirm: true
         })
-        
-        const result = await response.json()
-        console.log('Bulk Delete: API response for', appId, ':', result)
-        
-        if (!response.ok || !result.success) {
-          throw new Error(`Failed to delete app ${appId}: ${result.error || 'Unknown error'}`)
-        }
+      })
+      
+      const result = await response.json()
+      console.log('Ultra-fast Bulk Delete: API response:', result)
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Bulk delete failed')
       }
       
-      console.log('Bulk Delete: All apps deleted successfully, refreshing...')
+      console.log(`Ultra-fast Bulk Delete: Successfully deleted ${result.deletedCount} apps, refreshing...`)
       
-      // Single refresh after all deletions
+      // Single refresh after bulk deletion
       await fetchApps()
       
       setBulkDeleteDialogOpen(false)
       setAppsToDelete([])
     } catch (err) {
-      console.error('Bulk Delete: Error:', err)
-      setBulkDeleteError(err instanceof Error ? err.message : 'Failed to delete some apps')
+      console.error('Ultra-fast Bulk Delete: Error:', err)
+      setBulkDeleteError(err instanceof Error ? err.message : 'Failed to delete apps')
     } finally {
       setBulkDeleting(false)
     }
@@ -293,14 +295,12 @@ export default function DashboardPage() {
         error={deleteError}
       />
 
-      {/* Bulk delete dialog */}
-      <DeleteConfirmationDialog
+      {/* Ultra-fast bulk delete dialog */}
+      <BulkDeleteConfirmationDialog
         open={bulkDeleteDialogOpen}
         onClose={handleBulkDeleteCancel}
         onConfirm={handleBulkDeleteConfirm}
-        title="Delete Multiple Apps"
-        message={`Are you sure you want to delete ${appsToDelete.length} app${appsToDelete.length !== 1 ? 's' : ''}? This action cannot be undone.`}
-        itemName={`${appsToDelete.length} app${appsToDelete.length !== 1 ? 's' : ''}`}
+        appIds={appsToDelete}
         loading={bulkDeleting}
         error={bulkDeleteError}
       />
