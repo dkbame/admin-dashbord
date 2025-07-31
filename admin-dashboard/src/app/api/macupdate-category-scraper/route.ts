@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     
     // Get preview data for each new app
     const appPreviews = []
-    for (const appUrl of result.appUrls.slice(0, 10)) { // Limit previews to 10 for performance
+    for (const appUrl of result.appUrls) { // Show all apps, not just first 10
       try {
         const preview = await categoryScraper.getAppPreview(appUrl)
         if (preview) {
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     
     // Get preview data for each new app
     const appPreviews = []
-    for (const appUrl of result.appUrls.slice(0, 10)) { // Limit previews to 10 for performance
+    for (const appUrl of result.appUrls) { // Show all apps, not just first 10
       try {
         const preview = await categoryScraper.getAppPreview(appUrl)
         if (preview) {

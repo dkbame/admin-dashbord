@@ -725,9 +725,9 @@ export default function MacUpdateImportPage() {
               {categoryPreview && categoryPreview.appPreviews.length > 0 && (
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" gutterBottom>
-                    New Apps Available for Import
+                    New Apps Available for Import ({categoryPreview.appPreviews.length} total)
                   </Typography>
-                  <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+                  <TableContainer component={Paper} sx={{ maxHeight: 500 }}>
                     <Table size="small">
                       <TableHead>
                         <TableRow>
