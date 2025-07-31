@@ -4,7 +4,7 @@ import { MacUpdateCategoryScraper } from '@/lib/macupdate-scraper'
 export const dynamic = 'force-dynamic'
 
 // Set a maximum execution time to prevent timeouts
-const MAX_EXECUTION_TIME = 20000 // Reduced to 20 seconds (leaving 10 seconds buffer for Netlify's 30s limit)
+const MAX_EXECUTION_TIME = 15000 // Reduced to 15 seconds for ultra-fast mode
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// New PUT method for maximum speed - no preview data at all
+// Ultra-fast mode - only scrape URLs, no database operations
 export async function PUT(request: NextRequest) {
   const startTime = Date.now()
   
@@ -130,22 +130,15 @@ export async function PUT(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log('Fast scraping category (no previews):', categoryUrl, 'with limit:', limit)
+    console.log('Ultra-fast scraping category (URLs only):', categoryUrl, 'with limit:', limit)
 
     const categoryScraper = new MacUpdateCategoryScraper()
     
-    // Use HTML scraping with reduced workload
-    const result = await categoryScraper.getAppsFromAPI(categoryUrl, limit)
+    // Ultra-fast mode: only get URLs, skip all database operations
+    const result = await categoryScraper.getAppsUrlsOnly(categoryUrl, limit)
     
-    // Mark this batch as processed only if there are apps to process
-    if (result.newApps > 0) {
-      await categoryScraper.markAppsAsProcessed(categoryUrl, result.newApps, result.categoryName)
-    } else {
-      console.log('No new apps to process, skipping import session creation')
-    }
-
     const executionTime = Date.now() - startTime
-    console.log(`Fast category scraping completed in ${executionTime}ms`)
+    console.log(`Ultra-fast category scraping completed in ${executionTime}ms`)
 
     return NextResponse.json({
       success: true,
@@ -161,12 +154,12 @@ export async function PUT(request: NextRequest) {
         processedPages: result.processedPages
       },
       executionTime,
-      note: 'Fast mode - no preview data retrieved for maximum speed and reliability'
+      note: 'Ultra-fast mode - URLs only, no database operations or preview data'
     })
 
   } catch (error) {
     const executionTime = Date.now() - startTime
-    console.error('Fast category scraping error:', error, `(execution time: ${executionTime}ms)`)
+    console.error('Ultra-fast category scraping error:', error, `(execution time: ${executionTime}ms)`)
     
     return NextResponse.json({
       error: error instanceof Error ? error.message : 'Failed to scrape category',

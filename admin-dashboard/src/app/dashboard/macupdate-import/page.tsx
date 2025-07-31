@@ -582,7 +582,7 @@ export default function MacUpdateImportPage() {
                 />
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <Typography variant="body2" sx={{ mr: 2 }}>
-                    Include app previews (slower but shows app details)
+                    Include app previews (slower, shows app details in UI)
                   </Typography>
                   <input
                     type="checkbox"
@@ -593,8 +593,8 @@ export default function MacUpdateImportPage() {
                 </Box>
                 <Alert severity="info" sx={{ mb: 2 }}>
                   <Typography variant="body2">
-                    <strong>Optimized for reliability:</strong> Fast mode (default) skips previews for maximum speed. 
-                    Enable previews to see app details but may be slower. Limited to 10 apps per batch with timeout protection.
+                    <strong>Ultra-fast mode (default):</strong> Gets app URLs only, no database checks or previews. 
+                    Perfect for importing since each app is scraped individually during import. Limited to 10 apps per batch.
                   </Typography>
                 </Alert>
                 <Button

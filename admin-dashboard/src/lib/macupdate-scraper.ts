@@ -1167,7 +1167,7 @@ export class MacUpdateCategoryScraper {
    */
   private async scrapeMultiplePages(categoryUrl: string): Promise<string[]> {
     const allAppUrls: string[] = [];
-    const maxPages = 2; // Reduced to 2 pages to avoid timeout (2 pages × 10 apps = 20 apps max)
+    const maxPages = 1; // Reduced to 1 page for ultra-fast mode
     
     console.log(`Starting HTML scraping for up to ${maxPages} pages (optimized for serverless timeout)...`);
     
@@ -2022,7 +2022,38 @@ export class MacUpdateCategoryScraper {
     }
   }
 
-
+  /**
+   * Ultra-fast method: only scrape URLs without any database operations
+   */
+  async getAppsUrlsOnly(categoryUrl: string, limit: number = 20): Promise<CategoryScrapingResult> {
+    try {
+      console.log(`Ultra-fast URL scraping: ${categoryUrl}`)
+      
+      // Extract category name from URL
+      const categoryName = this.extractCategoryName(categoryUrl)
+      
+      // Scrape URLs directly without database operations
+      const allAppUrls = await this.scrapeMultiplePages(categoryUrl)
+      
+      console.log(`Found ${allAppUrls.length} total app URLs`)
+      
+      // Return all URLs without checking existing apps
+      return {
+        appUrls: allAppUrls.slice(0, limit), // Limit the results
+        totalApps: allAppUrls.length,
+        newApps: allAppUrls.length, // Assume all are new for ultra-fast mode
+        existingApps: 0, // Skip database check
+        categoryName,
+        currentPage: 1,
+        totalPages: Math.ceil(allAppUrls.length / limit),
+        processedPages: [1]
+      }
+      
+    } catch (error) {
+      console.error('Error in getAppsUrlsOnly:', error)
+      throw new Error(`Failed to scrape URLs: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
 
   /**
    * Get app preview data from API response
