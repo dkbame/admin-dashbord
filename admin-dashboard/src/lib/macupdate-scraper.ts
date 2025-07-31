@@ -1860,7 +1860,7 @@ export class MacUpdateCategoryScraper {
     }
   }
 
-  /**
+    /**
    * Get apps using MacUpdate's API endpoint for reliable pagination
    */
   async getAppsFromAPI(categoryUrl: string, limit: number = 20): Promise<CategoryScrapingResult> {
@@ -1886,63 +1886,99 @@ export class MacUpdateCategoryScraper {
       const simpleApiUrl = `https://api.macupdate.com/v1/apps/search/list/${limit}/0?page=${currentPage}&categoriesIds[]=${categoryId}`
       console.log(`Trying simple API URL: ${simpleApiUrl}`)
       
-      try {
-        const response = await axios.get(simpleApiUrl, {
-          timeout: 10000,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'application/json',
-            'Referer': categoryUrl
-          }
-        })
-        
-        if (response.data && response.data.success === false) {
-          console.log('API returned success: false, using HTML scraping fallback')
-          return await this.getNewAppsOnly(categoryUrl, limit)
+      // Also try the complex URL that works in browser
+      const complexApiUrl = `https://api.macupdate.com/v1/apps/search/list/${limit}/0?page=${currentPage}&categoriesIds[]=${categoryId}&sort=date&_f=title,title_slug,short_description,logo,s_png,s_webp,custom_url,price,version,rating,discount,date,download_count,review_count,filesize,is_beta`
+      
+      const apiUrls = [simpleApiUrl, complexApiUrl]
+      let response = null
+      
+      for (const apiUrl of apiUrls) {
+        try {
+          console.log(`Trying API URL: ${apiUrl}`)
+          
+          response = await axios.get(apiUrl, {
+            timeout: 15000,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'application/json, text/plain, */*',
+              'Accept-Language': 'en-US,en;q=0.9',
+              'Accept-Encoding': 'gzip, deflate, br',
+              'Referer': 'https://www.macupdate.com/',
+              'Origin': 'https://www.macupdate.com',
+              'Sec-Fetch-Dest': 'empty',
+              'Sec-Fetch-Mode': 'cors',
+              'Sec-Fetch-Site': 'same-origin',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
+              'Connection': 'keep-alive'
+            },
+            // Add proxy-like behavior to mimic browser
+            maxRedirects: 5,
+            validateStatus: (status) => status < 500 // Accept any status under 500
+          })
+          
+          console.log(`✅ API Response Status: ${response.status}`)
+          console.log(`API Response Headers:`, response.headers)
+          
+          // If we get here, the request was successful
+          break
+          
+        } catch (apiError: any) {
+          console.log(`❌ API request failed for URL: ${apiUrl}`)
+          console.log(`API Error Details:`, {
+            status: apiError.response?.status,
+            statusText: apiError.response?.statusText,
+            data: apiError.response?.data,
+            headers: apiError.response?.headers
+          })
+          
+          // Continue to next URL if this one failed
+          continue
         }
-        
-        if (!response.data || !response.data.apps) {
-          console.log('No apps found in API response, using HTML scraping fallback')
-          return await this.getNewAppsOnly(categoryUrl, limit)
-        }
-        
-        const apiApps = response.data.apps
-        console.log(`Found ${apiApps.length} apps in API response`)
-        
-        // Convert API apps to URLs
-        const appUrls = apiApps.map((app: any) => {
-          if (app.custom_url) {
-            return `https://www.macupdate.com${app.custom_url}`
-          }
-          return null
-        }).filter(Boolean)
-        
-        console.log(`Converted ${appUrls.length} apps to URLs`)
-        
-        // Check which apps already exist in database
-        const { newApps, existingApps } = await this.checkExistingApps(appUrls)
-        
-        console.log(`Found ${newApps.length} new apps and ${existingApps.length} existing apps`)
-        
-        return {
-          appUrls: newApps,
-          totalApps: appUrls.length,
-          newApps: newApps.length,
-          existingApps: existingApps.length,
-          categoryName,
-          currentPage,
-          totalPages: Math.ceil((response.data.total || apiApps.length) / limit),
-          processedPages: [currentPage],
-          apiData: {
-            apps: apiApps,
-            total: response.data.total || apiApps.length
-          }
-        }
-        
-      } catch (apiError: any) {
-        console.log(`API request failed: ${apiError.response?.status || 'unknown error'}`)
-        console.log('Using HTML scraping fallback')
+      }
+      
+      // If no API calls worked, use HTML scraping
+      if (!response) {
+        console.log('All API attempts failed, using HTML scraping fallback')
         return await this.getNewAppsOnly(categoryUrl, limit)
+      }
+      
+      if (!response.data || !response.data.apps) {
+        console.log('No apps found in API response, using HTML scraping fallback')
+        return await this.getNewAppsOnly(categoryUrl, limit)
+      }
+      
+      const apiApps = response.data.apps
+      console.log(`Found ${apiApps.length} apps in API response`)
+      
+      // Convert API apps to URLs
+      const appUrls = apiApps.map((app: any) => {
+        if (app.custom_url) {
+          return `https://www.macupdate.com${app.custom_url}`
+        }
+        return null
+      }).filter(Boolean)
+      
+      console.log(`Converted ${appUrls.length} apps to URLs`)
+      
+      // Check which apps already exist in database
+      const { newApps, existingApps } = await this.checkExistingApps(appUrls)
+      
+      console.log(`Found ${newApps.length} new apps and ${existingApps.length} existing apps`)
+      
+      return {
+        appUrls: newApps,
+        totalApps: appUrls.length,
+        newApps: newApps.length,
+        existingApps: existingApps.length,
+        categoryName,
+        currentPage,
+        totalPages: Math.ceil((response.data.total || apiApps.length) / limit),
+        processedPages: [currentPage],
+        apiData: {
+          apps: apiApps,
+          total: response.data.total || apiApps.length
+        }
       }
       
     } catch (error) {
