@@ -282,8 +282,8 @@ export default function MacUpdateImportPage() {
       
       if (data.success) {
         setCategoryPreview(data)
-        if (data.newApps > 0) {
-          setSuccess(`Found ${data.newApps} apps on page ${data.pagination?.currentPage || 1} (${data.existingApps} already exist and were filtered out)`)
+        if (data.appUrls.length > 0) {
+          setSuccess(`Found ${data.appUrls.length} apps on page ${data.pagination?.currentPage || 1} (${data.existingApps} already exist and were filtered out)`)
         } else {
           setSuccess(`No new apps found on page ${data.pagination?.currentPage || 1}. All ${data.existingApps} apps on this page already exist in the database.`)
         }
@@ -684,7 +684,7 @@ export default function MacUpdateImportPage() {
                   <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
                     <Chip
                       icon={<CheckCircle />}
-                      label={`${categoryPreview.newApps} New Apps Available`}
+                      label={`${categoryPreview.appUrls.length} New Apps Available`}
                       color="success"
                       variant="outlined"
                     />
