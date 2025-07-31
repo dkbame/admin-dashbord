@@ -1113,16 +1113,16 @@ export class MacUpdateCategoryScraper {
   }
 
   /**
-   * Get only new apps that don't exist in the database
+   * Get only new apps that don't exist in the database (single page approach)
    */
   async getNewAppsOnly(categoryUrl: string, limit: number = 20): Promise<CategoryScrapingResult> {
     try {
-      console.log(`Getting new apps only from: ${categoryUrl}`)
+      console.log(`Getting new apps from single page: ${categoryUrl}`)
       
       // Extract category name from URL
       const categoryName = this.extractCategoryName(categoryUrl)
       
-      // Scrape the category page using axios + cheerio
+      // Scrape the category page (all apps are on one page)
       const response = await axios.get(categoryUrl, {
         timeout: 10000,
         headers: {
@@ -1135,14 +1135,14 @@ export class MacUpdateCategoryScraper {
         }
       })
       
-      // Extract app URLs from the embedded JSON data using regex
+      // Extract ALL app URLs from the page
       const allAppUrls: string[] = []
       const htmlContent = response.data
       
       // Look for custom_url patterns in the HTML
       const customUrlMatches = htmlContent.match(/"custom_url":"([^"]+)"/g)
       if (customUrlMatches) {
-        console.log(`Found ${customUrlMatches.length} custom_url matches`)
+        console.log(`Found ${customUrlMatches.length} total app URLs on the page`)
         customUrlMatches.forEach((match: string) => {
           const urlMatch = match.match(/"custom_url":"([^"]+)"/)
           if (urlMatch && urlMatch[1]) {
@@ -1156,28 +1156,97 @@ export class MacUpdateCategoryScraper {
         })
       }
       
-      console.log(`Found ${allAppUrls.length} total app URLs in category page`)
+      console.log(`Found ${allAppUrls.length} unique app URLs on the page`)
       
       // Check which apps already exist in database
       const { newApps, existingApps } = await this.checkExistingApps(allAppUrls)
       
-      // Limit the number of new apps
-      const limitedNewApps = newApps.slice(0, limit)
+      console.log(`Found ${newApps.length} new apps and ${existingApps.length} existing apps`)
+      
+      // Get the next batch of unprocessed apps
+      const processedCount = await this.getProcessedAppsCount(categoryUrl)
+      const startIndex = processedCount
+      const endIndex = Math.min(startIndex + limit, newApps.length)
+      const batchApps = newApps.slice(startIndex, endIndex)
+      
+      console.log(`Returning batch ${startIndex + 1}-${endIndex} of ${newApps.length} new apps`)
       
       return {
-        appUrls: limitedNewApps,
+        appUrls: batchApps,
         totalApps: allAppUrls.length,
-        newApps: limitedNewApps.length,
+        newApps: batchApps.length,
         existingApps: existingApps.length,
         categoryName,
-        currentPage: 1,
-        totalPages: 1,
-        processedPages: []
+        currentPage: Math.floor(startIndex / limit) + 1,
+        totalPages: Math.ceil(newApps.length / limit),
+        processedPages: [Math.floor(startIndex / limit) + 1] // Track current batch
       }
       
     } catch (error) {
-      console.error('Error getting new apps only:', error)
+      console.error('Error getting new apps:', error)
       throw new Error(`Failed to get new apps: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  /**
+   * Get count of processed apps for a category
+   */
+  private async getProcessedAppsCount(categoryUrl: string): Promise<number> {
+    try {
+      // Get all import sessions for this category URL
+      const { data: sessions, error } = await supabase
+        .from('import_sessions')
+        .select('*')
+        .eq('category_url', categoryUrl)
+        .not('completed_at', 'is', null) // Only completed sessions
+
+      if (error) {
+        console.error('Error getting import sessions:', error)
+        return 0
+      }
+
+      // Count total apps imported from all sessions
+      let totalProcessed = 0
+      sessions?.forEach(session => {
+        totalProcessed += session.apps_imported || 0
+      })
+
+      console.log(`Found ${totalProcessed} processed apps for category`)
+      return totalProcessed
+    } catch (error) {
+      console.error('Error getting processed apps count:', error)
+      return 0
+    }
+  }
+
+  /**
+   * Mark apps as processed by creating an import session
+   */
+  async markAppsAsProcessed(categoryUrl: string, appsProcessed: number, categoryName: string): Promise<void> {
+    try {
+      const sessionName = `${categoryName} - Batch ${new Date().toISOString().split('T')[0]}`
+      console.log(`📝 Creating import session: ${sessionName}`)
+      
+      const { data, error } = await supabase
+        .from('import_sessions')
+        .insert([{
+          session_name: sessionName,
+          category_url: categoryUrl,
+          source_type: 'BULK_CATEGORY',
+          apps_imported: appsProcessed,
+          apps_skipped: 0,
+          completed_at: new Date().toISOString()
+        }])
+        .select()
+
+      if (error) {
+        console.error('❌ Error marking apps as processed:', error)
+      } else {
+        console.log(`✅ Successfully marked ${appsProcessed} apps as processed for ${categoryName}`)
+        console.log('📊 Created session:', data)
+      }
+    } catch (error) {
+      console.error('❌ Error marking apps as processed:', error)
     }
   }
 

@@ -278,7 +278,7 @@ export default function MacUpdateImportPage() {
       
       if (data.success) {
         setCategoryPreview(data)
-        setSuccess(`Found ${data.newApps} new apps in ${data.categoryName} (${data.existingApps} already exist and were filtered out)`)
+        setSuccess(`Found ${data.newApps} new apps in batch ${data.pagination?.currentPage || 1} of ${data.pagination?.totalPages || 1} (${data.existingApps} already exist and were filtered out)`)
       } else {
         setError(data.error || 'Failed to scrape category')
       }
@@ -563,16 +563,16 @@ export default function MacUpdateImportPage() {
               {/* Category Import */}
               <Box>
                 <Typography variant="subtitle1" gutterBottom>
-                  Category Import (New Apps Only)
+                  Category Import (Batch Processing)
                 </Typography>
                 <TextField
                   fullWidth
                   label="MacUpdate Category URL"
-                  placeholder="https://www.macupdate.com/explore/categories/developer-tools"
+                  placeholder="https://www.macupdate.com/explore/categories/photography"
                   value={categoryUrl}
                   onChange={(e) => setCategoryUrl(e.target.value)}
                   sx={{ mb: 2 }}
-                  helperText="Enter a MacUpdate category URL - only shows apps not already in database"
+                  helperText="Enter a MacUpdate category URL - processes apps in batches of 20"
                 />
                 <Button
                   fullWidth
@@ -582,7 +582,7 @@ export default function MacUpdateImportPage() {
                   disabled={isCategoryScraping || isImporting || !categoryUrl.trim()}
                   sx={{ mb: 2 }}
                 >
-                  {isCategoryScraping ? 'Scraping Category...' : 'Scrape New Apps Only'}
+                  {isCategoryScraping ? 'Scraping Category...' : 'Scrape Next Batch'}
                 </Button>
               </Box>
 
@@ -670,10 +670,10 @@ export default function MacUpdateImportPage() {
                   {categoryPreview.pagination && (
                     <Box sx={{ mb: 2 }}>
                       <Typography variant="body2" color="text.secondary" gutterBottom>
-                        Page {categoryPreview.pagination.currentPage} of {categoryPreview.pagination.totalPages}
+                        Batch {categoryPreview.pagination.currentPage} of {categoryPreview.pagination.totalPages}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {categoryPreview.pagination.processedPages.length} pages already processed
+                        Processing apps in batches of 20
                       </Typography>
                     </Box>
                   )}

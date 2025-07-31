@@ -17,12 +17,12 @@ export async function POST(request: NextRequest) {
 
     const categoryScraper = new MacUpdateCategoryScraper()
     
-    // Use the new pagination method that gets the next unprocessed page
-    const result = await categoryScraper.getNewAppsOnlyWithPagination(categoryUrl, limit)
+    // Use the new single-page method that gets the next batch of unprocessed apps
+    const result = await categoryScraper.getNewAppsOnly(categoryUrl, limit)
     
     // Get preview data for each new app
     const appPreviews = []
-    for (const appUrl of result.appUrls) { // Show all apps, not just first 10
+    for (const appUrl of result.appUrls) { // Show all apps in the batch
       try {
         const preview = await categoryScraper.getAppPreview(appUrl)
         if (preview) {
@@ -35,6 +35,9 @@ export async function POST(request: NextRequest) {
         console.error('Error getting preview for:', appUrl, error)
       }
     }
+
+    // Mark this batch as processed
+    await categoryScraper.markAppsAsProcessed(categoryUrl, result.newApps, result.categoryName)
 
     return NextResponse.json({
       success: true,
