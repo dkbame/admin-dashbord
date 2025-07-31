@@ -1167,7 +1167,7 @@ export class MacUpdateCategoryScraper {
    */
   private async scrapeMultiplePages(categoryUrl: string): Promise<string[]> {
     const allAppUrls: string[] = [];
-    const maxPages = 3; // Reduce to 3 pages to avoid timeout (3 pages × 20 apps = 60 apps)
+    const maxPages = 2; // Reduced to 2 pages to avoid timeout (2 pages × 10 apps = 20 apps max)
     
     console.log(`Starting HTML scraping for up to ${maxPages} pages (optimized for serverless timeout)...`);
     
@@ -1201,9 +1201,9 @@ export class MacUpdateCategoryScraper {
           break;
         }
         
-        // Reduced delay to avoid timeout (only wait 200ms between requests)
+        // Minimal delay to avoid timeout (only wait 100ms between requests)
         if (page < maxPages) {
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
         
       } catch (error) {
@@ -1298,7 +1298,7 @@ export class MacUpdateCategoryScraper {
       console.log(`Scraping with axios: ${categoryUrl}`)
       
       const response = await axios.get(categoryUrl, {
-        timeout: 8000, // Reduced timeout to avoid function timeout
+        timeout: 5000, // Further reduced timeout to avoid function timeout
         headers: {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -1604,7 +1604,7 @@ export class MacUpdateCategoryScraper {
   async getAppPreview(appUrl: string): Promise<Partial<MacUpdateApp> | null> {
     try {
       const response = await axios.get(appUrl, {
-        timeout: 10000,
+        timeout: 6000, // Reduced timeout to avoid function timeout
         headers: {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',

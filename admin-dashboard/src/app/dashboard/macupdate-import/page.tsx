@@ -266,7 +266,8 @@ export default function MacUpdateImportPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           categoryUrl: categoryUrl.trim(),
-          limit: 20
+          limit: 10, // Reduced limit to prevent timeout
+          preview: true // Keep preview data for UI
         })
       })
       
@@ -578,6 +579,12 @@ export default function MacUpdateImportPage() {
                   sx={{ mb: 2 }}
                   helperText="Enter a MacUpdate category URL - uses reliable HTML scraping with API fallback"
                 />
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Optimized for reliability:</strong> Limited to 10 apps per batch with timeout protection. 
+                    For large categories, scrape multiple batches to get all apps.
+                  </Typography>
+                </Alert>
                 <Button
                   fullWidth
                   variant="outlined"

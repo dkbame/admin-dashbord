@@ -3,9 +3,14 @@ import { MacUpdateCategoryScraper } from '@/lib/macupdate-scraper'
 
 export const dynamic = 'force-dynamic'
 
+// Set a maximum execution time to prevent timeouts
+const MAX_EXECUTION_TIME = 25000 // 25 seconds (leaving 5 seconds buffer for Netlify's 30s limit)
+
 export async function POST(request: NextRequest) {
+  const startTime = Date.now()
+  
   try {
-    const { categoryUrl, limit = 20 } = await request.json()
+    const { categoryUrl, limit = 10, preview = true } = await request.json() // Added preview option
 
     if (!categoryUrl) {
       return NextResponse.json({ 
@@ -13,30 +18,146 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log('Scraping category using HTML scraping:', categoryUrl, 'with limit:', limit)
+    console.log('Scraping category with optimized timeout handling:', categoryUrl, 'with limit:', limit, 'preview:', preview)
 
     const categoryScraper = new MacUpdateCategoryScraper()
     
-    // Use HTML scraping since MacUpdate API returns 500 errors in server environments
+    // Check execution time periodically
+    const checkTimeout = () => {
+      if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+        throw new Error('Request timeout - operation taking too long')
+      }
+    }
+    
+    // Use HTML scraping with reduced workload
     const result = await categoryScraper.getAppsFromAPI(categoryUrl, limit)
     
-    // Get preview data for each new app using API data
-    const appPreviews = []
+    checkTimeout()
     
-    // If we have API data, use it directly
-    if (result.apiData && result.apiData.apps) {
-      for (const appData of result.apiData.apps) {
-        const preview = await categoryScraper.getAppPreviewFromAPI(appData)
-        if (preview) {
-          appPreviews.push({
-            ...preview,
-            url: preview.macupdate_url || ''
-          })
+    let appPreviews = []
+    
+    // Only get preview data if requested and we have time
+    if (preview) {
+      // Get preview data for only the first few apps to avoid timeout
+      const maxPreviews = Math.min(5, result.appUrls.length) // Limit to 5 previews max
+      
+      // If we have API data, use it directly (faster)
+      if (result.apiData && result.apiData.apps) {
+        for (let i = 0; i < Math.min(maxPreviews, result.apiData.apps.length); i++) {
+          checkTimeout()
+          const appData = result.apiData.apps[i]
+          const preview = await categoryScraper.getAppPreviewFromAPI(appData)
+          if (preview) {
+            appPreviews.push({
+              ...preview,
+              url: preview.macupdate_url || ''
+            })
+          }
+        }
+      } else {
+        // Fallback to individual page scraping (limited)
+        for (let i = 0; i < maxPreviews; i++) {
+          checkTimeout()
+          const appUrl = result.appUrls[i]
+          try {
+            const preview = await categoryScraper.getAppPreview(appUrl)
+            if (preview) {
+              appPreviews.push({
+                ...preview,
+                url: appUrl
+              })
+            }
+          } catch (error) {
+            console.error('Error getting preview for:', appUrl, error)
+          }
         }
       }
+    }
+
+    checkTimeout()
+
+    // Mark this batch as processed only if there are apps to process
+    if (result.newApps > 0) {
+      await categoryScraper.markAppsAsProcessed(categoryUrl, result.newApps, result.categoryName)
     } else {
-      // Fallback to individual page scraping
-      for (const appUrl of result.appUrls) {
+      console.log('No new apps to process, skipping import session creation')
+    }
+
+    const executionTime = Date.now() - startTime
+    console.log(`Category scraping completed in ${executionTime}ms`)
+
+    return NextResponse.json({
+      success: true,
+      categoryName: result.categoryName,
+      totalApps: result.totalApps,
+      newApps: result.newApps,
+      existingApps: result.existingApps,
+      appUrls: result.appUrls,
+      appPreviews,
+      pagination: {
+        currentPage: result.currentPage,
+        totalPages: result.totalPages,
+        processedPages: result.processedPages
+      },
+      executionTime,
+      note: preview && appPreviews.length < result.appUrls.length ? 
+        `Limited to ${appPreviews.length} previews to prevent timeout` : 
+        preview ? 'All app previews retrieved' : 'Preview data skipped for speed'
+    })
+
+  } catch (error) {
+    const executionTime = Date.now() - startTime
+    console.error('Category scraping error:', error, `(execution time: ${executionTime}ms)`)
+    
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Failed to scrape category',
+      executionTime,
+      suggestion: 'Try reducing the limit, setting preview=false, or check the category URL'
+    }, { status: 500 })
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const startTime = Date.now()
+  
+  try {
+    const { searchParams } = new URL(request.url)
+    const categoryUrl = searchParams.get('url')
+    const limit = parseInt(searchParams.get('limit') || '10') // Reduced default limit
+    const preview = searchParams.get('preview') !== 'false' // Default to true unless explicitly false
+
+    if (!categoryUrl) {
+      return NextResponse.json({ 
+        error: 'Category URL is required' 
+      }, { status: 400 })
+    }
+
+    console.log('Scraping category for NEW apps only (GET) with timeout protection:', categoryUrl, 'with limit:', limit, 'preview:', preview)
+
+    const categoryScraper = new MacUpdateCategoryScraper()
+    
+    // Check execution time periodically
+    const checkTimeout = () => {
+      if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+        throw new Error('Request timeout - operation taking too long')
+      }
+    }
+    
+    // Use the new pagination method that gets the next unprocessed page
+    const result = await categoryScraper.getNewAppsOnlyWithPagination(categoryUrl, limit)
+    
+    checkTimeout()
+    
+    let appPreviews = []
+    
+    // Only get preview data if requested and we have time
+    if (preview) {
+      // Get preview data for only the first few apps to avoid timeout
+      const maxPreviews = Math.min(5, result.appUrls.length) // Limit to 5 previews max
+      
+      for (let i = 0; i < maxPreviews; i++) {
+        checkTimeout()
+        const appUrl = result.appUrls[i]
         try {
           const preview = await categoryScraper.getAppPreview(appUrl)
           if (preview) {
@@ -51,12 +172,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Mark this batch as processed only if there are apps to process
-    if (result.newApps > 0) {
-      await categoryScraper.markAppsAsProcessed(categoryUrl, result.newApps, result.categoryName)
-    } else {
-      console.log('No new apps to process, skipping import session creation')
-    }
+    const executionTime = Date.now() - startTime
+    console.log(`GET category scraping completed in ${executionTime}ms`)
 
     return NextResponse.json({
       success: true,
@@ -70,71 +187,21 @@ export async function POST(request: NextRequest) {
         currentPage: result.currentPage,
         totalPages: result.totalPages,
         processedPages: result.processedPages
-      }
+      },
+      executionTime,
+      note: preview && appPreviews.length < result.appUrls.length ? 
+        `Limited to ${appPreviews.length} previews to prevent timeout` : 
+        preview ? 'All app previews retrieved' : 'Preview data skipped for speed'
     })
 
   } catch (error) {
-    console.error('Category scraping error:', error)
-    return NextResponse.json({
-      error: error instanceof Error ? error.message : 'Failed to scrape category'
-    }, { status: 500 })
-  }
-}
-
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const categoryUrl = searchParams.get('url')
-    const limit = parseInt(searchParams.get('limit') || '20')
-
-    if (!categoryUrl) {
-      return NextResponse.json({ 
-        error: 'Category URL is required' 
-      }, { status: 400 })
-    }
-
-    console.log('Scraping category for NEW apps only (GET):', categoryUrl, 'with limit:', limit)
-
-    const categoryScraper = new MacUpdateCategoryScraper()
+    const executionTime = Date.now() - startTime
+    console.error('Category scraping error:', error, `(execution time: ${executionTime}ms)`)
     
-    // Use the new pagination method that gets the next unprocessed page
-    const result = await categoryScraper.getNewAppsOnlyWithPagination(categoryUrl, limit)
-    
-    // Get preview data for each new app
-    const appPreviews = []
-    for (const appUrl of result.appUrls) { // Show all apps, not just first 10
-      try {
-        const preview = await categoryScraper.getAppPreview(appUrl)
-        if (preview) {
-          appPreviews.push({
-            ...preview,
-            url: appUrl
-          })
-        }
-      } catch (error) {
-        console.error('Error getting preview for:', appUrl, error)
-      }
-    }
-
     return NextResponse.json({
-      success: true,
-      categoryName: result.categoryName,
-      totalApps: result.totalApps,
-      newApps: result.newApps,
-      existingApps: result.existingApps,
-      appUrls: result.appUrls,
-      appPreviews,
-      pagination: {
-        currentPage: result.currentPage,
-        totalPages: result.totalPages,
-        processedPages: result.processedPages
-      }
-    })
-
-  } catch (error) {
-    console.error('Category scraping error:', error)
-    return NextResponse.json({
-      error: error instanceof Error ? error.message : 'Failed to scrape category'
+      error: error instanceof Error ? error.message : 'Failed to scrape category',
+      executionTime,
+      suggestion: 'Try reducing the limit, setting preview=false, or check the category URL'
     }, { status: 500 })
   }
 } 
