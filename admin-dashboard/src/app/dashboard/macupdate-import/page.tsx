@@ -137,7 +137,8 @@ export default function MacUpdateImportPage() {
   const [stats, setStats] = useState({
     totalApps: 0,
     macUpdateApps: 0,
-    recentImports: 0
+    recentImports: 0,
+    recentSessions: []
   })
 
   // Load stats on component mount
@@ -272,7 +273,7 @@ export default function MacUpdateImportPage() {
       
       if (data.success) {
         setCategoryPreview(data)
-        setSuccess(`Found ${data.newApps} new apps in ${data.categoryName} (${data.existingApps} already exist)`)
+        setSuccess(`Found ${data.newApps} new apps in ${data.categoryName} (${data.existingApps} already exist and were filtered out)`)
       } else {
         setError(data.error || 'Failed to scrape category')
       }
@@ -464,6 +465,35 @@ export default function MacUpdateImportPage() {
         </Grid>
       </Grid>
 
+      {/* Recent Import Sessions */}
+      {stats.recentSessions && stats.recentSessions.length > 0 && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Recent Import Sessions
+            </Typography>
+            <List dense>
+              {stats.recentSessions.slice(0, 5).map((session: any, index: number) => (
+                <ListItem key={index} divider>
+                  <ListItemText
+                    primary={session.session_name}
+                    secondary={`${session.apps_imported} imported, ${session.apps_skipped} skipped • ${new Date(session.created_at).toLocaleDateString()}`}
+                  />
+                  <ListItemSecondaryAction>
+                    <Chip
+                      size="small"
+                      label={session.source_type}
+                      color="primary"
+                      variant="outlined"
+                    />
+                  </ListItemSecondaryAction>
+                </ListItem>
+              ))}
+            </List>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Error/Success Messages */}
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
@@ -528,7 +558,7 @@ export default function MacUpdateImportPage() {
               {/* Category Import */}
               <Box>
                 <Typography variant="subtitle1" gutterBottom>
-                  Category Import (0-20 Apps)
+                  Category Import (New Apps Only)
                 </Typography>
                 <TextField
                   fullWidth
@@ -537,7 +567,7 @@ export default function MacUpdateImportPage() {
                   value={categoryUrl}
                   onChange={(e) => setCategoryUrl(e.target.value)}
                   sx={{ mb: 2 }}
-                  helperText="Enter a MacUpdate category URL"
+                  helperText="Enter a MacUpdate category URL - only shows apps not already in database"
                 />
                 <Button
                   fullWidth
@@ -547,7 +577,7 @@ export default function MacUpdateImportPage() {
                   disabled={isCategoryScraping || isImporting || !categoryUrl.trim()}
                   sx={{ mb: 2 }}
                 >
-                  {isCategoryScraping ? 'Scraping Category...' : 'Scrape Category'}
+                  {isCategoryScraping ? 'Scraping Category...' : 'Scrape New Apps Only'}
                 </Button>
               </Box>
 
@@ -613,19 +643,19 @@ export default function MacUpdateImportPage() {
                   <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
                     <Chip
                       icon={<CheckCircle />}
-                      label={`${categoryPreview.newApps} New Apps`}
+                      label={`${categoryPreview.newApps} New Apps Available`}
                       color="success"
                       variant="outlined"
                     />
                     <Chip
                       icon={<Warning />}
-                      label={`${categoryPreview.existingApps} Already Exist`}
+                      label={`${categoryPreview.existingApps} Already Exist (Filtered Out)`}
                       color="warning"
                       variant="outlined"
                     />
                     <Chip
                       icon={<Info />}
-                      label={`${selectedApps.length} Selected`}
+                      label={`${selectedApps.length} Selected for Import`}
                       color="primary"
                       variant="outlined"
                     />
@@ -640,7 +670,7 @@ export default function MacUpdateImportPage() {
                           onClick={handleSelectAllApps}
                           disabled={selectedApps.length === categoryPreview.appUrls.length}
                         >
-                          Select All
+                          Select All New Apps
                         </Button>
                         <Button
                           size="small"
@@ -695,7 +725,7 @@ export default function MacUpdateImportPage() {
               {categoryPreview && categoryPreview.appPreviews.length > 0 && (
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" gutterBottom>
-                    Available Apps
+                    New Apps Available for Import
                   </Typography>
                   <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
                     <Table size="small">

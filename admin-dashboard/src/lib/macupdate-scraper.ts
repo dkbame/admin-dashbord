@@ -1034,25 +1034,212 @@ export class MacUpdateCategoryScraper {
     
     for (const url of appUrls) {
       try {
-        // Check if app exists by URL
-        const { data: existingApp } = await supabase
+        // Check if app exists by URL first
+        const { data: existingAppByUrl } = await supabase
           .from('apps')
-          .select('id')
+          .select('id, name')
           .eq('macupdate_url', url)
           .single()
         
-        if (existingApp) {
+        if (existingAppByUrl) {
           existingApps.push(url)
-        } else {
-          newApps.push(url)
+          continue
         }
+        
+        // If not found by URL, check by name (extract name from URL)
+        const appName = this.extractAppNameFromUrl(url)
+        if (appName) {
+          const { data: existingAppByName } = await supabase
+            .from('apps')
+            .select('id, name')
+            .ilike('name', appName)
+            .single()
+          
+          if (existingAppByName) {
+            existingApps.push(url)
+            continue
+          }
+        }
+        
+        // App doesn't exist, add to new apps
+        newApps.push(url)
       } catch (error) {
         // App doesn't exist, add to new apps
         newApps.push(url)
       }
     }
     
+    console.log(`Found ${newApps.length} new apps and ${existingApps.length} existing apps`)
     return { newApps, existingApps }
+  }
+
+  /**
+   * Extract app name from MacUpdate URL
+   */
+  private extractAppNameFromUrl(url: string): string | null {
+    try {
+      const urlObj = new URL(url)
+      const hostname = urlObj.hostname
+      
+      // Extract subdomain (app name) from hostname
+      // e.g., "istat-menus.macupdate.com" -> "istat-menus"
+      const subdomain = hostname.split('.')[0]
+      
+      if (subdomain && subdomain !== 'www') {
+        // Convert kebab-case to Title Case
+        return subdomain
+          .split('-')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ')
+      }
+      
+      return null
+    } catch (error) {
+      return null
+    }
+  }
+
+  /**
+   * Get only new apps that don't exist in the database
+   */
+  async getNewAppsOnly(categoryUrl: string, limit: number = 20): Promise<CategoryScrapingResult> {
+    try {
+      console.log(`Getting new apps only from: ${categoryUrl}`)
+      
+      // Extract category name from URL
+      const categoryName = this.extractCategoryName(categoryUrl)
+      
+      // Scrape the category page using axios + cheerio
+      const response = await axios.get(categoryUrl, {
+        timeout: 10000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1'
+        }
+      })
+      
+      // Extract app URLs from the embedded JSON data using regex
+      const allAppUrls: string[] = []
+      const htmlContent = response.data
+      
+      // Look for custom_url patterns in the HTML
+      const customUrlMatches = htmlContent.match(/"custom_url":"([^"]+)"/g)
+      if (customUrlMatches) {
+        console.log(`Found ${customUrlMatches.length} custom_url matches`)
+        customUrlMatches.forEach((match: string) => {
+          const urlMatch = match.match(/"custom_url":"([^"]+)"/)
+          if (urlMatch && urlMatch[1]) {
+            const url = urlMatch[1]
+            if (this.isValidAppUrl(url)) {
+              if (!allAppUrls.includes(url)) {
+                allAppUrls.push(url)
+              }
+            }
+          }
+        })
+      }
+      
+      console.log(`Found ${allAppUrls.length} total app URLs in category page`)
+      
+      // Check which apps already exist in database
+      const { newApps, existingApps } = await this.checkExistingApps(allAppUrls)
+      
+      // Limit the number of new apps
+      const limitedNewApps = newApps.slice(0, limit)
+      
+      return {
+        appUrls: limitedNewApps,
+        totalApps: allAppUrls.length,
+        newApps: limitedNewApps.length,
+        existingApps: existingApps.length,
+        categoryName
+      }
+      
+    } catch (error) {
+      console.error('Error getting new apps only:', error)
+      throw new Error(`Failed to get new apps: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  /**
+   * Create an import session to track the import process
+   */
+  async createImportSession(sessionName: string, categoryUrl?: string): Promise<string> {
+    try {
+      const { data, error } = await supabase
+        .from('import_sessions')
+        .insert([{
+          session_name: sessionName,
+          category_url: categoryUrl,
+          source_type: categoryUrl ? 'BULK_CATEGORY' : 'MANUAL'
+        }])
+        .select('id')
+        .single()
+
+      if (error) {
+        console.error('Error creating import session:', error)
+        throw error
+      }
+
+      console.log('Created import session:', data.id)
+      return data.id
+    } catch (error) {
+      console.error('Failed to create import session:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Complete an import session
+   */
+  async completeImportSession(sessionId: string, appsImported: number, appsSkipped: number): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('import_sessions')
+        .update({
+          apps_imported: appsImported,
+          apps_skipped: appsSkipped,
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', sessionId)
+
+      if (error) {
+        console.error('Error completing import session:', error)
+        throw error
+      }
+
+      console.log('Completed import session:', sessionId)
+    } catch (error) {
+      console.error('Failed to complete import session:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get recent import sessions
+   */
+  async getRecentImportSessions(limit: number = 10): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('recent_import_sessions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit)
+
+      if (error) {
+        console.error('Error getting recent import sessions:', error)
+        throw error
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Failed to get recent import sessions:', error)
+      return []
+    }
   }
 
   /**

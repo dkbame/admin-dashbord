@@ -1,25 +1,50 @@
-import { NextResponse } from 'next/server'
-import { getImportStats } from '@/lib/macupdate-db'
+import { NextRequest, NextResponse } from 'next/server'
+import { supabase } from '@/lib/supabase'
+import { MacUpdateCategoryScraper } from '@/lib/macupdate-scraper'
 
-// Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const stats = await getImportStats()
-    
-    return NextResponse.json(stats)
-    
+    // Get basic stats
+    const [
+      { count: totalApps },
+      { count: macUpdateApps },
+      { count: recentImports },
+      recentSessions
+    ] = await Promise.all([
+      // Total apps
+      supabase
+        .from('apps')
+        .select('*', { count: 'exact', head: true }),
+      
+      // MacUpdate apps
+      supabase
+        .from('apps')
+        .select('*', { count: 'exact', head: true })
+        .eq('source', 'MACUPDATE'),
+      
+      // Recent imports (last 7 days)
+      supabase
+        .from('apps')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
+      
+      // Recent import sessions
+      new MacUpdateCategoryScraper().getRecentImportSessions(5)
+    ])
+
+    return NextResponse.json({
+      totalApps: totalApps || 0,
+      macUpdateApps: macUpdateApps || 0,
+      recentImports: recentImports || 0,
+      recentSessions: recentSessions || []
+    })
+
   } catch (error) {
     console.error('Error getting import stats:', error)
-    
-    return NextResponse.json(
-      { 
-        totalApps: 0,
-        macUpdateApps: 0,
-        recentImports: 0
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Failed to get import stats'
+    }, { status: 500 })
   }
 } 

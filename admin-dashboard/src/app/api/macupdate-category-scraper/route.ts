@@ -13,14 +13,14 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log('Scraping category:', categoryUrl, 'with limit:', limit)
+    console.log('Scraping category for NEW apps only:', categoryUrl, 'with limit:', limit)
 
     const categoryScraper = new MacUpdateCategoryScraper()
     
-    // Scrape the category page
-    const result = await categoryScraper.scrapeCategoryPage(categoryUrl, limit)
+    // Use the new method that only returns apps that don't exist in database
+    const result = await categoryScraper.getNewAppsOnly(categoryUrl, limit)
     
-    // Get preview data for each app
+    // Get preview data for each new app
     const appPreviews = []
     for (const appUrl of result.appUrls.slice(0, 10)) { // Limit previews to 10 for performance
       try {
@@ -66,14 +66,14 @@ export async function GET(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log('Scraping category (GET):', categoryUrl, 'with limit:', limit)
+    console.log('Scraping category for NEW apps only (GET):', categoryUrl, 'with limit:', limit)
 
     const categoryScraper = new MacUpdateCategoryScraper()
     
-    // Scrape the category page
-    const result = await categoryScraper.scrapeCategoryPage(categoryUrl, limit)
+    // Use the new method that only returns apps that don't exist in database
+    const result = await categoryScraper.getNewAppsOnly(categoryUrl, limit)
     
-    // Get preview data for each app
+    // Get preview data for each new app
     const appPreviews = []
     for (const appUrl of result.appUrls.slice(0, 10)) { // Limit previews to 10 for performance
       try {
