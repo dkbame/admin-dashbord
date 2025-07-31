@@ -1351,7 +1351,9 @@ export class MacUpdateCategoryScraper {
       const allAppUrls: string[] = [];
       const htmlContent = response.data;
       
-      // Look for custom_url patterns in the HTML
+      console.log(`HTML content length: ${htmlContent.length} characters`);
+      
+      // Pattern 1: Look for custom_url patterns in the HTML
       const customUrlMatches = htmlContent.match(/"custom_url":"([^"]+)"/g);
       if (customUrlMatches) {
         console.log(`Found ${customUrlMatches.length} custom_url matches in HTML`);
@@ -1366,7 +1368,7 @@ export class MacUpdateCategoryScraper {
         });
       }
       
-      // Also look for app links in the HTML structure
+      // Pattern 2: Look for app links in the HTML structure
       const appLinkMatches = htmlContent.match(/href="\/app\/[^"]+"/g);
       if (appLinkMatches) {
         console.log(`Found ${appLinkMatches.length} app link matches in HTML`);
@@ -1381,7 +1383,63 @@ export class MacUpdateCategoryScraper {
         });
       }
       
-      console.log(`Found ${allAppUrls.length} unique app URLs with axios scraping`);
+      // Pattern 3: Look for JSON data embedded in the HTML
+      const jsonMatches = htmlContent.match(/window\.__INITIAL_STATE__\s*=\s*({[^<]+})/g);
+      if (jsonMatches) {
+        console.log(`Found ${jsonMatches.length} JSON data matches in HTML`);
+        jsonMatches.forEach((match: string) => {
+          try {
+            const jsonMatch = match.match(/window\.__INITIAL_STATE__\s*=\s*({.+})/);
+            if (jsonMatch && jsonMatch[1]) {
+              const jsonData = JSON.parse(jsonMatch[1]);
+              console.log('Found JSON data structure:', Object.keys(jsonData));
+              // Look for apps in the JSON structure
+              this.extractAppsFromJson(jsonData, allAppUrls);
+            }
+          } catch (error) {
+            console.log('Error parsing JSON data:', error);
+          }
+        });
+      }
+      
+      // Pattern 4: Look for script tags with app data
+      const scriptMatches = htmlContent.match(/<script[^>]*>([^<]+)<\/script>/g);
+      if (scriptMatches) {
+        console.log(`Found ${scriptMatches.length} script tags in HTML`);
+        scriptMatches.forEach((script: string) => {
+          // Look for app data in script content
+          const appDataMatches = script.match(/"custom_url":"([^"]+)"/g);
+          if (appDataMatches) {
+            console.log(`Found ${appDataMatches.length} app data matches in script`);
+            appDataMatches.forEach((match: string) => {
+              const urlMatch = match.match(/"custom_url":"([^"]+)"/);
+              if (urlMatch && urlMatch[1]) {
+                const url = urlMatch[1];
+                if (this.isValidAppUrl(url) && !allAppUrls.includes(url)) {
+                  allAppUrls.push(url);
+                }
+              }
+            });
+          }
+        });
+      }
+      
+      // Pattern 5: Look for data attributes that might contain app URLs
+      const dataUrlMatches = htmlContent.match(/data-url="([^"]+)"/g);
+      if (dataUrlMatches) {
+        console.log(`Found ${dataUrlMatches.length} data-url matches in HTML`);
+        dataUrlMatches.forEach((match: string) => {
+          const urlMatch = match.match(/data-url="([^"]+)"/);
+          if (urlMatch && urlMatch[1]) {
+            const url = urlMatch[1];
+            if (this.isValidAppUrl(url) && !allAppUrls.includes(url)) {
+              allAppUrls.push(url);
+            }
+          }
+        });
+      }
+      
+      console.log(`Found ${allAppUrls.length} unique app URLs with enhanced axios scraping`);
       
       // If we found very few apps, it might mean they're loaded via JavaScript
       if (allAppUrls.length < 10) {
@@ -1394,6 +1452,35 @@ export class MacUpdateCategoryScraper {
     } catch (error) {
       console.error('Error with axios scraping:', error);
       return [];
+    }
+  }
+
+  /**
+   * Extract app URLs from JSON data structure
+   */
+  private extractAppsFromJson(jsonData: any, allAppUrls: string[]): void {
+    try {
+      // Recursively search for custom_url patterns in JSON
+      const searchJson = (obj: any): void => {
+        if (typeof obj === 'object' && obj !== null) {
+          for (const key in obj) {
+            if (key === 'custom_url' && typeof obj[key] === 'string') {
+              const url = obj[key];
+              if (this.isValidAppUrl(url) && !allAppUrls.includes(url)) {
+                allAppUrls.push(url);
+              }
+            } else if (Array.isArray(obj[key])) {
+              obj[key].forEach((item: any) => searchJson(item));
+            } else if (typeof obj[key] === 'object') {
+              searchJson(obj[key]);
+            }
+          }
+        }
+      };
+      
+      searchJson(jsonData);
+    } catch (error) {
+      console.log('Error extracting apps from JSON:', error);
     }
   }
 
