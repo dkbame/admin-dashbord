@@ -1802,19 +1802,24 @@ export class MacUpdateCategoryScraper {
 
       console.log('🔍 Looking for processed pages for category URL:', categoryUrl)
 
-      // First, check if there are any apps in the database for this category
+      // Extract category name from URL to check for apps in this specific category
+      const categoryName = this.extractCategoryName(categoryUrl)
+      console.log(`📂 Checking for apps in category: ${categoryName}`)
+
+      // Check if there are any apps in the database for this specific category
       const { count: appCount, error: countError } = await supabase
         .from('apps')
         .select('*', { count: 'exact', head: true })
+        .eq('category', categoryName)
 
       if (countError) {
-        console.error('❌ Error checking app count:', countError)
+        console.error('❌ Error checking app count for category:', countError)
       } else {
-        console.log(`📊 Total apps in database: ${appCount}`)
+        console.log(`📊 Apps in category "${categoryName}": ${appCount}`)
         
-        // If no apps exist in the database, reset page tracking
+        // If no apps exist in this category, reset page tracking
         if (appCount === 0) {
-          console.log('🔄 No apps in database, resetting page tracking to start from page 1')
+          console.log(`🔄 No apps in category "${categoryName}", resetting page tracking to start from page 1`)
           await this.clearImportSessionsForCategory(categoryUrl)
           return []
         }
