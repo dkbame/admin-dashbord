@@ -1494,14 +1494,70 @@ export class MacUpdateCategoryScraper {
   /**
    * Get processed pages for a category from import sessions
    */
-  private async getProcessedPagesForCategory(): Promise<number[]> {
+  private async getProcessedPagesForCategory(categoryUrl?: string): Promise<number[]> {
     try {
-      // This would need to be implemented based on how we track processed pages
-      // For now, return empty array - we'll implement this properly
-      return []
+      if (!categoryUrl) {
+        return []
+      }
+
+      // Get all import sessions for this category URL
+      const { data: sessions, error } = await supabase
+        .from('import_sessions')
+        .select('*')
+        .eq('category_url', categoryUrl)
+        .not('completed_at', 'is', null) // Only completed sessions
+
+      if (error) {
+        console.error('Error getting import sessions:', error)
+        return []
+      }
+
+      // Extract page numbers from session names
+      const processedPages: number[] = []
+      sessions?.forEach(session => {
+        // Session names should be like "Photography - Page 1", "Photography - Page 2", etc.
+        const pageMatch = session.session_name.match(/Page (\d+)/)
+        if (pageMatch && pageMatch[1]) {
+          const pageNum = parseInt(pageMatch[1])
+          if (!isNaN(pageNum) && !processedPages.includes(pageNum)) {
+            processedPages.push(pageNum)
+          }
+        }
+      })
+
+      console.log(`Found ${processedPages.length} processed pages for category:`, processedPages)
+      return processedPages.sort((a, b) => a - b)
     } catch (error) {
       console.error('Error getting processed pages:', error)
       return []
+    }
+  }
+
+  /**
+   * Mark a page as processed by creating an import session
+   */
+  private async markPageAsProcessed(categoryUrl: string, pageNumber: number, categoryName: string): Promise<void> {
+    try {
+      const sessionName = `${categoryName} - Page ${pageNumber}`
+      
+      const { error } = await supabase
+        .from('import_sessions')
+        .insert([{
+          session_name: sessionName,
+          category_url: categoryUrl,
+          source_type: 'BULK_PAGE',
+          apps_imported: 0,
+          apps_skipped: 0,
+          completed_at: new Date().toISOString()
+        }])
+
+      if (error) {
+        console.error('Error marking page as processed:', error)
+      } else {
+        console.log(`Marked page ${pageNumber} as processed for ${categoryName}`)
+      }
+    } catch (error) {
+      console.error('Error marking page as processed:', error)
     }
   }
 
@@ -1604,6 +1660,9 @@ export class MacUpdateCategoryScraper {
       
       // Limit the number of new apps
       const limitedNewApps = newApps.slice(0, limit)
+      
+      // Mark this page as processed
+      await this.markPageAsProcessed(categoryUrl, paginationInfo.nextPage, categoryName)
       
       return {
         appUrls: limitedNewApps,

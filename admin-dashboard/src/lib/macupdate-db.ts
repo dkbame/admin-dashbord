@@ -228,7 +228,7 @@ async function checkAppExists(appName: string, macupdateUrl: string): Promise<st
       .from('apps')
       .select('id')
       .eq('name', appName)
-      .eq('website_url', macupdateUrl)
+      .eq('macupdate_url', macupdateUrl)
       .single()
     
     if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
@@ -237,6 +237,7 @@ async function checkAppExists(appName: string, macupdateUrl: string): Promise<st
     }
     
     if (data?.id) {
+      console.log(`App already exists: ${appName} with URL ${macupdateUrl}`)
       return data.id
     }
     
@@ -245,7 +246,7 @@ async function checkAppExists(appName: string, macupdateUrl: string): Promise<st
       .from('apps')
       .select('id')
       .eq('name', appName)
-      .eq('source', 'CUSTOM')
+      .eq('source', 'MACUPDATE')
       .single()
     
     if (nameError && nameError.code !== 'PGRST116') {
@@ -253,7 +254,13 @@ async function checkAppExists(appName: string, macupdateUrl: string): Promise<st
       return null
     }
     
-    return nameData?.id || null
+    if (nameData?.id) {
+      console.log(`App already exists by name: ${appName}`)
+      return nameData.id
+    }
+    
+    console.log(`App does not exist: ${appName}`)
+    return null
   } catch (error) {
     console.error('Error in checkAppExists:', error)
     return null
@@ -293,7 +300,8 @@ export async function importMacUpdateApp(app: MacUpdateApp): Promise<ImportResul
       mas_id: null,
       mas_url: null,
       app_store_url: null,
-              website_url: app.developer_website_url || app.macupdate_url || '',
+      macupdate_url: app.macupdate_url || null, // Set the MacUpdate URL
+      website_url: app.developer_website_url || null,
       download_url: null, // Leave download URL empty for MacUpdate apps
       icon_url: app.icon_url || null,
       minimum_os_version: app.system_requirements && app.system_requirements.length > 0 ? app.system_requirements[0] : null,
@@ -303,7 +311,7 @@ export async function importMacUpdateApp(app: MacUpdateApp): Promise<ImportResul
       is_free: app.price === 0,
       is_featured: false,
       features: [],
-      source: 'CUSTOM',
+      source: 'MACUPDATE', // Set source to MACUPDATE
       status: 'ACTIVE',
       last_updated: app.last_updated || new Date()
     }
