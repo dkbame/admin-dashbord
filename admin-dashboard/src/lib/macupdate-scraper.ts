@@ -2032,26 +2032,69 @@ export class MacUpdateCategoryScraper {
       // Extract category name from URL
       const categoryName = this.extractCategoryName(categoryUrl)
       
-      // Scrape URLs directly without database operations
-      const allAppUrls = await this.scrapeMultiplePages(categoryUrl)
+      // Get processed pages for this category (lightweight check)
+      const processedPages = await this.getProcessedPagesForCategory(categoryUrl)
+      console.log(`Already processed pages: ${processedPages.join(', ')}`)
       
-      console.log(`Found ${allAppUrls.length} total app URLs`)
+      // Find the next page to process
+      let nextPage = 1
+      while (processedPages.includes(nextPage)) {
+        nextPage++
+      }
       
-      // Return all URLs without checking existing apps
+      console.log(`Processing page ${nextPage} for ultra-fast mode`)
+      
+      // Scrape the next unprocessed page
+      const pageUrls = await this.scrapeSinglePage(categoryUrl, nextPage)
+      
+      console.log(`Found ${pageUrls.length} app URLs on page ${nextPage}`)
+      
+      // Mark this page as processed
+      await this.markPageAsProcessed(categoryUrl, nextPage, categoryName)
+      
+      // Return URLs from this page
       return {
-        appUrls: allAppUrls.slice(0, limit), // Limit the results
-        totalApps: allAppUrls.length,
-        newApps: allAppUrls.length, // Assume all are new for ultra-fast mode
+        appUrls: pageUrls.slice(0, limit), // Limit the results
+        totalApps: pageUrls.length,
+        newApps: pageUrls.length, // Assume all are new for ultra-fast mode
         existingApps: 0, // Skip database check
         categoryName,
-        currentPage: 1,
-        totalPages: Math.ceil(allAppUrls.length / limit),
-        processedPages: [1]
+        currentPage: nextPage,
+        totalPages: 999, // Unknown total, just indicate there are more
+        processedPages: [...processedPages, nextPage]
       }
       
     } catch (error) {
       console.error('Error in getAppsUrlsOnly:', error)
       throw new Error(`Failed to scrape URLs: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  /**
+   * Scrape a single page for URLs only
+   */
+  private async scrapeSinglePage(categoryUrl: string, pageNumber: number): Promise<string[]> {
+    try {
+      console.log(`Scraping single page ${pageNumber} with HTML...`)
+      
+      // Construct page URL
+      let pageUrl = categoryUrl;
+      if (pageNumber > 1) {
+        if (categoryUrl.includes('?')) {
+          pageUrl = `${categoryUrl}&page=${pageNumber}`;
+        } else {
+          pageUrl = `${categoryUrl}?page=${pageNumber}`;
+        }
+      }
+      
+      const pageUrls = await this.scrapeAllAppUrlsWithAxios(pageUrl);
+      console.log(`Found ${pageUrls.length} apps on page ${pageNumber}`);
+      
+      return pageUrls;
+      
+    } catch (error) {
+      console.log(`Error scraping page ${pageNumber}:`, error);
+      return [];
     }
   }
 

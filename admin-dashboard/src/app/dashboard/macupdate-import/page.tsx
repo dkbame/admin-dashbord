@@ -281,9 +281,9 @@ export default function MacUpdateImportPage() {
       if (data.success) {
         setCategoryPreview(data)
         if (data.newApps > 0) {
-          setSuccess(`Found ${data.newApps} new apps in batch ${data.pagination?.currentPage || 1} of ${data.pagination?.totalPages || 1} (${data.existingApps} already exist and were filtered out)`)
+          setSuccess(`Found ${data.newApps} apps on page ${data.pagination?.currentPage || 1} (${data.existingApps} already exist and were filtered out)`)
         } else {
-          setSuccess(`No new apps found in batch ${data.pagination?.currentPage || 1}. All ${data.existingApps} apps in this batch already exist in the database.`)
+          setSuccess(`No new apps found on page ${data.pagination?.currentPage || 1}. All ${data.existingApps} apps on this page already exist in the database.`)
         }
       } else {
         setError(data.error || 'Failed to scrape category')
@@ -605,7 +605,7 @@ export default function MacUpdateImportPage() {
                   disabled={isCategoryScraping || isImporting || !categoryUrl.trim()}
                   sx={{ mb: 2 }}
                 >
-                  {isCategoryScraping ? 'Scraping Category...' : 'Scrape Next Batch'}
+                  {isCategoryScraping ? 'Scraping Category...' : 'Scrape Next Page'}
                 </Button>
               </Box>
 
