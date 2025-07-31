@@ -775,63 +775,104 @@ export default function MacUpdateImportPage() {
               )}
 
               {/* Category App List */}
-              {categoryPreview && categoryPreview.appPreviews.length > 0 && (
+              {categoryPreview && categoryPreview.appUrls.length > 0 && (
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" gutterBottom>
-                    New Apps Available for Import ({categoryPreview.appPreviews.length} total)
+                    New Apps Available for Import ({categoryPreview.appUrls.length} total)
                   </Typography>
-                  <TableContainer component={Paper} sx={{ maxHeight: 500 }}>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell padding="checkbox">
-                            <input
-                              type="checkbox"
-                              checked={selectedApps.length === categoryPreview.appUrls.length}
-                              onChange={(e) => e.target.checked ? handleSelectAllApps() : handleDeselectAllApps()}
-                            />
-                          </TableCell>
-                          <TableCell>App</TableCell>
-                          <TableCell>Developer</TableCell>
-                          <TableCell>Price</TableCell>
-                          <TableCell>Rating</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {categoryPreview.appPreviews.map((app, index) => (
-                          <TableRow key={index}>
+                  
+                  {categoryPreview.appPreviews.length > 0 ? (
+                    // Show detailed table when preview data is available
+                    <TableContainer component={Paper} sx={{ maxHeight: 500 }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
                             <TableCell padding="checkbox">
                               <input
                                 type="checkbox"
-                                checked={selectedApps.includes(app.url)}
-                                onChange={() => handleToggleApp(app.url)}
+                                checked={selectedApps.length === categoryPreview.appUrls.length}
+                                onChange={(e) => e.target.checked ? handleSelectAllApps() : handleDeselectAllApps()}
                               />
                             </TableCell>
-                            <TableCell>
-                              <Typography variant="body2" fontWeight="medium">
-                                {app.name}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">
-                                {app.developer}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">
-                                {app.price === 0 ? 'Free' : app.price ? `$${app.price}` : 'Unknown'}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">
-                                {app.rating ? `${app.rating}/5` : 'No rating'}
-                              </Typography>
-                            </TableCell>
+                            <TableCell>App</TableCell>
+                            <TableCell>Developer</TableCell>
+                            <TableCell>Price</TableCell>
+                            <TableCell>Rating</TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
+                        </TableHead>
+                        <TableBody>
+                          {categoryPreview.appPreviews.map((app, index) => (
+                            <TableRow key={index}>
+                              <TableCell padding="checkbox">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedApps.includes(app.url)}
+                                  onChange={() => handleToggleApp(app.url)}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" fontWeight="medium">
+                                  {app.name}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2">
+                                  {app.developer}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2">
+                                  {app.price === 0 ? 'Free' : app.price ? `$${app.price}` : 'Unknown'}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2">
+                                  {app.rating ? `${app.rating}/5` : 'No rating'}
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : (
+                    // Show simple URL list when no preview data (ultra-fast mode)
+                    <Box sx={{ maxHeight: 400, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1, p: 2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedApps.length === categoryPreview.appUrls.length}
+                          onChange={(e) => e.target.checked ? handleSelectAllApps() : handleDeselectAllApps()}
+                          style={{ marginRight: '8px' }}
+                        />
+                        <Typography variant="body2" fontWeight="medium">
+                          Select All Apps
+                        </Typography>
+                      </Box>
+                      <List dense>
+                        {categoryPreview.appUrls.map((url, index) => {
+                          // Extract app name from URL
+                          const appName = url.split('/').pop()?.replace(/-/g, ' ') || 'Unknown App'
+                          return (
+                            <ListItem key={index} sx={{ py: 0.5, px: 0 }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedApps.includes(url)}
+                                onChange={() => handleToggleApp(url)}
+                                style={{ marginRight: '8px' }}
+                              />
+                              <ListItemText
+                                primary={appName}
+                                secondary={url}
+                                primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
+                                secondaryTypographyProps={{ variant: 'caption', color: 'text.secondary' }}
+                              />
+                            </ListItem>
+                          )
+                        })}
+                      </List>
+                    </Box>
+                  )}
                 </Box>
               )}
             </CardContent>
