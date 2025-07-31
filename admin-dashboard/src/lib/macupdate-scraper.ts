@@ -1855,6 +1855,88 @@ export class MacUpdateCategoryScraper {
       throw new Error(`Failed to get new apps with pagination: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
+
+  /**
+   * Get apps using MacUpdate's API endpoint for reliable pagination
+   */
+  async getAppsFromAPI(categoryUrl: string, limit: number = 20): Promise<CategoryScrapingResult> {
+    try {
+      console.log(`Getting apps from MacUpdate API: ${categoryUrl}`)
+      
+      // Extract category name from URL
+      const categoryName = this.extractCategoryName(categoryUrl)
+      
+      // Get the current page to process
+      const processedCount = await this.getProcessedAppsCount(categoryUrl)
+      const currentPage = Math.floor(processedCount / limit) + 1
+      
+      console.log(`Processing page ${currentPage} (${processedCount} apps already processed)`)
+      
+      // Construct API URL
+      const apiUrl = `https://api.macupdate.com/v1/apps/search/list/${limit}/${limit}?page=${currentPage}`
+      console.log(`API URL: ${apiUrl}`)
+      
+      // Make API request
+      const response = await axios.get(apiUrl, {
+        timeout: 10000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+          'Referer': categoryUrl
+        }
+      })
+      
+      if (!response.data || !response.data.apps) {
+        console.log('No apps found in API response')
+        return {
+          appUrls: [],
+          totalApps: 0,
+          newApps: 0,
+          existingApps: 0,
+          categoryName,
+          currentPage,
+          totalPages: 1,
+          processedPages: [currentPage]
+        }
+      }
+      
+      const apiApps = response.data.apps
+      console.log(`Found ${apiApps.length} apps in API response`)
+      
+      // Convert API apps to URLs
+      const appUrls = apiApps.map((app: any) => {
+        if (app.custom_url) {
+          return `https://www.macupdate.com${app.custom_url}`
+        }
+        return null
+      }).filter(Boolean)
+      
+      console.log(`Converted ${appUrls.length} apps to URLs`)
+      
+      // Check which apps already exist in database
+      const { newApps, existingApps } = await this.checkExistingApps(appUrls)
+      
+      console.log(`Found ${newApps.length} new apps and ${existingApps.length} existing apps`)
+      
+      return {
+        appUrls: newApps,
+        totalApps: appUrls.length,
+        newApps: newApps.length,
+        existingApps: existingApps.length,
+        categoryName,
+        currentPage,
+        totalPages: Math.ceil(response.data.total / limit),
+        processedPages: [currentPage]
+      }
+      
+    } catch (error) {
+      console.error('Error getting apps from API:', error)
+      
+      // Fallback to the old scraping method
+      console.log('Falling back to HTML scraping...')
+      return await this.getNewAppsOnly(categoryUrl, limit)
+    }
+  }
 }
 
 // Utility function to create scraper instance

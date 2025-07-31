@@ -13,12 +13,12 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log('Scraping category for NEW apps only:', categoryUrl, 'with limit:', limit)
+    console.log('Scraping category using MacUpdate API:', categoryUrl, 'with limit:', limit)
 
     const categoryScraper = new MacUpdateCategoryScraper()
     
-    // Use the new single-page method that gets the next batch of unprocessed apps
-    const result = await categoryScraper.getNewAppsOnly(categoryUrl, limit)
+    // Use the new API method for reliable pagination
+    const result = await categoryScraper.getAppsFromAPI(categoryUrl, limit)
     
     // Get preview data for each new app
     const appPreviews = []
