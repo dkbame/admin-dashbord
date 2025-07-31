@@ -1804,28 +1804,39 @@ export class MacUpdateCategoryScraper {
 
       // Extract category name from URL to check for apps in this specific category
       const categoryName = this.extractCategoryName(categoryUrl)
-      console.log(`📂 Checking for apps in category: ${categoryName}`)
+      console.log(`📂 Checking for apps in category: "${categoryName}"`)
+      console.log(`📂 Original URL: ${categoryUrl}`)
 
       // Check if there are any apps in the database for this specific category
-      const { count: appCount, error: countError } = await supabase
-        .from('apps')
-        .select('*', { count: 'exact', head: true })
-        .eq('category', categoryName)
+      console.log(`🔍 Querying database for apps in category: "${categoryName}"`)
+      
+      try {
+        const { count: appCount, error: countError } = await supabase
+          .from('apps')
+          .select('*', { count: 'exact', head: true })
+          .eq('category', categoryName)
 
-      if (countError) {
-        console.error('❌ Error checking app count for category:', countError)
-        console.log(`🔄 Database error occurred, assuming category "${categoryName}" is empty and resetting page tracking`)
-        await this.clearImportSessionsForCategory(categoryUrl)
-        return []
-      } else {
-        console.log(`📊 Apps in category "${categoryName}": ${appCount}`)
-        
-        // If no apps exist in this category, reset page tracking
-        if (appCount === 0) {
-          console.log(`🔄 No apps in category "${categoryName}", resetting page tracking to start from page 1`)
+        if (countError) {
+          console.error('❌ Error checking app count for category:', countError)
+          console.error('❌ Error details:', JSON.stringify(countError, null, 2))
+          console.log(`🔄 Database error occurred, assuming category "${categoryName}" is empty and resetting page tracking`)
           await this.clearImportSessionsForCategory(categoryUrl)
           return []
+        } else {
+          console.log(`📊 Apps in category "${categoryName}": ${appCount}`)
+          
+          // If no apps exist in this category, reset page tracking
+          if (appCount === 0) {
+            console.log(`🔄 No apps in category "${categoryName}", resetting page tracking to start from page 1`)
+            await this.clearImportSessionsForCategory(categoryUrl)
+            return []
+          }
         }
+      } catch (queryError) {
+        console.error('❌ Exception during database query:', queryError)
+        console.log(`🔄 Database exception occurred, assuming category "${categoryName}" is empty and resetting page tracking`)
+        await this.clearImportSessionsForCategory(categoryUrl)
+        return []
       }
 
       // Get all import sessions for this category URL
