@@ -279,12 +279,12 @@ export default function MacUpdateImportPage() {
       if (data.success) {
         setCategoryPreview(data)
         if (data.newApps > 0) {
-          setSuccess(`Found ${data.newApps} new apps on page ${data.pagination?.currentPage || 1} of ${data.pagination?.totalPages || 1} (${data.existingApps} already exist and were filtered out)`)
+          setSuccess(`Found ${data.newApps} new apps in batch ${data.pagination?.currentPage || 1} of ${data.pagination?.totalPages || 1} (${data.existingApps} already exist and were filtered out)`)
         } else {
-          setSuccess(`No new apps found on page ${data.pagination?.currentPage || 1}. All ${data.existingApps} apps on this page already exist in the database.`)
+          setSuccess(`No new apps found in batch ${data.pagination?.currentPage || 1}. All ${data.existingApps} apps in this batch already exist in the database.`)
         }
       } else {
-        setError(data.error || 'Failed to fetch from API')
+        setError(data.error || 'Failed to scrape category')
       }
 
     } catch (err) {
@@ -567,7 +567,7 @@ export default function MacUpdateImportPage() {
               {/* Category Import */}
               <Box>
                 <Typography variant="subtitle1" gutterBottom>
-                  Category Import (MacUpdate API)
+                  Category Import (HTML Scraping)
                 </Typography>
                 <TextField
                   fullWidth
@@ -576,7 +576,7 @@ export default function MacUpdateImportPage() {
                   value={categoryUrl}
                   onChange={(e) => setCategoryUrl(e.target.value)}
                   sx={{ mb: 2 }}
-                  helperText="Enter a MacUpdate category URL - uses official API for reliable pagination"
+                  helperText="Enter a MacUpdate category URL - uses reliable HTML scraping with API fallback"
                 />
                 <Button
                   fullWidth
@@ -586,7 +586,7 @@ export default function MacUpdateImportPage() {
                   disabled={isCategoryScraping || isImporting || !categoryUrl.trim()}
                   sx={{ mb: 2 }}
                 >
-                  {isCategoryScraping ? 'Fetching from API...' : 'Fetch Next Page'}
+                  {isCategoryScraping ? 'Scraping Category...' : 'Scrape Next Batch'}
                 </Button>
               </Box>
 
@@ -674,10 +674,10 @@ export default function MacUpdateImportPage() {
                   {categoryPreview.pagination && (
                     <Box sx={{ mb: 2 }}>
                       <Typography variant="body2" color="text.secondary" gutterBottom>
-                        Page {categoryPreview.pagination.currentPage} of {categoryPreview.pagination.totalPages}
+                        Batch {categoryPreview.pagination.currentPage} of {categoryPreview.pagination.totalPages}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Using MacUpdate API for reliable pagination
+                        Using reliable HTML scraping with API fallback
                       </Typography>
                     </Box>
                   )}
