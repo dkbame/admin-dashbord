@@ -1167,9 +1167,9 @@ export class MacUpdateCategoryScraper {
    */
   private async scrapeMultiplePages(categoryUrl: string): Promise<string[]> {
     const allAppUrls: string[] = [];
-    const maxPages = 10; // Increase to get more apps since HTML scraping is working well
+    const maxPages = 3; // Reduce to 3 pages to avoid timeout (3 pages × 20 apps = 60 apps)
     
-    console.log(`Starting HTML scraping for up to ${maxPages} pages...`);
+    console.log(`Starting HTML scraping for up to ${maxPages} pages (optimized for serverless timeout)...`);
     
     for (let page = 1; page <= maxPages; page++) {
       try {
@@ -1201,8 +1201,10 @@ export class MacUpdateCategoryScraper {
           break;
         }
         
-        // Small delay between requests to be respectful
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Reduced delay to avoid timeout (only wait 200ms between requests)
+        if (page < maxPages) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
         
       } catch (error) {
         console.log(`Error scraping page ${page}:`, error);
@@ -1296,7 +1298,7 @@ export class MacUpdateCategoryScraper {
       console.log(`Scraping with axios: ${categoryUrl}`)
       
       const response = await axios.get(categoryUrl, {
-        timeout: 15000,
+        timeout: 8000, // Reduced timeout to avoid function timeout
         headers: {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -1314,7 +1316,7 @@ export class MacUpdateCategoryScraper {
       
       console.log(`HTML content length: ${htmlContent.length} characters`);
       
-      // Pattern 1: Look for custom_url patterns in the HTML
+      // Pattern 1: Look for custom_url patterns in the HTML (most reliable)
       const customUrlMatches = htmlContent.match(/"custom_url":"([^"]+)"/g);
       if (customUrlMatches) {
         console.log(`Found ${customUrlMatches.length} custom_url matches in HTML`);
@@ -1329,84 +1331,48 @@ export class MacUpdateCategoryScraper {
         });
       }
       
-      // Pattern 2: Look for app links in the HTML structure
-      const appLinkMatches = htmlContent.match(/href="\/app\/[^"]+"/g);
-      if (appLinkMatches) {
-        console.log(`Found ${appLinkMatches.length} app link matches in HTML`);
-        appLinkMatches.forEach((match: string) => {
-          const urlMatch = match.match(/href="([^"]+)"/);
-          if (urlMatch && urlMatch[1]) {
-            const url = `https://www.macupdate.com${urlMatch[1]}`;
-            if (this.isValidAppUrl(url) && !allAppUrls.includes(url)) {
-              allAppUrls.push(url);
-            }
-          }
-        });
-      }
-      
-      // Pattern 3: Look for JSON data embedded in the HTML
-      const jsonMatches = htmlContent.match(/window\.__INITIAL_STATE__\s*=\s*({[^<]+})/g);
-      if (jsonMatches) {
-        console.log(`Found ${jsonMatches.length} JSON data matches in HTML`);
-        jsonMatches.forEach((match: string) => {
-          try {
-            const jsonMatch = match.match(/window\.__INITIAL_STATE__\s*=\s*({.+})/);
-            if (jsonMatch && jsonMatch[1]) {
-              const jsonData = JSON.parse(jsonMatch[1]);
-              console.log('Found JSON data structure:', Object.keys(jsonData));
-              // Look for apps in the JSON structure
-              this.extractAppsFromJson(jsonData, allAppUrls);
-            }
-          } catch (error) {
-            console.log('Error parsing JSON data:', error);
-          }
-        });
-      }
-      
-      // Pattern 4: Look for script tags with app data
-      const scriptMatches = htmlContent.match(/<script[^>]*>([^<]+)<\/script>/g);
-      if (scriptMatches) {
-        console.log(`Found ${scriptMatches.length} script tags in HTML`);
-        scriptMatches.forEach((script: string) => {
-          // Look for app data in script content
-          const appDataMatches = script.match(/"custom_url":"([^"]+)"/g);
-          if (appDataMatches) {
-            console.log(`Found ${appDataMatches.length} app data matches in script`);
-            appDataMatches.forEach((match: string) => {
-              const urlMatch = match.match(/"custom_url":"([^"]+)"/);
-              if (urlMatch && urlMatch[1]) {
-                const url = urlMatch[1];
-                if (this.isValidAppUrl(url) && !allAppUrls.includes(url)) {
-                  allAppUrls.push(url);
-                }
-              }
-            });
-          }
-        });
-      }
-      
-      // Pattern 5: Look for data attributes that might contain app URLs
-      const dataUrlMatches = htmlContent.match(/data-url="([^"]+)"/g);
-      if (dataUrlMatches) {
-        console.log(`Found ${dataUrlMatches.length} data-url matches in HTML`);
-        dataUrlMatches.forEach((match: string) => {
-          const urlMatch = match.match(/data-url="([^"]+)"/);
-          if (urlMatch && urlMatch[1]) {
-            const url = urlMatch[1];
-            if (this.isValidAppUrl(url) && !allAppUrls.includes(url)) {
-              allAppUrls.push(url);
-            }
-          }
-        });
-      }
-      
-      console.log(`Found ${allAppUrls.length} unique app URLs with enhanced axios scraping`);
-      
-      // If we found very few apps, it might mean they're loaded via JavaScript
+      // Pattern 2: Look for app links in the HTML structure (backup)
       if (allAppUrls.length < 10) {
-        console.log(`Warning: Only found ${allAppUrls.length} apps. This might be due to JavaScript-loaded content.`);
-        console.log('This is expected behavior - we\'ll process the apps we can find.');
+        const appLinkMatches = htmlContent.match(/href="\/app\/[^"]+"/g);
+        if (appLinkMatches) {
+          console.log(`Found ${appLinkMatches.length} app link matches in HTML`);
+          appLinkMatches.forEach((match: string) => {
+            const urlMatch = match.match(/href="([^"]+)"/);
+            if (urlMatch && urlMatch[1]) {
+              const url = `https://www.macupdate.com${urlMatch[1]}`;
+              if (this.isValidAppUrl(url) && !allAppUrls.includes(url)) {
+                allAppUrls.push(url);
+              }
+            }
+          });
+        }
       }
+      
+      // Pattern 3: Look for script tags with app data (if we still need more)
+      if (allAppUrls.length < 15) {
+        const scriptMatches = htmlContent.match(/<script[^>]*>([^<]+)<\/script>/g);
+        if (scriptMatches) {
+          console.log(`Found ${scriptMatches.length} script tags in HTML`);
+          scriptMatches.forEach((script: string) => {
+            // Look for app data in script content
+            const appDataMatches = script.match(/"custom_url":"([^"]+)"/g);
+            if (appDataMatches) {
+              console.log(`Found ${appDataMatches.length} app data matches in script`);
+              appDataMatches.forEach((match: string) => {
+                const urlMatch = match.match(/"custom_url":"([^"]+)"/);
+                if (urlMatch && urlMatch[1]) {
+                  const url = urlMatch[1];
+                  if (this.isValidAppUrl(url) && !allAppUrls.includes(url)) {
+                    allAppUrls.push(url);
+                  }
+                }
+              });
+            }
+          });
+        }
+      }
+      
+      console.log(`Found ${allAppUrls.length} unique app URLs with optimized axios scraping`);
       
       return allAppUrls;
       
