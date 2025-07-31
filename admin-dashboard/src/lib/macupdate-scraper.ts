@@ -1468,11 +1468,18 @@ export class MacUpdateCategoryScraper {
       for (let page = 1; page <= totalPages; page++) {
         if (!processedPages.includes(page)) {
           nextPage = page
+          console.log(`🎯 Found next unprocessed page: ${page}`)
           break
+        } else {
+          console.log(`⏭️ Page ${page} already processed, skipping`)
         }
       }
       
-      console.log(`Pagination info: current=${currentPage}, total=${totalPages}, next=${nextPage}, processed=${processedPages}`)
+      if (!nextPage) {
+        console.log(`🏁 No more unprocessed pages found. All ${totalPages} pages have been processed.`)
+      }
+      
+      console.log(`📊 Pagination info: current=${currentPage}, total=${totalPages}, next=${nextPage}, processed=[${processedPages.join(', ')}]`)
       
       return {
         currentPage,
@@ -1497,8 +1504,11 @@ export class MacUpdateCategoryScraper {
   private async getProcessedPagesForCategory(categoryUrl?: string): Promise<number[]> {
     try {
       if (!categoryUrl) {
+        console.log('No category URL provided, returning empty processed pages')
         return []
       }
+
+      console.log('🔍 Looking for processed pages for category URL:', categoryUrl)
 
       // Get all import sessions for this category URL
       const { data: sessions, error } = await supabase
@@ -1508,27 +1518,33 @@ export class MacUpdateCategoryScraper {
         .not('completed_at', 'is', null) // Only completed sessions
 
       if (error) {
-        console.error('Error getting import sessions:', error)
+        console.error('❌ Error getting import sessions:', error)
         return []
       }
+
+      console.log(`📊 Found ${sessions?.length || 0} import sessions for category`)
 
       // Extract page numbers from session names
       const processedPages: number[] = []
       sessions?.forEach(session => {
+        console.log(`📝 Checking session: ${session.session_name}`)
         // Session names should be like "Photography - Page 1", "Photography - Page 2", etc.
         const pageMatch = session.session_name.match(/Page (\d+)/)
         if (pageMatch && pageMatch[1]) {
           const pageNum = parseInt(pageMatch[1])
           if (!isNaN(pageNum) && !processedPages.includes(pageNum)) {
             processedPages.push(pageNum)
+            console.log(`✅ Found processed page: ${pageNum}`)
           }
+        } else {
+          console.log(`❌ No page number found in session name: ${session.session_name}`)
         }
       })
 
-      console.log(`Found ${processedPages.length} processed pages for category:`, processedPages)
+      console.log(`🎯 Final processed pages: [${processedPages.sort((a, b) => a - b).join(', ')}]`)
       return processedPages.sort((a, b) => a - b)
     } catch (error) {
-      console.error('Error getting processed pages:', error)
+      console.error('❌ Error getting processed pages:', error)
       return []
     }
   }
@@ -1539,8 +1555,9 @@ export class MacUpdateCategoryScraper {
   private async markPageAsProcessed(categoryUrl: string, pageNumber: number, categoryName: string): Promise<void> {
     try {
       const sessionName = `${categoryName} - Page ${pageNumber}`
+      console.log(`📝 Creating import session: ${sessionName}`)
       
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('import_sessions')
         .insert([{
           session_name: sessionName,
@@ -1550,14 +1567,16 @@ export class MacUpdateCategoryScraper {
           apps_skipped: 0,
           completed_at: new Date().toISOString()
         }])
+        .select()
 
       if (error) {
-        console.error('Error marking page as processed:', error)
+        console.error('❌ Error marking page as processed:', error)
       } else {
-        console.log(`Marked page ${pageNumber} as processed for ${categoryName}`)
+        console.log(`✅ Successfully marked page ${pageNumber} as processed for ${categoryName}`)
+        console.log('📊 Created session:', data)
       }
     } catch (error) {
-      console.error('Error marking page as processed:', error)
+      console.error('❌ Error marking page as processed:', error)
     }
   }
 
