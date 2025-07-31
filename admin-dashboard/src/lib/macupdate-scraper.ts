@@ -1126,10 +1126,11 @@ export class MacUpdateCategoryScraper {
       // Extract category name from URL
       const categoryName = this.extractCategoryName(categoryUrl)
       
-      // Use axios scraping directly (Puppeteer doesn't work in Netlify server environment)
-      const allAppUrls = await this.scrapeAllAppUrlsWithAxios(categoryUrl)
+      // Since MacUpdate loads apps dynamically via JavaScript and we can't use Puppeteer in Netlify,
+      // we'll use a different approach: scrape multiple pages directly
+      const allAppUrls = await this.scrapeMultiplePages(categoryUrl)
       
-      console.log(`Found ${allAppUrls.length} total app URLs on the page`)
+      console.log(`Found ${allAppUrls.length} total app URLs across multiple pages`)
       
       // Check which apps already exist in database
       const { newApps, existingApps } = await this.checkExistingApps(allAppUrls)
@@ -1159,6 +1160,97 @@ export class MacUpdateCategoryScraper {
       console.error('Error getting new apps:', error)
       throw new Error(`Failed to get new apps: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
+  }
+
+  /**
+   * Scrape multiple pages to get more apps since JavaScript-loaded content isn't available
+   */
+  private async scrapeMultiplePages(categoryUrl: string): Promise<string[]> {
+    const allAppUrls: string[] = [];
+    const maxPages = 5; // Try first 5 pages to get more apps
+    
+    // First, try to get category ID and use API if possible
+    const categoryId = this.getCategoryIdFromUrl(categoryUrl);
+    if (categoryId) {
+      console.log(`Trying API first for category ${categoryId}...`);
+      
+      for (let page = 1; page <= maxPages; page++) {
+        const apiApps = await this.tryMacUpdateAPI(categoryId, page);
+        
+        if (apiApps.length > 0) {
+          console.log(`API returned ${apiApps.length} apps for page ${page}`);
+          
+          // Convert API apps to URLs
+          apiApps.forEach((app: any) => {
+            if (app.custom_url) {
+              const url = `https://www.macupdate.com${app.custom_url}`;
+              if (!allAppUrls.includes(url)) {
+                allAppUrls.push(url);
+              }
+            }
+          });
+          
+          // If we got fewer apps than expected, this might be the last page
+          if (apiApps.length < 20) {
+            console.log(`Page ${page} has fewer apps, likely the last page`);
+            break;
+          }
+        } else {
+          console.log(`API failed for page ${page}, switching to HTML scraping`);
+          break;
+        }
+        
+        // Small delay between requests
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    // If API didn't work or we need more apps, try HTML scraping
+    if (allAppUrls.length < 50) {
+      console.log(`API only found ${allAppUrls.length} apps, trying HTML scraping for more...`);
+      
+      for (let page = 1; page <= maxPages; page++) {
+        try {
+          console.log(`Scraping page ${page} with HTML...`);
+          
+          // Construct page URL
+          let pageUrl = categoryUrl;
+          if (page > 1) {
+            if (categoryUrl.includes('?')) {
+              pageUrl = `${categoryUrl}&page=${page}`;
+            } else {
+              pageUrl = `${categoryUrl}?page=${page}`;
+            }
+          }
+          
+          const pageUrls = await this.scrapeAllAppUrlsWithAxios(pageUrl);
+          console.log(`Found ${pageUrls.length} apps on page ${page}`);
+          
+          // Add new URLs to our collection
+          pageUrls.forEach(url => {
+            if (!allAppUrls.includes(url)) {
+              allAppUrls.push(url);
+            }
+          });
+          
+          // If we found very few apps on this page, it might be the last page
+          if (pageUrls.length < 5) {
+            console.log(`Page ${page} has very few apps, likely the last page`);
+            break;
+          }
+          
+          // Small delay between requests to be respectful
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+        } catch (error) {
+          console.log(`Error scraping page ${page}:`, error);
+          break; // Stop if we encounter an error
+        }
+      }
+    }
+    
+    console.log(`Total unique apps found: ${allAppUrls.length}`);
+    return allAppUrls;
   }
 
   /**
@@ -1922,6 +2014,48 @@ export class MacUpdateCategoryScraper {
       console.log('Falling back to HTML scraping...')
       return await this.getNewAppsOnly(categoryUrl, limit)
     }
+  }
+
+  /**
+   * Try to get apps from MacUpdate API with different approaches
+   */
+  private async tryMacUpdateAPI(categoryId: string, page: number): Promise<any[]> {
+    const apiAttempts = [
+      // Try without any special parameters
+      `https://api.macupdate.com/v1/apps/search/list/50/0?page=${page}&categoriesIds[]=${categoryId}`,
+      // Try with minimal fields
+      `https://api.macupdate.com/v1/apps/search/list/50/0?page=${page}&categoriesIds[]=${categoryId}&_f=title,custom_url`,
+      // Try with different limit
+      `https://api.macupdate.com/v1/apps/search/list/20/0?page=${page}&categoriesIds[]=${categoryId}`,
+      // Try without category filter (get all apps)
+      `https://api.macupdate.com/v1/apps/search/list/50/0?page=${page}`
+    ];
+    
+    for (const apiUrl of apiAttempts) {
+      try {
+        console.log(`Trying API: ${apiUrl}`);
+        
+        const response = await axios.get(apiUrl, {
+          timeout: 10000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+            'Referer': 'https://www.macupdate.com/'
+          }
+        });
+        
+        if (response.data && response.data.apps && response.data.apps.length > 0) {
+          console.log(`✅ API success! Found ${response.data.apps.length} apps`);
+          return response.data.apps;
+        }
+        
+      } catch (error: any) {
+        console.log(`❌ API attempt failed: ${error.response?.status || 'unknown error'}`);
+        continue;
+      }
+    }
+    
+    return []; // No API attempts worked
   }
 
   /**
