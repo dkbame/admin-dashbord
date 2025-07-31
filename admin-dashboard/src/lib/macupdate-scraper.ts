@@ -1814,6 +1814,9 @@ export class MacUpdateCategoryScraper {
 
       if (countError) {
         console.error('❌ Error checking app count for category:', countError)
+        console.log(`🔄 Database error occurred, assuming category "${categoryName}" is empty and resetting page tracking`)
+        await this.clearImportSessionsForCategory(categoryUrl)
+        return []
       } else {
         console.log(`📊 Apps in category "${categoryName}": ${appCount}`)
         
