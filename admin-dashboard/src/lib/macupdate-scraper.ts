@@ -64,6 +64,10 @@ export interface CategoryScrapingResult {
   currentPage: number
   totalPages: number
   processedPages: number[]
+  apiData?: {
+    apps: any[]
+    total: number
+  }
 }
 
 export interface PaginationInfo {
@@ -1866,14 +1870,20 @@ export class MacUpdateCategoryScraper {
       // Extract category name from URL
       const categoryName = this.extractCategoryName(categoryUrl)
       
+      // Get category ID from URL
+      const categoryId = this.getCategoryIdFromUrl(categoryUrl)
+      if (!categoryId) {
+        throw new Error('Could not determine category ID from URL')
+      }
+      
       // Get the current page to process
       const processedCount = await this.getProcessedAppsCount(categoryUrl)
       const currentPage = Math.floor(processedCount / limit) + 1
       
-      console.log(`Processing page ${currentPage} (${processedCount} apps already processed)`)
+      console.log(`Processing page ${currentPage} for category ${categoryId} (${processedCount} apps already processed)`)
       
-      // Construct API URL
-      const apiUrl = `https://api.macupdate.com/v1/apps/search/list/${limit}/${limit}?page=${currentPage}`
+      // Construct API URL with all necessary parameters
+      const apiUrl = `https://api.macupdate.com/v1/apps/search/list/${limit}/0?page=${currentPage}&categoriesIds[]=${categoryId}&sort=date&_f=title,title_slug,short_description,logo,s_png,s_webp,custom_url,price,version,rating,discount,date,download_count,review_count,filesize,is_beta`
       console.log(`API URL: ${apiUrl}`)
       
       // Make API request
@@ -1926,7 +1936,11 @@ export class MacUpdateCategoryScraper {
         categoryName,
         currentPage,
         totalPages: Math.ceil(response.data.total / limit),
-        processedPages: [currentPage]
+        processedPages: [currentPage],
+        apiData: {
+          apps: apiApps,
+          total: response.data.total
+        }
       }
       
     } catch (error) {
@@ -1936,6 +1950,70 @@ export class MacUpdateCategoryScraper {
       console.log('Falling back to HTML scraping...')
       return await this.getNewAppsOnly(categoryUrl, limit)
     }
+  }
+
+  /**
+   * Get app preview data from API response
+   */
+  async getAppPreviewFromAPI(appData: any): Promise<Partial<MacUpdateApp> | null> {
+    try {
+      if (!appData || !appData.custom_url) {
+        return null
+      }
+
+      return {
+        name: appData.title || 'Unknown App',
+        developer: appData.developer || 'Unknown Developer',
+        description: appData.short_description || 'No description available',
+        price: appData.price || 0,
+        version: appData.version || 'Unknown',
+        rating: appData.rating || null,
+        download_count: appData.download_count || 0,
+        rating_count: appData.review_count || 0,
+        file_size: appData.filesize || 'Unknown',
+        icon_url: appData.logo || null,
+        macupdate_url: `https://www.macupdate.com${appData.custom_url}`
+      }
+    } catch (error) {
+      console.error('Error getting app preview from API data:', error)
+      return null
+    }
+  }
+
+  /**
+   * Extract category ID from MacUpdate URL
+   */
+  private getCategoryIdFromUrl(categoryUrl: string): string | null {
+    // Known category mappings
+    const categoryMappings: { [key: string]: string } = {
+      'photography': '14',
+      'graphic-design': '8',
+      'developer-tools': '6',
+      'productivity': '12',
+      'utilities': '15',
+      'games': '7',
+      'business': '3',
+      'education': '5',
+      'entertainment': '6',
+      'finance': '7',
+      'health-fitness': '9',
+      'lifestyle-hobby': '10',
+      'medical-software': '11',
+      'music-audio': '13',
+      'security': '16',
+      'system-utilities': '17',
+      'travel': '18',
+      'video': '19'
+    }
+    
+    // Extract category slug from URL
+    const urlMatch = categoryUrl.match(/\/categories\/([^\/\?]+)/)
+    if (urlMatch && urlMatch[1]) {
+      const categorySlug = urlMatch[1]
+      return categoryMappings[categorySlug] || null
+    }
+    
+    return null
   }
 }
 

@@ -20,19 +20,34 @@ export async function POST(request: NextRequest) {
     // Use the new API method for reliable pagination
     const result = await categoryScraper.getAppsFromAPI(categoryUrl, limit)
     
-    // Get preview data for each new app
+    // Get preview data for each new app using API data
     const appPreviews = []
-    for (const appUrl of result.appUrls) { // Show all apps in the batch
-      try {
-        const preview = await categoryScraper.getAppPreview(appUrl)
+    
+    // If we have API data, use it directly
+    if (result.apiData && result.apiData.apps) {
+      for (const appData of result.apiData.apps) {
+        const preview = await categoryScraper.getAppPreviewFromAPI(appData)
         if (preview) {
           appPreviews.push({
             ...preview,
-            url: appUrl
+            url: preview.macupdate_url || ''
           })
         }
-      } catch (error) {
-        console.error('Error getting preview for:', appUrl, error)
+      }
+    } else {
+      // Fallback to individual page scraping
+      for (const appUrl of result.appUrls) {
+        try {
+          const preview = await categoryScraper.getAppPreview(appUrl)
+          if (preview) {
+            appPreviews.push({
+              ...preview,
+              url: appUrl
+            })
+          }
+        } catch (error) {
+          console.error('Error getting preview for:', appUrl, error)
+        }
       }
     }
 
