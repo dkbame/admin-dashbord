@@ -1752,32 +1752,14 @@ export class MacUpdateCategoryScraper {
         }
       })
       
-      // Get processed pages from database
-      const processedPages = await this.getProcessedPagesForCategory()
-      
-      // Find next unprocessed page
-      let nextPage = null
-      for (let page = 1; page <= totalPages; page++) {
-        if (!processedPages.includes(page)) {
-          nextPage = page
-          console.log(`🎯 Found next unprocessed page: ${page}`)
-          break
-        } else {
-          console.log(`⏭️ Page ${page} already processed, skipping`)
-        }
-      }
-      
-      if (!nextPage) {
-        console.log(`🏁 No more unprocessed pages found. All ${totalPages} pages have been processed.`)
-      }
-      
-      console.log(`📊 Pagination info: current=${currentPage}, total=${totalPages}, next=${nextPage}, processed=[${processedPages.join(', ')}]`)
+      // For now, just return basic pagination info without complex tracking
+      console.log(`📊 Basic pagination info: current=${currentPage}, total=${totalPages}`)
       
       return {
         currentPage,
         totalPages,
-        nextPage,
-        processedPages
+        nextPage: currentPage + 1,
+        processedPages: []
       }
     } catch (error) {
       console.error('Error extracting pagination info:', error)
@@ -1793,96 +1775,7 @@ export class MacUpdateCategoryScraper {
   /**
    * Get processed pages for a category from import sessions
    */
-  private async getProcessedPagesForCategory(categoryUrl?: string): Promise<number[]> {
-    try {
-      if (!categoryUrl) {
-        console.log('No category URL provided, returning empty processed pages')
-        return []
-      }
 
-      console.log('🔍 Looking for processed pages for category URL:', categoryUrl)
-
-      // Extract category name from URL to check for apps in this specific category
-      const categoryName = this.extractCategoryName(categoryUrl)
-      console.log(`📂 Checking for apps in category: "${categoryName}"`)
-      console.log(`📂 Original URL: ${categoryUrl}`)
-
-      // Check if there are any apps in the database for this specific category
-      console.log(`🔍 Querying database for apps in category: "${categoryName}"`)
-      
-      try {
-        // Try a simpler query first - join with categories table to get category name
-        const { data: sampleApps, error: sampleError } = await supabase
-          .from('apps')
-          .select(`
-            id,
-            categories!inner(name)
-          `)
-          .eq('categories.name', categoryName)
-          .limit(1)
-
-        if (sampleError) {
-          console.error('❌ Error checking apps for category:', sampleError)
-          console.error('❌ Error details:', JSON.stringify(sampleError, null, 2))
-          console.log(`🔄 Database error occurred, assuming category "${categoryName}" is empty and resetting page tracking`)
-          await this.clearImportSessionsForCategory(categoryUrl)
-          return []
-        } else {
-          const appCount = sampleApps?.length || 0
-          console.log(`📊 Apps in category "${categoryName}": ${appCount > 0 ? 'Found apps' : 'No apps'}`)
-          
-          // If no apps exist in this category, reset page tracking
-          if (appCount === 0) {
-            console.log(`🔄 No apps in category "${categoryName}", resetting page tracking to start from page 1`)
-            await this.clearImportSessionsForCategory(categoryUrl)
-            return []
-          }
-        }
-      } catch (queryError) {
-        console.error('❌ Exception during database query:', queryError)
-        console.log(`🔄 Database exception occurred, assuming category "${categoryName}" is empty and resetting page tracking`)
-        await this.clearImportSessionsForCategory(categoryUrl)
-        return []
-      }
-
-      // Get all import sessions for this category URL
-      const { data: sessions, error } = await supabase
-        .from('import_sessions')
-        .select('*')
-        .eq('category_url', categoryUrl)
-        .not('completed_at', 'is', null) // Only completed sessions
-
-      if (error) {
-        console.error('❌ Error getting import sessions:', error)
-        return []
-      }
-
-      console.log(`📊 Found ${sessions?.length || 0} import sessions for category`)
-
-      // Extract page numbers from session names
-      const processedPages: number[] = []
-      sessions?.forEach(session => {
-        console.log(`📝 Checking session: ${session.session_name}`)
-        // Session names should be like "Photography - Page 1", "Photography - Page 2", etc.
-        const pageMatch = session.session_name.match(/Page (\d+)/)
-        if (pageMatch && pageMatch[1]) {
-          const pageNum = parseInt(pageMatch[1])
-          if (!isNaN(pageNum) && !processedPages.includes(pageNum)) {
-            processedPages.push(pageNum)
-            console.log(`✅ Found processed page: ${pageNum}`)
-          }
-        } else {
-          console.log(`❌ No page number found in session name: ${session.session_name}`)
-        }
-      })
-
-      console.log(`🎯 Final processed pages: [${processedPages.sort((a, b) => a - b).join(', ')}]`)
-      return processedPages.sort((a, b) => a - b)
-    } catch (error) {
-      console.error('❌ Error getting processed pages:', error)
-      return []
-    }
-  }
 
   /**
    * Clear import sessions for a category when database is empty
@@ -2087,72 +1980,7 @@ export class MacUpdateCategoryScraper {
     }
   }
 
-  /**
-   * Ultra-fast method: only scrape URLs without any database operations
-   */
-  async getAppsUrlsOnly(categoryUrl: string, limit: number = 20, pages: number = 1): Promise<CategoryScrapingResult> {
-    try {
-      console.log(`Ultra-fast URL scraping: ${categoryUrl} (pages: ${pages})`)
-      
-      // Extract category name from URL
-      const categoryName = this.extractCategoryName(categoryUrl)
-      
-      // Get processed pages for this category (lightweight check)
-      const processedPages = await this.getProcessedPagesForCategory(categoryUrl)
-      console.log(`Already processed pages: ${processedPages.join(', ')}`)
-      
-      const allUrls: string[] = []
-      const pagesProcessed: number[] = []
-      
-      // Process multiple pages if requested
-      for (let pageIndex = 0; pageIndex < pages; pageIndex++) {
-        // Find the next page to process
-        let nextPage = 1
-        while (processedPages.includes(nextPage) || pagesProcessed.includes(nextPage)) {
-          nextPage++
-        }
-        
-        console.log(`📄 Processed pages: [${processedPages.join(', ')}]`)
-        console.log(`📄 Pages processed this session: [${pagesProcessed.join(', ')}]`)
-        console.log(`📄 Next page to process: ${nextPage}`)
-        console.log(`Processing page ${nextPage} for ultra-fast mode (${pageIndex + 1}/${pages})`)
-        
-        // Scrape the next unprocessed page
-        const pageUrls = await this.scrapeSinglePage(categoryUrl, nextPage)
-        
-        console.log(`Found ${pageUrls.length} app URLs on page ${nextPage}`)
-        
-        // Mark this page as processed
-        await this.markPageAsProcessed(categoryUrl, nextPage, categoryName)
-        
-        // Add URLs from this page
-        allUrls.push(...pageUrls)
-        pagesProcessed.push(nextPage)
-        
-        // If we have enough URLs, stop processing more pages
-        if (allUrls.length >= limit) {
-          console.log(`Reached limit of ${limit} URLs, stopping page processing`)
-          break
-        }
-      }
-      
-      // Return URLs from all processed pages
-      return {
-        appUrls: allUrls.slice(0, limit), // Limit the results
-        totalApps: allUrls.length,
-        newApps: allUrls.length, // Assume all are new for ultra-fast mode
-        existingApps: 0, // Skip database check
-        categoryName,
-        currentPage: pagesProcessed[pagesProcessed.length - 1] || 1,
-        totalPages: 999, // Unknown total, just indicate there are more
-        processedPages: [...processedPages, ...pagesProcessed]
-      }
-      
-    } catch (error) {
-      console.error('Error in getAppsUrlsOnly:', error)
-      throw new Error(`Failed to scrape URLs: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
-  }
+
 
   /**
    * Scrape a single page for URLs only
@@ -2244,6 +2072,108 @@ export class MacUpdateCategoryScraper {
     }
     
     return null
+  }
+
+  /**
+   * Simple sequential page scraping - no complex tracking
+   */
+  async getAppsUrlsOnly(categoryUrl: string, limit: number = 20, pages: number = 1): Promise<CategoryScrapingResult> {
+    try {
+      console.log(`Simple sequential scraping: ${categoryUrl} (pages: ${pages})`)
+      
+      // Extract category name from URL
+      const categoryName = this.extractCategoryName(categoryUrl)
+      
+      // Get the last processed page number from import sessions
+      const lastProcessedPage = await this.getLastProcessedPage(categoryUrl)
+      const nextPage = lastProcessedPage + 1
+      
+      console.log(`📄 Last processed page: ${lastProcessedPage}`)
+      console.log(`📄 Next page to scrape: ${nextPage}`)
+      
+      const allUrls: string[] = []
+      const pagesProcessed: number[] = []
+      
+      // Scrape the next N pages starting from nextPage
+      for (let i = 0; i < pages; i++) {
+        const currentPage = nextPage + i
+        console.log(`Scraping page ${currentPage} (${i + 1}/${pages})`)
+        
+        // Scrape this page
+        const pageUrls = await this.scrapeSinglePage(categoryUrl, currentPage)
+        console.log(`Found ${pageUrls.length} apps on page ${currentPage}`)
+        
+        // Add URLs from this page
+        allUrls.push(...pageUrls)
+        pagesProcessed.push(currentPage)
+        
+        // Mark this page as processed
+        await this.markPageAsProcessed(categoryUrl, currentPage, categoryName)
+        
+        // If we have enough URLs, stop
+        if (allUrls.length >= limit) {
+          console.log(`Reached limit of ${limit} URLs, stopping`)
+          break
+        }
+      }
+      
+      console.log(`Total URLs found: ${allUrls.length} from pages: ${pagesProcessed.join(', ')}`)
+      
+      return {
+        appUrls: allUrls.slice(0, limit),
+        totalApps: allUrls.length,
+        newApps: allUrls.length,
+        existingApps: 0,
+        categoryName,
+        currentPage: pagesProcessed[pagesProcessed.length - 1] || nextPage,
+        totalPages: 999,
+        processedPages: pagesProcessed
+      }
+      
+    } catch (error) {
+      console.error('Error in getAppsUrlsOnly:', error)
+      throw new Error(`Failed to scrape URLs: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  /**
+   * Get the last processed page number for a category
+   */
+  private async getLastProcessedPage(categoryUrl: string): Promise<number> {
+    try {
+      const { data: sessions, error } = await supabase
+        .from('import_sessions')
+        .select('session_name')
+        .eq('category_url', categoryUrl)
+        .like('session_name', '%Page %')
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (error) {
+        console.error('Error getting last processed page:', error)
+        return 0
+      }
+
+      if (!sessions || sessions.length === 0) {
+        console.log('No previous sessions found, starting from page 1')
+        return 0
+      }
+
+      // Extract page number from session name like "Photography - Page 5"
+      const sessionName = sessions[0].session_name
+      const pageMatch = sessionName.match(/Page (\d+)/)
+      
+      if (pageMatch && pageMatch[1]) {
+        const pageNum = parseInt(pageMatch[1])
+        console.log(`Last processed page from session: ${pageNum}`)
+        return pageNum
+      }
+
+      return 0
+    } catch (error) {
+      console.error('Error in getLastProcessedPage:', error)
+      return 0
+    }
   }
 }
 
