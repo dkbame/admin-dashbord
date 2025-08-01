@@ -122,7 +122,7 @@ export async function PUT(request: NextRequest) {
   const startTime = Date.now()
   
   try {
-    const { categoryUrl, limit = 10, reset = false } = await request.json()
+    const { categoryUrl, limit = 10, reset = false, pages = 1 } = await request.json()
 
     if (!categoryUrl) {
       return NextResponse.json({ 
@@ -141,7 +141,7 @@ export async function PUT(request: NextRequest) {
     }
     
     // Ultra-fast mode: only get URLs, skip all database operations
-    const result = await categoryScraper.getAppsUrlsOnly(categoryUrl, limit)
+    const result = await categoryScraper.getAppsUrlsOnly(categoryUrl, limit, pages)
     
     const executionTime = Date.now() - startTime
     console.log(`Ultra-fast category scraping completed in ${executionTime}ms`)

@@ -269,6 +269,7 @@ export default function MacUpdateImportPage() {
         body: JSON.stringify({ 
           categoryUrl: categoryUrl.trim(),
           limit: 10, // Reduced limit to prevent timeout
+          pages: 3, // Scrape 3 pages at once for faster progress
           ...(includePreviews && { preview: true }), // Only include preview parameter if needed
           ...(resetPageTracking && { reset: true }) // Include reset parameter if requested
         })

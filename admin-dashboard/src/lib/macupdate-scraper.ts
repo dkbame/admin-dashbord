@@ -2084,9 +2084,9 @@ export class MacUpdateCategoryScraper {
   /**
    * Ultra-fast method: only scrape URLs without any database operations
    */
-  async getAppsUrlsOnly(categoryUrl: string, limit: number = 20): Promise<CategoryScrapingResult> {
+  async getAppsUrlsOnly(categoryUrl: string, limit: number = 20, pages: number = 1): Promise<CategoryScrapingResult> {
     try {
-      console.log(`Ultra-fast URL scraping: ${categoryUrl}`)
+      console.log(`Ultra-fast URL scraping: ${categoryUrl} (pages: ${pages})`)
       
       // Extract category name from URL
       const categoryName = this.extractCategoryName(categoryUrl)
@@ -2095,32 +2095,51 @@ export class MacUpdateCategoryScraper {
       const processedPages = await this.getProcessedPagesForCategory(categoryUrl)
       console.log(`Already processed pages: ${processedPages.join(', ')}`)
       
-      // Find the next page to process
-      let nextPage = 1
-      while (processedPages.includes(nextPage)) {
-        nextPage++
+      const allUrls: string[] = []
+      const pagesProcessed: number[] = []
+      
+      // Process multiple pages if requested
+      for (let pageIndex = 0; pageIndex < pages; pageIndex++) {
+        // Find the next page to process
+        let nextPage = 1
+        while (processedPages.includes(nextPage) || pagesProcessed.includes(nextPage)) {
+          nextPage++
+        }
+        
+        console.log(`📄 Processed pages: [${processedPages.join(', ')}]`)
+        console.log(`📄 Pages processed this session: [${pagesProcessed.join(', ')}]`)
+        console.log(`📄 Next page to process: ${nextPage}`)
+        console.log(`Processing page ${nextPage} for ultra-fast mode (${pageIndex + 1}/${pages})`)
+        
+        // Scrape the next unprocessed page
+        const pageUrls = await this.scrapeSinglePage(categoryUrl, nextPage)
+        
+        console.log(`Found ${pageUrls.length} app URLs on page ${nextPage}`)
+        
+        // Mark this page as processed
+        await this.markPageAsProcessed(categoryUrl, nextPage, categoryName)
+        
+        // Add URLs from this page
+        allUrls.push(...pageUrls)
+        pagesProcessed.push(nextPage)
+        
+        // If we have enough URLs, stop processing more pages
+        if (allUrls.length >= limit) {
+          console.log(`Reached limit of ${limit} URLs, stopping page processing`)
+          break
+        }
       }
       
-      console.log(`Processing page ${nextPage} for ultra-fast mode`)
-      
-      // Scrape the next unprocessed page
-      const pageUrls = await this.scrapeSinglePage(categoryUrl, nextPage)
-      
-      console.log(`Found ${pageUrls.length} app URLs on page ${nextPage}`)
-      
-      // Mark this page as processed
-      await this.markPageAsProcessed(categoryUrl, nextPage, categoryName)
-      
-      // Return URLs from this page
+      // Return URLs from all processed pages
       return {
-        appUrls: pageUrls.slice(0, limit), // Limit the results
-        totalApps: pageUrls.length,
-        newApps: pageUrls.length, // Assume all are new for ultra-fast mode
+        appUrls: allUrls.slice(0, limit), // Limit the results
+        totalApps: allUrls.length,
+        newApps: allUrls.length, // Assume all are new for ultra-fast mode
         existingApps: 0, // Skip database check
         categoryName,
-        currentPage: nextPage,
+        currentPage: pagesProcessed[pagesProcessed.length - 1] || 1,
         totalPages: 999, // Unknown total, just indicate there are more
-        processedPages: [...processedPages, nextPage]
+        processedPages: [...processedPages, ...pagesProcessed]
       }
       
     } catch (error) {
