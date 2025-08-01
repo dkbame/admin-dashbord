@@ -268,7 +268,7 @@ export default function MacUpdateImportPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           categoryUrl: categoryUrl.trim(),
-          limit: 10, // Reduced limit to prevent timeout
+          limit: 20, // Get all 20 apps per page
           pages: 3, // Scrape 3 pages at once for faster progress
           ...(includePreviews && { preview: true }), // Only include preview parameter if needed
           ...(resetPageTracking && { reset: true }) // Include reset parameter if requested
@@ -608,7 +608,7 @@ export default function MacUpdateImportPage() {
                 <Alert severity="info" sx={{ mb: 2 }}>
                   <Typography variant="body2">
                     <strong>Ultra-fast mode (default):</strong> Gets app URLs only, no database checks or previews. 
-                    Perfect for importing since each app is scraped individually during import. Limited to 10 apps per batch.
+                    Perfect for importing since each app is scraped individually during import. Gets all 20 apps per page.
                   </Typography>
                 </Alert>
                 <Button
