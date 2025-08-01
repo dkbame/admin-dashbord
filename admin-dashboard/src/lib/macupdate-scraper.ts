@@ -1811,11 +1811,14 @@ export class MacUpdateCategoryScraper {
       console.log(`🔍 Querying database for apps in category: "${categoryName}"`)
       
       try {
-        // Try a simpler query first - just get one row to see if any exist
+        // Try a simpler query first - join with categories table to get category name
         const { data: sampleApps, error: sampleError } = await supabase
           .from('apps')
-          .select('id')
-          .eq('category', categoryName)
+          .select(`
+            id,
+            categories!inner(name)
+          `)
+          .eq('categories.name', categoryName)
           .limit(1)
 
         if (sampleError) {
