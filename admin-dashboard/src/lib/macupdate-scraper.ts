@@ -1811,19 +1811,22 @@ export class MacUpdateCategoryScraper {
       console.log(`🔍 Querying database for apps in category: "${categoryName}"`)
       
       try {
-        const { count: appCount, error: countError } = await supabase
+        // Try a simpler query first - just get one row to see if any exist
+        const { data: sampleApps, error: sampleError } = await supabase
           .from('apps')
-          .select('*', { count: 'exact', head: true })
+          .select('id')
           .eq('category', categoryName)
+          .limit(1)
 
-        if (countError) {
-          console.error('❌ Error checking app count for category:', countError)
-          console.error('❌ Error details:', JSON.stringify(countError, null, 2))
+        if (sampleError) {
+          console.error('❌ Error checking apps for category:', sampleError)
+          console.error('❌ Error details:', JSON.stringify(sampleError, null, 2))
           console.log(`🔄 Database error occurred, assuming category "${categoryName}" is empty and resetting page tracking`)
           await this.clearImportSessionsForCategory(categoryUrl)
           return []
         } else {
-          console.log(`📊 Apps in category "${categoryName}": ${appCount}`)
+          const appCount = sampleApps?.length || 0
+          console.log(`📊 Apps in category "${categoryName}": ${appCount > 0 ? 'Found apps' : 'No apps'}`)
           
           // If no apps exist in this category, reset page tracking
           if (appCount === 0) {
