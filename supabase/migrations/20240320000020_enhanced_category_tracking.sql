@@ -81,12 +81,12 @@ SELECT
   cp.pages_scraped - cp.pages_imported as pages_pending_import,
   CASE 
     WHEN cp.total_pages > 0 THEN 
-      ROUND((cp.pages_scraped::float / cp.total_pages) * 100, 1)
+      ROUND((cp.pages_scraped::float / cp.total_pages) * 100)
     ELSE 0 
   END as scrape_progress_percent,
   CASE 
     WHEN cp.pages_scraped > 0 THEN 
-      ROUND((cp.pages_imported::float / cp.pages_scraped) * 100, 1)
+      ROUND((cp.pages_imported::float / cp.pages_scraped) * 100)
     ELSE 0 
   END as import_progress_percent,
   cp.created_at,
