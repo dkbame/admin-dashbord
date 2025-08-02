@@ -87,7 +87,8 @@ export default function CategoryManagementPage() {
       const response = await fetch(`/api/category-progress?categoryUrl=${encodeURIComponent(categoryUrl.trim())}`)
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const error = new Error(`HTTP error! status: ${response.status}`)
+        throw error
       }
       
       const data = await response.json()
@@ -117,7 +118,8 @@ export default function CategoryManagementPage() {
       })
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const error = new Error(`HTTP error! status: ${response.status}`)
+        throw error
       }
       
       const data = await response.json()
@@ -153,7 +155,8 @@ export default function CategoryManagementPage() {
       })
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const error = new Error(`HTTP error! status: ${response.status}`)
+        throw error
       }
       
       const data = await response.json()
