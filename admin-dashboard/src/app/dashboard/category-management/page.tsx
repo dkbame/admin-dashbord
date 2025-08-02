@@ -87,8 +87,7 @@ export default function CategoryManagementPage() {
       const response = await fetch(`/api/category-progress?categoryUrl=${encodeURIComponent(categoryUrl.trim())}`)
       
       if (!response.ok) {
-        const error = new Error(`HTTP error! status: ${response.status}`)
-        throw error
+        throw `HTTP error! status: ${response.status}`
       }
       
       const data = await response.json()
@@ -99,7 +98,7 @@ export default function CategoryManagementPage() {
         setError(data.error || 'Failed to load category progress')
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load category progress'
+      const errorMessage = typeof err === 'string' ? err : 'Failed to load category progress'
       setError(errorMessage)
     } finally {
       setLoading(false)
@@ -118,8 +117,7 @@ export default function CategoryManagementPage() {
       })
       
       if (!response.ok) {
-        const error = new Error(`HTTP error! status: ${response.status}`)
-        throw error
+        throw `HTTP error! status: ${response.status}`
       }
       
       const data = await response.json()
@@ -131,7 +129,7 @@ export default function CategoryManagementPage() {
         setError(data.error || 'Failed to import page')
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to import page'
+      const errorMessage = typeof err === 'string' ? err : 'Failed to import page'
       setError(errorMessage)
     } finally {
       setImportingPage(null)
@@ -155,8 +153,7 @@ export default function CategoryManagementPage() {
       })
       
       if (!response.ok) {
-        const error = new Error(`HTTP error! status: ${response.status}`)
-        throw error
+        throw `HTTP error! status: ${response.status}`
       }
       
       const data = await response.json()
@@ -168,7 +165,7 @@ export default function CategoryManagementPage() {
         setError(data.error || 'Failed to scrape pages')
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to scrape pages'
+      const errorMessage = typeof err === 'string' ? err : 'Failed to scrape pages'
       setError(errorMessage)
     } finally {
       setScrapingPages(false)
