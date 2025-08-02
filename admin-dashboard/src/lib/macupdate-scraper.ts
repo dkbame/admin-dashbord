@@ -1813,6 +1813,7 @@ export class MacUpdateCategoryScraper {
           session_name: sessionName,
           category_url: categoryUrl,
           source_type: 'BULK_PAGE',
+          page_status: 'scraped',
           apps_imported: 0,
           apps_skipped: 0,
           completed_at: new Date().toISOString()

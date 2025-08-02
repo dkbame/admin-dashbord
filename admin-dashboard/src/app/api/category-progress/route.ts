@@ -16,21 +16,7 @@ export async function GET(request: NextRequest) {
 
     console.log('Getting category progress for:', categoryUrl)
 
-    // Get category progress from the view
-    const { data: categoryStatus, error: statusError } = await supabase
-      .from('category_status')
-      .select('*')
-      .eq('category_url', categoryUrl)
-      .single()
-
-    if (statusError && statusError.code !== 'PGRST116') { // PGRST116 = no rows returned
-      console.error('Error getting category status:', statusError)
-      return NextResponse.json({
-        error: `Database error: ${statusError.message}`
-      }, { status: 500 })
-    }
-
-    // Get all import sessions for this category
+    // Get category progress from import_sessions (fallback until migration is run)
     const { data: sessions, error: sessionsError } = await supabase
       .from('import_sessions')
       .select('*')
@@ -45,7 +31,8 @@ export async function GET(request: NextRequest) {
       }, { status: 500 })
     }
 
-    // Parse page information from sessions
+    // Calculate category status from sessions
+    const categoryName = sessions?.[0]?.session_name?.split(' - Page ')[0] || 'Unknown Category'
     const pages = sessions?.map(session => {
       const pageMatch = session.session_name.match(/Page (\d+)/)
       const pageNumber = pageMatch ? parseInt(pageMatch[1]) : 0
@@ -61,23 +48,28 @@ export async function GET(request: NextRequest) {
       }
     }).sort((a, b) => a.pageNumber - b.pageNumber) || []
 
-    // Calculate summary statistics
     const totalPages = Math.max(...pages.map(p => p.pageNumber), 0)
     const pagesScraped = pages.length
     const pagesImported = pages.filter(p => p.status === 'imported').length
     const pagesPending = pages.filter(p => p.status === 'scraped').length
+    const lastScrapedPage = Math.max(...pages.map(p => p.pageNumber), 0)
+    const lastImportedPage = Math.max(...pages.filter(p => p.status === 'imported').map(p => p.pageNumber), 0)
+    const scrapeProgressPercent = totalPages > 0 ? Math.round((pagesScraped / totalPages) * 100) : 0
+    const importProgressPercent = pagesScraped > 0 ? Math.round((pagesImported / pagesScraped) * 100) : 0
+
+
 
     const result = {
       categoryUrl,
-      categoryName: categoryStatus?.category_name || 'Unknown Category',
+      categoryName,
       totalPages,
       pagesScraped,
       pagesImported,
       pagesPending,
-      lastScrapedPage: categoryStatus?.last_scraped_page || 0,
-      lastImportedPage: categoryStatus?.last_imported_page || 0,
-      scrapeProgressPercent: categoryStatus?.scrape_progress_percent || 0,
-      importProgressPercent: categoryStatus?.import_progress_percent || 0,
+      lastScrapedPage,
+      lastImportedPage,
+      scrapeProgressPercent,
+      importProgressPercent,
       pages: pages,
       summary: {
         totalPages,
