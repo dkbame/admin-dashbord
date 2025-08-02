@@ -1,7 +1,7 @@
 'use client'
 
 import { Box, AppBar, Toolbar, Typography, Drawer, List, ListItemButton, ListItemIcon, ListItemText, IconButton, Button } from '@mui/material'
-import { Apps, Add, Category, Settings, Menu as MenuIcon, LightMode, DarkMode, Logout, AdminPanelSettings, FeaturedPlayList, Collections, CloudDownload as BulkImportIcon, Download, CloudDownload } from '@mui/icons-material'
+import { Apps, Add, Category, Settings, Menu as MenuIcon, LightMode, DarkMode, Logout, AdminPanelSettings, FeaturedPlayList, Collections, CloudDownload as BulkImportIcon, Download, CloudDownload, Analytics } from '@mui/icons-material'
 import { useState } from 'react'
 import Link from 'next/link'
 import { useTheme } from '@/components/ThemeProvider'
@@ -65,6 +65,14 @@ export default function DashboardLayout({
               <Download />
             </ListItemIcon>
             <ListItemText primary="MacUpdate Import" primaryTypographyProps={{ fontWeight: 500 }} />
+          </ListItemButton>
+        </Link>
+        <Link href="/dashboard/category-management" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <ListItemButton sx={{ borderRadius: 2, mb: 1 }}>
+            <ListItemIcon>
+              <Analytics />
+            </ListItemIcon>
+            <ListItemText primary="Category Management" primaryTypographyProps={{ fontWeight: 500 }} />
           </ListItemButton>
         </Link>
         <Link href="/dashboard/categories" style={{ textDecoration: 'none', color: 'inherit' }}>
