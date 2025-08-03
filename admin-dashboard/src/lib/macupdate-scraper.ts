@@ -2028,32 +2028,63 @@ export class MacUpdateCategoryScraper {
         }
       }
       
-      // Get URLs and full app data
-      const pageUrls = await this.scrapeAllAppUrlsWithAxios(pageUrl);
-      const appData: any[] = []
-      
-      // Get full app data for each URL
-      for (const url of pageUrls) {
-        try {
-          const appPreview = await this.getAppPreview(url)
-          if (appPreview) {
-            appData.push({
-              custom_url: url.replace('https://www.macupdate.com', ''),
-              title: appPreview.name,
-              developer: appPreview.developer,
-              price: appPreview.price,
-              version: appPreview.version,
-              rating: appPreview.rating,
-              download_count: appPreview.download_count,
-              review_count: appPreview.rating_count,
-              filesize: appPreview.file_size,
-              logo: appPreview.icon_url,
-              short_description: appPreview.description
-            })
-          }
-        } catch (error) {
-          console.log(`Error getting preview for ${url}:`, error)
+      // Get the category page HTML and extract both URLs and app data
+      const response = await axios.get(pageUrl, {
+        timeout: 8000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         }
+      });
+      
+      const htmlContent = response.data;
+      const pageUrls: string[] = [];
+      const appData: any[] = [];
+      
+      console.log(`HTML content length: ${htmlContent.length} characters`);
+      
+      // Extract app data from embedded JSON in the HTML
+      const appDataMatches = htmlContent.match(/"custom_url":"([^"]+)","title":"([^"]+)","developer":"([^"]+)","price":(\d+),"rating":([\d.]+),"download_count":(\d+),"review_count":(\d+),"filesize":"([^"]+)","logo":"([^"]+)","short_description":"([^"]+)"/g);
+      
+      if (appDataMatches) {
+        console.log(`Found ${appDataMatches.length} complete app data matches in HTML`);
+        
+        appDataMatches.forEach((match: string) => {
+          const dataMatch = match.match(/"custom_url":"([^"]+)","title":"([^"]+)","developer":"([^"]+)","price":(\d+),"rating":([\d.]+),"download_count":(\d+),"review_count":(\d+),"filesize":"([^"]+)","logo":"([^"]+)","short_description":"([^"]+)"/);
+          
+          if (dataMatch) {
+            const [, customUrl, title, developer, price, rating, downloadCount, reviewCount, filesize, logo, shortDescription] = dataMatch;
+            
+            const fullUrl = `https://www.macupdate.com${customUrl}`;
+            pageUrls.push(fullUrl);
+            
+            appData.push({
+              custom_url: customUrl,
+              title: title.replace(/\\"/g, '"').replace(/\\\\/g, '\\'),
+              developer: developer.replace(/\\"/g, '"').replace(/\\\\/g, '\\'),
+              price: parseInt(price) / 100, // Convert cents to dollars
+              rating: parseFloat(rating),
+              download_count: parseInt(downloadCount),
+              review_count: parseInt(reviewCount),
+              filesize: filesize.replace(/\\"/g, '"').replace(/\\\\/g, '\\'),
+              logo: logo.replace(/\\"/g, '"').replace(/\\\\/g, '\\'),
+              short_description: shortDescription.replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+            });
+          }
+        });
+      }
+      
+      // If we didn't find complete data, fall back to just URLs
+      if (appData.length === 0) {
+        console.log('No complete app data found, falling back to URL extraction only');
+        const pageUrlsOnly = await this.scrapeAllAppUrlsWithAxios(pageUrl);
+        pageUrls.push(...pageUrlsOnly);
       }
       
       console.log(`Found ${pageUrls.length} apps on page ${pageNumber} with full data`);
