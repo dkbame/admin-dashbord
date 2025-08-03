@@ -198,8 +198,7 @@ export default function CategoryManagementPage() {
   const [stats, setStats] = useState({
     totalApps: 0,
     macUpdateApps: 0,
-    recentImports: 0,
-    recentSessions: []
+    recentImports: 0
   })
 
   // Load stats on component mount
@@ -1351,34 +1350,7 @@ export default function CategoryManagementPage() {
         </Grid>
       )}
 
-      {/* Recent Import Sessions */}
-      {stats.recentSessions && stats.recentSessions.length > 0 && (
-        <Card sx={{ mt: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Recent Import Sessions
-            </Typography>
-            <List dense>
-              {stats.recentSessions.slice(0, 5).map((session: any, index: number) => (
-                <ListItem key={index} divider>
-                  <ListItemText
-                    primary={session.session_name}
-                    secondary={`${session.apps_imported} imported, ${session.apps_skipped} skipped • ${new Date(session.created_at).toLocaleDateString()}`}
-                  />
-                  <ListItemSecondaryAction>
-                    <Chip
-                      size="small"
-                      label={session.source_type}
-                      color="primary"
-                      variant="outlined"
-                    />
-                  </ListItemSecondaryAction>
-                </ListItem>
-              ))}
-            </List>
-          </CardContent>
-        </Card>
-      )}
+
     </Box>
   )
 } 

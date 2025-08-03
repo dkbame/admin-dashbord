@@ -10,8 +10,7 @@ export async function GET(request: NextRequest) {
     const [
       { count: totalApps },
       { count: macUpdateApps },
-      { count: recentImports },
-      recentSessions
+      { count: recentImports }
     ] = await Promise.all([
       // Total apps
       supabase
@@ -28,17 +27,13 @@ export async function GET(request: NextRequest) {
       supabase
         .from('apps')
         .select('*', { count: 'exact', head: true })
-        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
-      
-      // Recent import sessions
-      new MacUpdateCategoryScraper().getRecentImportSessions(5)
+        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
     ])
 
     return NextResponse.json({
       totalApps: totalApps || 0,
       macUpdateApps: macUpdateApps || 0,
-      recentImports: recentImports || 0,
-      recentSessions: recentSessions || []
+      recentImports: recentImports || 0
     })
 
   } catch (error) {
