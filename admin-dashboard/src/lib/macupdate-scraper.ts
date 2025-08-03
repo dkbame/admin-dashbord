@@ -2012,6 +2012,61 @@ export class MacUpdateCategoryScraper {
   }
 
   /**
+   * Scrape a single page for URLs and full app data
+   */
+  private async scrapeSinglePageWithData(categoryUrl: string, pageNumber: number): Promise<{ urls: string[], appData: any[] }> {
+    try {
+      console.log(`Scraping single page ${pageNumber} with full data...`)
+      
+      // Construct page URL
+      let pageUrl = categoryUrl;
+      if (pageNumber > 1) {
+        if (categoryUrl.includes('?')) {
+          pageUrl = `${categoryUrl}&page=${pageNumber}`;
+        } else {
+          pageUrl = `${categoryUrl}?page=${pageNumber}`;
+        }
+      }
+      
+      // Get URLs and full app data
+      const pageUrls = await this.scrapeAllAppUrlsWithAxios(pageUrl);
+      const appData: any[] = []
+      
+      // Get full app data for each URL
+      for (const url of pageUrls) {
+        try {
+          const appPreview = await this.getAppPreview(url)
+          if (appPreview) {
+            appData.push({
+              custom_url: url.replace('https://www.macupdate.com', ''),
+              title: appPreview.name,
+              developer: appPreview.developer,
+              price: appPreview.price,
+              version: appPreview.version,
+              rating: appPreview.rating,
+              download_count: appPreview.download_count,
+              review_count: appPreview.rating_count,
+              filesize: appPreview.file_size,
+              logo: appPreview.icon_url,
+              short_description: appPreview.description
+            })
+          }
+        } catch (error) {
+          console.log(`Error getting preview for ${url}:`, error)
+        }
+      }
+      
+      console.log(`Found ${pageUrls.length} apps on page ${pageNumber} with full data`);
+      
+      return { urls: pageUrls, appData };
+      
+    } catch (error) {
+      console.log(`Error scraping page ${pageNumber} with data:`, error);
+      return { urls: [], appData: [] };
+    }
+  }
+
+  /**
    * Get app preview data from API response
    */
   async getAppPreviewFromAPI(appData: any): Promise<Partial<MacUpdateApp> | null> {
@@ -2134,6 +2189,71 @@ export class MacUpdateCategoryScraper {
     } catch (error) {
       console.error('Error in getAppsUrlsOnly:', error)
       throw new Error(`Failed to scrape URLs: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  async getAppsWithFullData(categoryUrl: string, limit: number = 20, pages: number = 1): Promise<CategoryScrapingResult> {
+    try {
+      console.log(`Full data sequential scraping: ${categoryUrl} (pages: ${pages})`)
+      
+      // Extract category name from URL
+      const categoryName = this.extractCategoryName(categoryUrl)
+      
+      // Get the last processed page number from import sessions
+      const lastProcessedPage = await this.getLastProcessedPage(categoryUrl)
+      const nextPage = lastProcessedPage + 1
+      
+      console.log(`📄 Last processed page: ${lastProcessedPage}`)
+      console.log(`📄 Next page to scrape: ${nextPage}`)
+      
+      const allUrls: string[] = []
+      const allAppData: any[] = []
+      const pagesProcessed: number[] = []
+      
+      // Scrape the next N pages starting from nextPage
+      for (let i = 0; i < pages; i++) {
+        const currentPage = nextPage + i
+        console.log(`Scraping page ${currentPage} (${i + 1}/${pages}) with full data`)
+        
+        // Scrape this page with full data
+        const pageResult = await this.scrapeSinglePageWithData(categoryUrl, currentPage)
+        console.log(`Found ${pageResult.urls.length} apps on page ${currentPage}`)
+        
+        // Add URLs and data from this page
+        allUrls.push(...pageResult.urls)
+        allAppData.push(...pageResult.appData)
+        pagesProcessed.push(currentPage)
+        
+        // Mark this page as processed
+        await this.markPageAsProcessed(categoryUrl, currentPage, categoryName)
+        
+        // If we have enough URLs, stop
+        if (allUrls.length >= limit) {
+          console.log(`Reached limit of ${limit} URLs, stopping`)
+          break
+        }
+      }
+      
+      console.log(`Total URLs found: ${allUrls.length} from pages: ${pagesProcessed.join(', ')}`)
+      
+      return {
+        appUrls: allUrls.slice(0, limit),
+        totalApps: allUrls.length,
+        newApps: allUrls.length,
+        existingApps: 0,
+        categoryName,
+        currentPage: pagesProcessed[pagesProcessed.length - 1] || nextPage,
+        totalPages: 999,
+        processedPages: pagesProcessed,
+        apiData: {
+          apps: allAppData.slice(0, limit),
+          total: allAppData.length
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error in getAppsWithFullData:', error)
+      throw new Error(`Failed to scrape with full data: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 

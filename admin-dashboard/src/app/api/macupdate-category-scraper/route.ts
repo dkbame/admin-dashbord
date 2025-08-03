@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Use the proper method that creates import sessions
-    const result = await categoryScraper.getAppsUrlsOnly(categoryUrl, limit, 1)
+    // Use the method that gets full app data and creates import sessions
+    const result = await categoryScraper.getAppsWithFullData(categoryUrl, limit, 1)
     
     checkTimeout()
     
