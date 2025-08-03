@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       const pageMatch = session.session_name.match(/Page (\d+)/)
       const pageNumber = pageMatch ? parseInt(pageMatch[1]) : 0
       
-      return {
+      const pageData = {
         pageNumber,
         sessionId: session.id,
         sessionName: session.session_name,
@@ -46,6 +46,10 @@ export async function GET(request: NextRequest) {
         appsImported: session.apps_imported || 0,
         appsSkipped: session.apps_skipped || 0
       }
+      
+      console.log(`Page ${pageNumber} status: ${pageData.status}, apps imported: ${pageData.appsImported}`)
+      
+      return pageData
     }).sort((a, b) => a.pageNumber - b.pageNumber) || []
 
     const totalPages = Math.max(...pages.map(p => p.pageNumber), 0)

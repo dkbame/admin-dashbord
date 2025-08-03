@@ -37,6 +37,8 @@ export async function POST(request: NextRequest) {
     // Update import sessions if categoryUrl is provided
     if (categoryUrl && result.successful > 0) {
       try {
+        console.log(`Attempting to update import sessions for category: ${categoryUrl}`)
+        
         // Find the most recent import session for this category
         const { data: sessions, error: sessionsError } = await supabase
           .from('import_sessions')
@@ -46,8 +48,11 @@ export async function POST(request: NextRequest) {
           .order('created_at', { ascending: false })
           .limit(1)
 
-        if (!sessionsError && sessions && sessions.length > 0) {
+        if (sessionsError) {
+          console.error('Error finding import sessions:', sessionsError)
+        } else if (sessions && sessions.length > 0) {
           const latestSession = sessions[0]
+          console.log(`Found import session: ${latestSession.id}, current status: ${latestSession.page_status}`)
           
           // Update the session with actual import results
           const { error: updateError } = await supabase
@@ -63,13 +68,17 @@ export async function POST(request: NextRequest) {
           if (updateError) {
             console.error('Error updating import session:', updateError)
           } else {
-            console.log(`Updated import session ${latestSession.id} with ${result.successful} imported apps`)
+            console.log(`Successfully updated import session ${latestSession.id} with ${result.successful} imported apps, status: imported`)
           }
+        } else {
+          console.log('No import sessions found for category:', categoryUrl)
         }
       } catch (sessionError) {
         console.error('Error updating import sessions:', sessionError)
         // Don't fail the entire import if session update fails
       }
+    } else {
+      console.log(`Skipping import session update - categoryUrl: ${categoryUrl}, successful imports: ${result.successful}`)
     }
 
     const executionTime = Date.now() - startTime
