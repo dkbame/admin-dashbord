@@ -405,30 +405,54 @@ export async function importMacUpdateAppsBatch(apps: MacUpdateApp[]): Promise<Ba
   let successful = 0
   let failed = 0
   
-  for (const app of apps) {
-    try {
-      const result = await importMacUpdateApp(app)
-      results.push(result)
-      
+  // Process apps in smaller chunks to avoid timeouts
+  const chunkSize = 10
+  const chunks = []
+  for (let i = 0; i < apps.length; i += chunkSize) {
+    chunks.push(apps.slice(i, i + chunkSize))
+  }
+  
+  console.log(`Processing ${apps.length} apps in ${chunks.length} chunks of ${chunkSize}`)
+  
+  for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+    const chunk = chunks[chunkIndex]
+    console.log(`Processing chunk ${chunkIndex + 1}/${chunks.length} with ${chunk.length} apps`)
+    
+    // Process chunk in parallel for speed
+    const chunkPromises = chunk.map(async (app) => {
+      try {
+        const result = await importMacUpdateApp(app)
+        return result
+      } catch (error) {
+        console.error(`Error importing app ${app.name}:`, error)
+        return {
+          success: false,
+          message: error instanceof Error ? error.message : 'Unknown error occurred',
+          isNew: false
+        }
+      }
+    })
+    
+    // Wait for chunk to complete
+    const chunkResults = await Promise.all(chunkPromises)
+    results.push(...chunkResults)
+    
+    // Count successes and failures
+    chunkResults.forEach(result => {
       if (result.success) {
         successful++
       } else {
         failed++
       }
-      
-      // Add small delay between imports to avoid overwhelming the database
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-    } catch (error) {
-      console.error(`Error importing app ${app.name}:`, error)
-      results.push({
-        success: false,
-        message: error instanceof Error ? error.message : 'Unknown error occurred',
-        isNew: false
-      })
-      failed++
+    })
+    
+    // Small delay between chunks (reduced from 100ms per app to 50ms per chunk)
+    if (chunkIndex < chunks.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 50))
     }
   }
+  
+  console.log(`Batch import completed: ${successful} successful, ${failed} failed`)
   
   return {
     total: apps.length,
