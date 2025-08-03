@@ -38,15 +38,20 @@ export async function POST(request: NextRequest) {
         })
 
       } else if (action === 'scrape-app' && appUrl) {
-        // Scrape individual app page
+        // Scrape individual app page - use fallback method directly for Netlify
+        console.log('Scraping individual app page:', appUrl)
+        
+        // Force use of fallback method (axios) instead of Puppeteer
         const app = await scraper.scrapeAppPage(appUrl)
         
         if (app) {
+          console.log('Successfully scraped app:', app.name)
           return NextResponse.json({
             success: true,
             app
           })
         } else {
+          console.log('Failed to scrape app page')
           return NextResponse.json({
             success: false,
             error: 'Failed to scrape app page'
@@ -118,15 +123,20 @@ export async function GET(request: NextRequest) {
         })
 
       } else if (action === 'scrape-app' && appUrl) {
-        // Scrape individual app page
+        // Scrape individual app page - use fallback method directly for Netlify
+        console.log('Scraping individual app page:', appUrl)
+        
+        // Force use of fallback method (axios) instead of Puppeteer
         const app = await scraper.scrapeAppPage(appUrl)
         
         if (app) {
+          console.log('Successfully scraped app:', app.name)
           return NextResponse.json({
             success: true,
             app
           })
         } else {
+          console.log('Failed to scrape app page')
           return NextResponse.json({
             success: false,
             error: 'Failed to scrape app page'
