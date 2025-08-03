@@ -298,12 +298,13 @@ export default function CategoryManagementPage() {
 
     try {
       const response = await fetch('/api/macupdate-category-scraper', {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           categoryUrl: categoryUrl.trim(),
           limit: 20,
-          pages: 1
+          pages: 1,
+          preview: true
         })
       })
       
@@ -316,7 +317,7 @@ export default function CategoryManagementPage() {
       if (data.success) {
         // Reload progress to show updated status
         await loadCategoryProgress()
-        setSuccess(`Successfully scraped page ${progress?.summary.nextPageToScrape || 1}`)
+        setSuccess(`Successfully scraped page ${progress?.summary.nextPageToScrape || 1} with full app data`)
       } else {
         setError(data.error || 'Failed to scrape page')
       }
@@ -860,6 +861,13 @@ export default function CategoryManagementPage() {
                   Bulk Operations
                 </Typography>
                 
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Full Data Mode:</strong> Scrapes complete app information including icons, screenshots, descriptions, and all metadata. 
+                    This is the same comprehensive scraping used in the Import Tools tab.
+                  </Typography>
+                </Alert>
+                
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                   <Button
                     variant="contained"
@@ -867,7 +875,7 @@ export default function CategoryManagementPage() {
                     disabled={scrapingPages || !progress}
                     startIcon={scrapingPages ? <CircularProgress size={20} /> : <Download />}
                   >
-                    {scrapingPages ? 'Scraping...' : `Scrape Page ${progress?.summary.nextPageToScrape || 1}`}
+                    {scrapingPages ? 'Scraping...' : `Scrape Page ${progress?.summary.nextPageToScrape || 1} (Full Data)`}
                   </Button>
                   
                   <Button
