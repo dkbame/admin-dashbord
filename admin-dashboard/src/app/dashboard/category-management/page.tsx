@@ -528,6 +528,7 @@ export default function CategoryManagementPage() {
     setSelectedApps([])
 
     try {
+      console.log('Step 1/3: Scraping category for apps...')
       const response = await fetch('/api/macupdate-category-scraper', {
         method: includePreviews ? 'POST' : 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -540,21 +541,85 @@ export default function CategoryManagementPage() {
         })
       })
       
-      if (!response.ok) {
-        throw `HTTP error! status: ${response.status}`
-      }
-      
-      const data = await response.json()
-      
-      if (data.success) {
-        setCategoryPreview(data)
-        if (data.appUrls.length > 0) {
-          setSuccess(`Found ${data.appUrls.length} apps on page ${data.pagination?.currentPage || 1} (${data.existingApps} already exist and were filtered out)`)
+      if (response.ok) {
+        const data = await response.json()
+        
+        if (data.success) {
+          setCategoryPreview(data)
+          
+          // Step 2: Automatically import the scraped apps
+          if (data.appUrls && data.appUrls.length > 0) {
+            console.log(`Step 2/3: Importing ${data.appUrls.length} apps...`)
+            
+            let imported = 0
+            let skipped = 0
+            
+            // Import each app individually to get full data
+            for (let i = 0; i < data.appUrls.length; i++) {
+              const appUrl = data.appUrls[i]
+              try {
+                // Scrape the individual app
+                const scrapeResponse = await fetch('/api/macupdate-scraper', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    action: 'scrape-app',
+                    appUrl: appUrl
+                  })
+                })
+                
+                if (scrapeResponse.ok) {
+                  const scrapeData = await scrapeResponse.json()
+                  if (scrapeData.success && scrapeData.app) {
+                    // Import the scraped app
+                    const importResponse = await fetch('/api/macupdate-import/batch', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        apps: [scrapeData.app],
+                        categoryUrl: categoryUrl.trim()
+                      })
+                    })
+                    
+                    if (importResponse.ok) {
+                      const importData = await importResponse.json()
+                      if (importData.success) {
+                        imported++
+                      } else {
+                        skipped++
+                      }
+                    } else {
+                      skipped++
+                    }
+                  } else {
+                    skipped++
+                  }
+                } else {
+                  skipped++
+                }
+                
+                // Small delay between apps to avoid overwhelming the server
+                await new Promise(resolve => setTimeout(resolve, 300))
+                
+              } catch (appError) {
+                console.error(`Error processing app ${appUrl}:`, appError)
+                skipped++
+              }
+            }
+            
+            console.log('Step 3/3: Import completed')
+            setSuccess(`Successfully scraped and imported ${imported} apps from page ${data.pagination?.currentPage || 1} (${skipped} skipped, ${data.existingApps} already existed and were filtered out)`)
+          } else {
+            setSuccess(`No new apps found on page ${data.pagination?.currentPage || 1}. All ${data.existingApps} apps on this page already exist in the database.`)
+          }
+          
+          // Reload progress to show updated status
+          await loadCategoryProgress()
         } else {
-          setSuccess(`No new apps found on page ${data.pagination?.currentPage || 1}. All ${data.existingApps} apps on this page already exist in the database.`)
+          setError(data.error || 'Failed to scrape category')
         }
       } else {
-        setError(data.error || 'Failed to scrape category')
+        throw `HTTP error! status: ${response.status}`
       }
 
     } catch (err) {
