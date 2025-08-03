@@ -291,36 +291,96 @@ export default function CategoryManagementPage() {
     }
   }
 
-  // Scrape next page
+  // Scrape next page with full app details
   const scrapeNextPage = async () => {
+    if (!progress) return
+    
     setScrapingPages(true)
     setError(null)
+    setSuccess(null)
 
     try {
+      // Step 1: Get app URLs from the category page
       const response = await fetch('/api/macupdate-category-scraper', {
-        method: 'POST',
+        method: 'PUT', // Use fast mode to get URLs only
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           categoryUrl: categoryUrl.trim(),
           limit: 20,
-          pages: 1,
-          preview: true
+          pages: 1
         })
       })
-      
+
       if (!response.ok) {
         throw `HTTP error! status: ${response.status}`
       }
-      
+
       const data = await response.json()
       
-      if (data.success) {
-        // Reload progress to show updated status
+      if (data.success && data.appUrls.length > 0) {
+        setSuccess(`Found ${data.appUrls.length} apps on page ${data.pagination?.currentPage || 1}. Now scraping full details...`)
+        
+        // Step 2: Scrape full details for each app
+        const scrapedApps = []
+        let scrapedCount = 0
+        
+        for (const appUrl of data.appUrls) {
+          try {
+            const scrapeResponse = await fetch('/api/macupdate-scraper', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'scrape-app',
+                appUrl: appUrl
+              })
+            })
+            
+            if (scrapeResponse.ok) {
+              const scrapeData = await scrapeResponse.json()
+              if (scrapeData.success && scrapeData.app) {
+                scrapedApps.push(scrapeData.app)
+                scrapedCount++
+                setSuccess(`Scraped ${scrapedCount}/${data.appUrls.length} apps...`)
+              }
+            }
+            
+            // Small delay to be respectful
+            await new Promise(resolve => setTimeout(resolve, 500))
+            
+          } catch (scrapeError) {
+            console.error('Error scraping app:', appUrl, scrapeError)
+          }
+        }
+        
+        // Step 3: Import all scraped apps
+        if (scrapedApps.length > 0) {
+          setSuccess(`Importing ${scrapedApps.length} apps with full details...`)
+          
+          const importResponse = await fetch('/api/macupdate-import/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apps: scrapedApps })
+          })
+          
+          if (importResponse.ok) {
+            const importData = await importResponse.json()
+            if (importData.success) {
+              setSuccess(`Successfully imported ${importData.successful} apps with full details (icons, screenshots, descriptions)! ${importData.failed} failed.`)
+            } else {
+              setError(importData.error || 'Import failed')
+            }
+          } else {
+            setError('Import request failed')
+          }
+        } else {
+          setError('No apps were successfully scraped')
+        }
+        
         await loadCategoryProgress()
-        setSuccess(`Successfully scraped page ${progress?.summary.nextPageToScrape || 1} with full app data`)
       } else {
         setError(data.error || 'Failed to scrape page')
       }
+
     } catch (err) {
       const errorMessage = typeof err === 'string' ? err : 'Failed to scrape page'
       setError(errorMessage)
@@ -869,14 +929,14 @@ export default function CategoryManagementPage() {
                 </Alert>
                 
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                  <Button
-                    variant="contained"
-                    onClick={scrapeNextPage}
-                    disabled={scrapingPages || !progress}
-                    startIcon={scrapingPages ? <CircularProgress size={20} /> : <Download />}
-                  >
-                    {scrapingPages ? 'Scraping...' : `Scrape Page ${progress?.summary.nextPageToScrape || 1} (Full Data)`}
-                  </Button>
+                                       <Button
+                       variant="contained"
+                       onClick={scrapeNextPage}
+                       disabled={scrapingPages || !progress}
+                       startIcon={scrapingPages ? <CircularProgress size={20} /> : <Download />}
+                     >
+                       {scrapingPages ? 'Scraping & Importing...' : `Scrape & Import Page ${progress?.summary.nextPageToScrape || 1} (Full Details)`}
+                     </Button>
                   
                   <Button
                     variant="outlined"
