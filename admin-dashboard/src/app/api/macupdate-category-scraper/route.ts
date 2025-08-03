@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Use HTML scraping with reduced workload
-    const result = await categoryScraper.getAppsFromAPI(categoryUrl, limit)
+    // Use the proper method that creates import sessions
+    const result = await categoryScraper.getAppsUrlsOnly(categoryUrl, limit, 1)
     
     checkTimeout()
     
@@ -76,12 +76,7 @@ export async function POST(request: NextRequest) {
 
     checkTimeout()
 
-    // Mark this batch as processed only if there are apps to process
-    if (result.newApps > 0) {
-      await categoryScraper.markAppsAsProcessed(categoryUrl, result.newApps, result.categoryName)
-    } else {
-      console.log('No new apps to process, skipping import session creation')
-    }
+    // Import sessions are already created by getAppsUrlsOnly method
 
     const executionTime = Date.now() - startTime
     console.log(`Category scraping completed in ${executionTime}ms`)
