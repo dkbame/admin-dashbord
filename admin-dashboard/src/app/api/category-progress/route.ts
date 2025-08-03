@@ -94,4 +94,45 @@ export async function GET(request: NextRequest) {
       error: error instanceof Error ? error.message : 'Failed to get category progress'
     }, { status: 500 })
   }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const categoryUrl = searchParams.get('categoryUrl')
+
+    if (!categoryUrl) {
+      return NextResponse.json({ 
+        error: 'Category URL is required' 
+      }, { status: 400 })
+    }
+
+    console.log('Clearing import sessions for category:', categoryUrl)
+
+    // Delete all import sessions for this category
+    const { error: deleteError } = await supabase
+      .from('import_sessions')
+      .delete()
+      .eq('category_url', categoryUrl)
+
+    if (deleteError) {
+      console.error('Error clearing import sessions:', deleteError)
+      return NextResponse.json({
+        error: `Database error: ${deleteError.message}`
+      }, { status: 500 })
+    }
+
+    console.log('Successfully cleared import sessions for category:', categoryUrl)
+
+    return NextResponse.json({
+      success: true,
+      message: 'Category progress reset successfully'
+    })
+
+  } catch (error) {
+    console.error('Error clearing category progress:', error)
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Failed to clear category progress'
+    }, { status: 500 })
+  }
 } 

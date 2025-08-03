@@ -328,6 +328,39 @@ export default function CategoryManagementPage() {
     }
   }
 
+  // Reset category progress
+  const resetCategoryProgress = async () => {
+    if (!categoryUrl.trim()) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/category-progress?categoryUrl=${encodeURIComponent(categoryUrl.trim())}`, {
+        method: 'DELETE'
+      })
+      
+      if (!response.ok) {
+        throw `HTTP error! status: ${response.status}`
+      }
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setSuccess('Category progress reset successfully! All import sessions cleared.')
+        setProgress(null)
+        loadStats() // Refresh stats
+      } else {
+        setError(data.error || 'Failed to reset category progress')
+      }
+    } catch (err) {
+      const errorMessage = typeof err === 'string' ? err : 'Failed to reset category progress'
+      setError(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Single app scraping
   const handleManualScrape = async () => {
     if (!manualUrl.trim()) {
@@ -853,6 +886,16 @@ export default function CategoryManagementPage() {
                     startIcon={<Refresh />}
                   >
                     Refresh Status
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    onClick={resetCategoryProgress}
+                    disabled={loading || !progress}
+                    startIcon={<Refresh />}
+                  >
+                    Reset Progress
                   </Button>
                 </Box>
               </CardContent>
