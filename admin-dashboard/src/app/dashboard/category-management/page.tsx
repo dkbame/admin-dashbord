@@ -681,6 +681,9 @@ export default function CategoryManagementPage() {
             
             console.log('Step 3/3: Import completed')
             setSuccess(`Successfully scraped and imported ${imported} apps from page ${data.pagination?.currentPage || 1} (${skipped} skipped, ${data.existingApps} already existed and were filtered out)`)
+            
+            // Update the import session status to reflect the actual import results
+            await updateImportSessionStatus(data.pagination?.currentPage || 1, imported, skipped)
           } else {
             setSuccess(`No new apps found on page ${data.pagination?.currentPage || 1}. All ${data.existingApps} apps on this page already exist in the database.`)
           }
@@ -699,6 +702,33 @@ export default function CategoryManagementPage() {
       setError(errorMessage)
     } finally {
       setIsCategoryScraping(false)
+    }
+  }
+
+  // Update import session status after successful import
+  const updateImportSessionStatus = async (pageNumber: number, appsImported: number, appsSkipped: number) => {
+    try {
+      console.log(`Updating import session for page ${pageNumber} with ${appsImported} imported, ${appsSkipped} skipped`)
+      
+      const response = await fetch('/api/category-import-page', {
+        method: 'PUT', // Use PUT to update status only
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          categoryUrl: categoryUrl.trim(),
+          pageNumber,
+          appsImported,
+          appsSkipped,
+          status: 'imported'
+        })
+      })
+      
+      if (response.ok) {
+        console.log(`Successfully updated import session for page ${pageNumber}`)
+      } else {
+        console.error(`Failed to update import session for page ${pageNumber}`)
+      }
+    } catch (error) {
+      console.error('Error updating import session status:', error)
     }
   }
 

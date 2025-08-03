@@ -203,3 +203,78 @@ export async function POST(request: NextRequest) {
     }, { status: 500 })
   }
 } 
+
+export async function PUT(request: NextRequest) {
+  try {
+    const { categoryUrl, pageNumber, appsImported, appsSkipped, status } = await request.json()
+
+    if (!categoryUrl || !pageNumber) {
+      return NextResponse.json({ 
+        error: 'Category URL and page number are required' 
+      }, { status: 400 })
+    }
+
+    console.log(`Updating import session status for category: ${categoryUrl}, page: ${pageNumber}`)
+
+    // Find the import session for this category and page
+    const { data: sessions, error: sessionsError } = await supabase
+      .from('import_sessions')
+      .select('*')
+      .eq('category_url', categoryUrl)
+      .like('session_name', `%Page ${pageNumber}`)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (sessionsError) {
+      console.error('Error finding import sessions:', sessionsError)
+      return NextResponse.json({
+        error: `Database error: ${sessionsError.message}`
+      }, { status: 500 })
+    }
+
+    if (!sessions || sessions.length === 0) {
+      return NextResponse.json({
+        error: 'Import session not found'
+      }, { status: 404 })
+    }
+
+    const session = sessions[0]
+    
+    // Update the session with the provided status and counts
+    const { error: updateError } = await supabase
+      .from('import_sessions')
+      .update({
+        page_status: status || 'imported',
+        apps_imported: appsImported || 0,
+        apps_skipped: appsSkipped || 0,
+        completed_at: new Date().toISOString()
+      })
+      .eq('id', session.id)
+
+    if (updateError) {
+      console.error('Error updating import session:', updateError)
+      return NextResponse.json({
+        error: `Failed to update session: ${updateError.message}`
+      }, { status: 500 })
+    }
+
+    console.log(`Successfully updated import session ${session.id} with status: ${status}, apps imported: ${appsImported}`)
+
+    return NextResponse.json({
+      success: true,
+      message: `Import session updated successfully`,
+      data: {
+        sessionId: session.id,
+        pageNumber,
+        status: status || 'imported',
+        appsImported: appsImported || 0
+      }
+    })
+
+  } catch (error) {
+    console.error('Category import page status update error:', error)
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Failed to update import session status'
+    }, { status: 500 })
+  }
+} 
