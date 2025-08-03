@@ -36,40 +36,45 @@ export async function POST(request: NextRequest) {
     
     let appPreviews = []
     
-    // Only get preview data if requested and we have time
-    if (preview) {
-      // Get preview data for only the first few apps to avoid timeout - reduced to 3
-      const maxPreviews = Math.min(3, result.appUrls.length) // Reduced from 5 to 3
+    // Use the app data that was already extracted by getAppsWithFullData
+    if (preview && result.apiData && result.apiData.apps) {
+      console.log(`Using ${result.apiData.apps.length} pre-extracted app previews`)
       
-      // If we have API data, use it directly (faster)
-      if (result.apiData && result.apiData.apps) {
-        for (let i = 0; i < Math.min(maxPreviews, result.apiData.apps.length); i++) {
-          checkTimeout()
-          const appData = result.apiData.apps[i]
-          const preview = await categoryScraper.getAppPreviewFromAPI(appData)
+      // Convert the extracted app data to the expected format
+      result.apiData.apps.forEach((appData: any) => {
+        appPreviews.push({
+          name: appData.title || 'Unknown App',
+          developer: appData.developer || 'Unknown Developer',
+          description: appData.short_description || 'No description available',
+          price: appData.price || 0,
+          version: 'Unknown',
+          rating: appData.rating || 0,
+          download_count: appData.download_count || 0,
+          rating_count: appData.review_count || 0,
+          file_size: appData.filesize || 'Unknown',
+          icon_url: appData.logo || null,
+          macupdate_url: `https://www.macupdate.com${appData.custom_url}`,
+          url: `https://www.macupdate.com${appData.custom_url}`
+        })
+      })
+    } else if (preview) {
+      console.log('No pre-extracted app data available, falling back to individual scraping')
+      
+      // Fallback to individual page scraping (limited)
+      const maxPreviews = Math.min(3, result.appUrls.length)
+      for (let i = 0; i < maxPreviews; i++) {
+        checkTimeout()
+        const appUrl = result.appUrls[i]
+        try {
+          const preview = await categoryScraper.getAppPreview(appUrl)
           if (preview) {
             appPreviews.push({
               ...preview,
-              url: preview.macupdate_url || ''
+              url: appUrl
             })
           }
-        }
-      } else {
-        // Fallback to individual page scraping (limited)
-        for (let i = 0; i < maxPreviews; i++) {
-          checkTimeout()
-          const appUrl = result.appUrls[i]
-          try {
-            const preview = await categoryScraper.getAppPreview(appUrl)
-            if (preview) {
-              appPreviews.push({
-                ...preview,
-                url: appUrl
-              })
-            }
-          } catch (error) {
-            console.error('Error getting preview for:', appUrl, error)
-          }
+        } catch (error) {
+          console.error('Error getting preview for:', appUrl, error)
         }
       }
     }
