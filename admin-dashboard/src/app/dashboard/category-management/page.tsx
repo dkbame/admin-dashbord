@@ -291,8 +291,8 @@ export default function CategoryManagementPage() {
     }
   }
 
-  // Scrape next pages
-  const scrapeNextPages = async (pages: number = 3) => {
+  // Scrape next page
+  const scrapeNextPage = async () => {
     setScrapingPages(true)
     setError(null)
 
@@ -303,7 +303,7 @@ export default function CategoryManagementPage() {
         body: JSON.stringify({ 
           categoryUrl: categoryUrl.trim(),
           limit: 20,
-          pages: pages
+          pages: 1
         })
       })
       
@@ -316,11 +316,12 @@ export default function CategoryManagementPage() {
       if (data.success) {
         // Reload progress to show updated status
         await loadCategoryProgress()
+        setSuccess(`Successfully scraped page ${progress?.summary.nextPageToScrape || 1}`)
       } else {
-        setError(data.error || 'Failed to scrape pages')
+        setError(data.error || 'Failed to scrape page')
       }
     } catch (err) {
-      const errorMessage = typeof err === 'string' ? err : 'Failed to scrape pages'
+      const errorMessage = typeof err === 'string' ? err : 'Failed to scrape page'
       setError(errorMessage)
     } finally {
       setScrapingPages(false)
@@ -862,20 +863,11 @@ export default function CategoryManagementPage() {
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                   <Button
                     variant="contained"
-                    onClick={() => scrapeNextPages(3)}
-                    disabled={scrapingPages}
+                    onClick={scrapeNextPage}
+                    disabled={scrapingPages || !progress}
                     startIcon={scrapingPages ? <CircularProgress size={20} /> : <Download />}
                   >
-                    {scrapingPages ? 'Scraping...' : 'Scrape Next 3 Pages'}
-                  </Button>
-                  
-                  <Button
-                    variant="contained"
-                    onClick={() => scrapeNextPages(5)}
-                    disabled={scrapingPages}
-                    startIcon={scrapingPages ? <CircularProgress size={20} /> : <Download />}
-                  >
-                    {scrapingPages ? 'Scraping...' : 'Scrape Next 5 Pages'}
+                    {scrapingPages ? 'Scraping...' : `Scrape Page ${progress?.summary.nextPageToScrape || 1}`}
                   </Button>
                   
                   <Button
