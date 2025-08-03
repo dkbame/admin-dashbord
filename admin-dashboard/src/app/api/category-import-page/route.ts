@@ -87,6 +87,35 @@ export async function POST(request: NextRequest) {
               .single()
             
             if (!existingApp) {
+              // Get or create category
+              let categoryId = null
+              if (appPreview.category) {
+                // Try to find existing category
+                const { data: existingCategory } = await supabase
+                  .from('categories')
+                  .select('id')
+                  .eq('name', appPreview.category)
+                  .single()
+                
+                if (existingCategory) {
+                  categoryId = existingCategory.id
+                } else {
+                  // Create new category
+                  const { data: newCategory, error: categoryError } = await supabase
+                    .from('categories')
+                    .insert([{
+                      name: appPreview.category,
+                      slug: appPreview.category.toLowerCase().replace(/\s+/g, '-')
+                    }])
+                    .select()
+                    .single()
+                  
+                  if (newCategory && !categoryError) {
+                    categoryId = newCategory.id
+                  }
+                }
+              }
+              
               // Insert the app
               const { error: insertError } = await supabase
                 .from('apps')
@@ -98,19 +127,17 @@ export async function POST(request: NextRequest) {
                   currency: appPreview.currency || 'USD',
                   rating: appPreview.rating || null,
                   rating_count: appPreview.rating_count || 0,
-                  download_count: appPreview.download_count || 0,
                   description: appPreview.description || '',
-                  category: appPreview.category || 'Unknown',
-                  system_requirements: appPreview.system_requirements || [],
-                  screenshots: appPreview.screenshots || [],
+                  category_id: categoryId,
                   icon_url: appPreview.icon_url || '',
                   macupdate_url: appUrl,
-                  developer_website_url: appPreview.developer_website_url || null,
+                  website_url: appPreview.developer_website_url || null,
                   release_date: appPreview.release_date || null,
                   last_updated: appPreview.last_updated || new Date(),
-                  file_size: appPreview.file_size || null,
-                  requirements: appPreview.requirements || null,
-                  architecture: appPreview.architecture || null
+                  size: appPreview.file_size ? parseInt(appPreview.file_size) : null,
+                  architecture: appPreview.architecture || null,
+                  source: 'MACUPDATE',
+                  status: 'ACTIVE'
                 }])
               
               if (insertError) {
