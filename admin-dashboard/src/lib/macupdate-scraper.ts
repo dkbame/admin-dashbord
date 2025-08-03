@@ -1324,15 +1324,20 @@ export class MacUpdateCategoryScraper {
           const urlMatch = match.match(/"custom_url":"([^"]+)"/);
           if (urlMatch && urlMatch[1]) {
             const url = urlMatch[1];
-            if (this.isValidAppUrl(url) && !allAppUrls.includes(url)) {
-              allAppUrls.push(url);
+            // Convert relative URLs to absolute
+            const fullUrl = url.startsWith('http') ? url : `https://www.macupdate.com${url}`;
+            if (this.isValidAppUrl(fullUrl) && !allAppUrls.includes(fullUrl)) {
+              allAppUrls.push(fullUrl);
+              console.log(`Added URL: ${fullUrl}`);
+            } else {
+              console.log(`Skipped URL: ${fullUrl} (invalid or duplicate)`);
             }
           }
         });
       }
       
       // Pattern 2: Look for app links in the HTML structure (backup)
-      if (allAppUrls.length < 10) {
+      if (allAppUrls.length < 15) {
         const appLinkMatches = htmlContent.match(/href="\/app\/[^"]+"/g);
         if (appLinkMatches) {
           console.log(`Found ${appLinkMatches.length} app link matches in HTML`);
@@ -1342,6 +1347,7 @@ export class MacUpdateCategoryScraper {
               const url = `https://www.macupdate.com${urlMatch[1]}`;
               if (this.isValidAppUrl(url) && !allAppUrls.includes(url)) {
                 allAppUrls.push(url);
+                console.log(`Added URL from links: ${url}`);
               }
             }
           });
@@ -1362,8 +1368,10 @@ export class MacUpdateCategoryScraper {
                 const urlMatch = match.match(/"custom_url":"([^"]+)"/);
                 if (urlMatch && urlMatch[1]) {
                   const url = urlMatch[1];
-                  if (this.isValidAppUrl(url) && !allAppUrls.includes(url)) {
-                    allAppUrls.push(url);
+                  const fullUrl = url.startsWith('http') ? url : `https://www.macupdate.com${url}`;
+                  if (this.isValidAppUrl(fullUrl) && !allAppUrls.includes(fullUrl)) {
+                    allAppUrls.push(fullUrl);
+                    console.log(`Added URL from script: ${fullUrl}`);
                   }
                 }
               });
@@ -1373,6 +1381,7 @@ export class MacUpdateCategoryScraper {
       }
       
       console.log(`Found ${allAppUrls.length} unique app URLs with optimized axios scraping`);
+      console.log('All URLs found:', allAppUrls);
       
       return allAppUrls;
       
@@ -1574,28 +1583,44 @@ export class MacUpdateCategoryScraper {
    */
   private isValidAppUrl(url: string): boolean {
     // Must be a MacUpdate app page
-    return url.includes('.macupdate.com') && 
-           !url.includes('/explore/') && 
-           !url.includes('/categories/') &&
-           !url.includes('/search') &&
-           !url.includes('/about') &&
-           !url.includes('/contact') &&
-           !url.includes('/best-picks') &&
-           !url.includes('/reviews') &&
-           !url.includes('/articles') &&
-           !url.includes('/help') &&
-           !url.includes('/terms') &&
-           !url.includes('/privacy') &&
-           !url.includes('/cookie') &&
-           !url.includes('/rss') &&
-           !url.includes('/developer/') &&
-           !url.includes('/comparisons') &&
-           !url.includes('/how-to') &&
-           !url.includes('/content/') &&
-           !url.includes('/discontinued-apps') &&
-           !url.includes('/article/') &&
-           // Must be a subdomain (appname.macupdate.com)
-           !!url.match(/^https:\/\/[^.]+\.macupdate\.com$/)
+    if (!url.includes('.macupdate.com')) {
+      return false;
+    }
+    
+    // Exclude non-app pages
+    const excludePatterns = [
+      '/explore/',
+      '/categories/',
+      '/search',
+      '/about',
+      '/contact',
+      '/best-picks',
+      '/reviews',
+      '/articles',
+      '/help',
+      '/terms',
+      '/privacy',
+      '/cookie',
+      '/rss',
+      '/developer/',
+      '/comparisons',
+      '/how-to',
+      '/content/',
+      '/discontinued-apps',
+      '/article/'
+    ];
+    
+    for (const pattern of excludePatterns) {
+      if (url.includes(pattern)) {
+        return false;
+      }
+    }
+    
+    // Accept both subdomain format (appname.macupdate.com) and path format (macupdate.com/app/...)
+    const subdomainPattern = /^https:\/\/[^.]+\.macupdate\.com(\/.*)?$/;
+    const pathPattern = /^https:\/\/www\.macupdate\.com\/app\/[^\/]+(\/.*)?$/;
+    
+    return subdomainPattern.test(url) || pathPattern.test(url);
   }
 
   /**

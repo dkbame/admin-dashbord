@@ -301,6 +301,7 @@ export default function CategoryManagementPage() {
 
     try {
       // Step 1: Get app URLs from the category page
+      setSuccess('Step 1/3: Getting app URLs from category page...')
       const response = await fetch('/api/macupdate-category-scraper', {
         method: 'PUT', // Use fast mode to get URLs only
         headers: { 'Content-Type': 'application/json' },
@@ -318,14 +319,21 @@ export default function CategoryManagementPage() {
       const data = await response.json()
       
       if (data.success && data.appUrls.length > 0) {
-        setSuccess(`Found ${data.appUrls.length} apps on page ${data.pagination?.currentPage || 1}. Now scraping full details...`)
+        console.log(`Found ${data.appUrls.length} apps on page ${data.pagination?.currentPage || 1}`)
+        setSuccess(`Step 1/3: Found ${data.appUrls.length} apps. Step 2/3: Scraping full details...`)
         
         // Step 2: Scrape full details for each app
         const scrapedApps = []
         let scrapedCount = 0
+        const totalApps = data.appUrls.length
         
-        for (const appUrl of data.appUrls) {
+        for (let i = 0; i < data.appUrls.length; i++) {
+          const appUrl = data.appUrls[i]
+          const progressPercent = Math.round(((i + 1) / totalApps) * 100)
+          
           try {
+            setSuccess(`Step 2/3: Scraping app ${i + 1}/${totalApps} (${progressPercent}%)...`)
+            
             const scrapeResponse = await fetch('/api/macupdate-scraper', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -340,12 +348,12 @@ export default function CategoryManagementPage() {
               if (scrapeData.success && scrapeData.app) {
                 scrapedApps.push(scrapeData.app)
                 scrapedCount++
-                setSuccess(`Scraped ${scrapedCount}/${data.appUrls.length} apps...`)
+                console.log(`Successfully scraped: ${scrapeData.app.name}`)
               }
             }
             
             // Small delay to be respectful
-            await new Promise(resolve => setTimeout(resolve, 500))
+            await new Promise(resolve => setTimeout(resolve, 300))
             
           } catch (scrapeError) {
             console.error('Error scraping app:', appUrl, scrapeError)
@@ -354,7 +362,7 @@ export default function CategoryManagementPage() {
         
         // Step 3: Import all scraped apps
         if (scrapedApps.length > 0) {
-          setSuccess(`Importing ${scrapedApps.length} apps with full details...`)
+          setSuccess(`Step 3/3: Importing ${scrapedApps.length} apps with full details...`)
           
           const importResponse = await fetch('/api/macupdate-import/batch', {
             method: 'POST',
@@ -365,7 +373,7 @@ export default function CategoryManagementPage() {
           if (importResponse.ok) {
             const importData = await importResponse.json()
             if (importData.success) {
-              setSuccess(`Successfully imported ${importData.successful} apps with full details (icons, screenshots, descriptions)! ${importData.failed} failed.`)
+              setSuccess(`✅ Successfully imported ${importData.successful} apps with full details (icons, screenshots, descriptions)! ${importData.failed} failed.`)
             } else {
               setError(importData.error || 'Import failed')
             }
