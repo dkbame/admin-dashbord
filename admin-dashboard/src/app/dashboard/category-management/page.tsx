@@ -254,15 +254,27 @@ export default function CategoryManagementPage() {
     }
   }
 
-  // Import a specific page
-  const importPage = async (sessionId: string, pageNumber: number) => {
+  // Re-import a specific page using our current working code
+  const reimportPage = async (pageNumber: number) => {
     setImportingPage(pageNumber)
+    setError(null)
+    setSuccess(null)
 
     try {
-      const response = await fetch('/api/category-import-page', {
-        method: 'POST',
+      console.log(`Step 1/3: Scraping page ${pageNumber} for apps...`)
+      setSuccess(`Step 1/3: Scraping page ${pageNumber} for apps...`)
+      
+      // Step 1: Scrape the specific page to get app URLs
+      const response = await fetch('/api/macupdate-category-scraper', {
+        method: 'POST', // Use full data mode
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, pageNumber })
+        body: JSON.stringify({ 
+          categoryUrl: categoryUrl.trim(),
+          limit: 20,
+          pages: 1,
+          preview: true,
+          page: pageNumber // Specify the page to scrape
+        })
       })
       
       if (!response.ok) {
@@ -271,20 +283,80 @@ export default function CategoryManagementPage() {
       
       const data = await response.json()
       
-      if (data.success) {
-        // Show success message
-        const message = data.message || `Page ${pageNumber} imported successfully`
-        setError(null)
-        setSuccess(message)
+      if (data.success && data.appUrls && data.appUrls.length > 0) {
+        console.log(`Step 2/3: Importing ${data.appUrls.length} apps from page ${pageNumber}...`)
+        setSuccess(`Step 2/3: Importing ${data.appUrls.length} apps from page ${pageNumber}...`)
+        
+        let imported = 0
+        let skipped = 0
+        
+        // Step 2: Import each app individually to get full data
+        for (let i = 0; i < data.appUrls.length; i++) {
+          const appUrl = data.appUrls[i]
+          const progressPercent = Math.round(((i + 1) / data.appUrls.length) * 100)
+          
+          try {
+            setSuccess(`Step 2/3: Importing app ${i + 1}/${data.appUrls.length} (${progressPercent}%)...`)
+            
+            // Scrape the individual app
+            const scrapeResponse = await fetch('/api/macupdate-scraper', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                action: 'scrape-app',
+                appUrl: appUrl
+              })
+            })
+            
+            if (scrapeResponse.ok) {
+              const scrapeData = await scrapeResponse.json()
+              if (scrapeData.success && scrapeData.app) {
+                // Import the scraped app
+                const importResponse = await fetch('/api/macupdate-import/batch', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    apps: [scrapeData.app],
+                    categoryUrl: categoryUrl.trim()
+                  })
+                })
+                
+                if (importResponse.ok) {
+                  const importData = await importResponse.json()
+                  if (importData.success) {
+                    imported++
+                  } else {
+                    skipped++
+                  }
+                } else {
+                  skipped++
+                }
+              } else {
+                skipped++
+              }
+            } else {
+              skipped++
+            }
+            
+            // Small delay between apps to avoid overwhelming the server
+            await new Promise(resolve => setTimeout(resolve, 300))
+            
+          } catch (appError) {
+            console.error(`Error processing app ${appUrl}:`, appError)
+            skipped++
+          }
+        }
+        
+        console.log('Step 3/3: Re-import completed')
+        setSuccess(`Successfully re-imported ${imported} apps from page ${pageNumber} (${skipped} skipped)`)
         
         // Reload progress to show updated status
         await loadCategoryProgress()
       } else {
-        setError(data.error || 'Failed to import page')
-        setSuccess(null)
+        setSuccess(`No apps found on page ${pageNumber} to re-import.`)
       }
     } catch (err) {
-      const errorMessage = typeof err === 'string' ? err : 'Failed to import page'
+      const errorMessage = typeof err === 'string' ? err : 'Failed to re-import page'
       setError(errorMessage)
     } finally {
       setImportingPage(null)
@@ -1042,6 +1114,13 @@ export default function CategoryManagementPage() {
                   Page Management
                 </Typography>
                 
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Page Status:</strong> Shows the current state of each scraped page. 
+                    <strong>Re-import:</strong> Re-scrapes and imports apps from a specific page with full details.
+                  </Typography>
+                </Alert>
+                
                 <TableContainer component={Paper}>
                   <Table>
                     <TableHead>
@@ -1070,10 +1149,24 @@ export default function CategoryManagementPage() {
                             />
                           </TableCell>
                           <TableCell>
-                            {page.appsImported} apps
+                            <Box>
+                              <Typography variant="body2" fontWeight="medium">
+                                {page.appsImported} apps
+                              </Typography>
+                              {page.appsSkipped > 0 && (
+                                <Typography variant="caption" color="text.secondary">
+                                  {page.appsSkipped} skipped
+                                </Typography>
+                              )}
+                            </Box>
                           </TableCell>
                           <TableCell>
-                            {new Date(page.createdAt).toLocaleDateString()}
+                            <Typography variant="body2">
+                              {new Date(page.createdAt).toLocaleDateString()}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {new Date(page.createdAt).toLocaleTimeString()}
+                            </Typography>
                           </TableCell>
                           <TableCell>
                             {page.status === 'scraped' && (
@@ -1081,20 +1174,43 @@ export default function CategoryManagementPage() {
                                 size="small"
                                 variant="contained"
                                 color="primary"
-                                onClick={() => importPage(page.sessionId, page.pageNumber)}
+                                onClick={() => reimportPage(page.pageNumber)}
                                 disabled={importingPage === page.pageNumber}
                                 startIcon={importingPage === page.pageNumber ? <CircularProgress size={16} /> : <Upload />}
                               >
-                                {importingPage === page.pageNumber ? 'Importing...' : 'Import Apps'}
+                                {importingPage === page.pageNumber ? 'Re-importing...' : 'Re-import Page'}
                               </Button>
                             )}
                             {page.status === 'imported' && (
-                              <Chip 
-                                label={`${page.appsImported} apps imported`} 
-                                color="success" 
+                              <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column' }}>
+                                <Chip 
+                                  label={`${page.appsImported} apps imported`} 
+                                  color="success" 
+                                  size="small"
+                                  icon={<CheckCircle />}
+                                />
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() => reimportPage(page.pageNumber)}
+                                  disabled={importingPage === page.pageNumber}
+                                  startIcon={importingPage === page.pageNumber ? <CircularProgress size={16} /> : <Refresh />}
+                                >
+                                  {importingPage === page.pageNumber ? 'Re-importing...' : 'Re-import'}
+                                </Button>
+                              </Box>
+                            )}
+                            {page.status === 'failed' && (
+                              <Button
                                 size="small"
-                                icon={<CheckCircle />}
-                              />
+                                variant="contained"
+                                color="error"
+                                onClick={() => reimportPage(page.pageNumber)}
+                                disabled={importingPage === page.pageNumber}
+                                startIcon={importingPage === page.pageNumber ? <CircularProgress size={16} /> : <Error />}
+                              >
+                                {importingPage === page.pageNumber ? 'Retrying...' : 'Retry Import'}
+                              </Button>
                             )}
                           </TableCell>
                         </TableRow>
