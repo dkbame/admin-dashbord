@@ -73,6 +73,7 @@ export default function CategoryManagementPage() {
   const [progress, setProgress] = useState<CategoryProgress | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [importingPage, setImportingPage] = useState<number | null>(null)
   const [scrapingPages, setScrapingPages] = useState(false)
 
@@ -123,10 +124,16 @@ export default function CategoryManagementPage() {
       const data = await response.json()
       
       if (data.success) {
+        // Show success message
+        const message = data.message || `Page ${pageNumber} imported successfully`
+        setError(null)
+        setSuccess(message)
+        
         // Reload progress to show updated status
         await loadCategoryProgress()
       } else {
         setError(data.error || 'Failed to import page')
+        setSuccess(null)
       }
     } catch (err) {
       const errorMessage = typeof err === 'string' ? err : 'Failed to import page'
@@ -246,6 +253,13 @@ export default function CategoryManagementPage() {
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
+        </Alert>
+      )}
+
+      {/* Success Display */}
+      {success && (
+        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess(null)}>
+          {success}
         </Alert>
       )}
 
@@ -411,16 +425,22 @@ export default function CategoryManagementPage() {
                         {page.status === 'scraped' && (
                           <Button
                             size="small"
-                            variant="outlined"
+                            variant="contained"
+                            color="primary"
                             onClick={() => importPage(page.sessionId, page.pageNumber)}
                             disabled={importingPage === page.pageNumber}
                             startIcon={importingPage === page.pageNumber ? <CircularProgress size={16} /> : <Upload />}
                           >
-                            {importingPage === page.pageNumber ? 'Importing...' : 'Import'}
+                            {importingPage === page.pageNumber ? 'Importing...' : 'Import Apps'}
                           </Button>
                         )}
                         {page.status === 'imported' && (
-                          <Chip label="Imported" color="success" size="small" />
+                          <Chip 
+                            label={`${page.appsImported} apps imported`} 
+                            color="success" 
+                            size="small"
+                            icon={<CheckCircle />}
+                          />
                         )}
                       </TableCell>
                     </TableRow>
