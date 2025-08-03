@@ -2049,10 +2049,57 @@ export class MacUpdateCategoryScraper {
       
       console.log(`HTML content length: ${htmlContent.length} characters`);
       
-      // Extract app data from embedded JSON in the HTML
-      const appDataMatches = htmlContent.match(/"custom_url":"([^"]+)","title":"([^"]+)","developer":"([^"]+)","price":(\d+),"rating":([\d.]+),"download_count":(\d+),"review_count":(\d+),"filesize":"([^"]+)","logo":"([^"]+)","short_description":"([^"]+)"/g);
+      // Extract app data from embedded JSON in the HTML - try multiple patterns
+      let appDataMatches = htmlContent.match(/"custom_url":"([^"]+)","title":"([^"]+)","developer":"([^"]+)","price":(\d+),"rating":([\d.]+),"download_count":(\d+),"review_count":(\d+),"filesize":"([^"]+)","logo":"([^"]+)","short_description":"([^"]+)"/g);
       
-      if (appDataMatches) {
+      // If the first pattern doesn't work, try a more flexible approach
+      if (!appDataMatches || appDataMatches.length === 0) {
+        console.log('Trying alternative JSON extraction patterns...');
+        
+        // Look for individual app objects in the JSON
+        const appObjects = htmlContent.match(/\{[^}]*"custom_url"[^}]*\}/g);
+        if (appObjects) {
+          console.log(`Found ${appObjects.length} potential app objects`);
+          
+          appObjects.forEach((appObject: string) => {
+            try {
+              // Extract custom_url first
+              const urlMatch = appObject.match(/"custom_url":"([^"]+)"/);
+              if (urlMatch) {
+                const customUrl = urlMatch[1];
+                const fullUrl = `https://www.macupdate.com${customUrl}`;
+                pageUrls.push(fullUrl);
+                
+                // Extract other fields with fallbacks
+                const titleMatch = appObject.match(/"title":"([^"]+)"/);
+                const developerMatch = appObject.match(/"developer":"([^"]+)"/);
+                const priceMatch = appObject.match(/"price":(\d+)/);
+                const ratingMatch = appObject.match(/"rating":([\d.]+)/);
+                const downloadMatch = appObject.match(/"download_count":(\d+)/);
+                const reviewMatch = appObject.match(/"review_count":(\d+)/);
+                const filesizeMatch = appObject.match(/"filesize":"([^"]+)"/);
+                const logoMatch = appObject.match(/"logo":"([^"]+)"/);
+                const descriptionMatch = appObject.match(/"short_description":"([^"]+)"/);
+                
+                appData.push({
+                  custom_url: customUrl,
+                  title: titleMatch ? titleMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\') : 'Unknown App',
+                  developer: developerMatch ? developerMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\') : 'Unknown Developer',
+                  price: priceMatch ? parseInt(priceMatch[1]) / 100 : 0,
+                  rating: ratingMatch ? parseFloat(ratingMatch[1]) : 0,
+                  download_count: downloadMatch ? parseInt(downloadMatch[1]) : 0,
+                  review_count: reviewMatch ? parseInt(reviewMatch[1]) : 0,
+                  filesize: filesizeMatch ? filesizeMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\') : 'Unknown',
+                  logo: logoMatch ? logoMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\') : null,
+                  short_description: descriptionMatch ? descriptionMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\') : 'No description available'
+                });
+              }
+            } catch (error) {
+              console.log('Error parsing app object:', error);
+            }
+          });
+        }
+      } else {
         console.log(`Found ${appDataMatches.length} complete app data matches in HTML`);
         
         appDataMatches.forEach((match: string) => {
