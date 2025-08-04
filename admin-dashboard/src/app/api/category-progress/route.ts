@@ -33,6 +33,8 @@ export async function GET(request: NextRequest) {
 
     // Calculate category status from sessions
     const categoryName = sessions?.[0]?.session_name?.split(' - Page ')[0] || 'Unknown Category'
+    console.log(`Processing ${sessions?.length || 0} import sessions for category: ${categoryName}`)
+    
     const pages = sessions?.map(session => {
       const pageMatch = session.session_name.match(/Page (\d+)/)
       const pageNumber = pageMatch ? parseInt(pageMatch[1]) : 0
@@ -47,7 +49,8 @@ export async function GET(request: NextRequest) {
         appsSkipped: session.apps_skipped || 0
       }
       
-      console.log(`Page ${pageNumber} status: ${pageData.status}, apps imported: ${pageData.appsImported}`)
+      console.log(`📄 Page ${pageNumber}: status="${pageData.status}", apps_imported=${pageData.appsImported}, apps_skipped=${pageData.appsSkipped}, session_id=${session.id}`)
+      console.log(`   Raw session data: page_status="${session.page_status}", apps_imported=${session.apps_imported}, apps_skipped=${session.apps_skipped}`)
       
       return pageData
     }).sort((a, b) => a.pageNumber - b.pageNumber) || []

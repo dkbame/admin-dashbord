@@ -1320,34 +1320,38 @@ export class MacUpdateCategoryScraper {
       const customUrlMatches = htmlContent.match(/"custom_url":"([^"]+)"/g);
       if (customUrlMatches) {
         console.log(`Found ${customUrlMatches.length} custom_url matches in HTML`);
-        customUrlMatches.forEach((match: string) => {
+        customUrlMatches.forEach((match: string, index: number) => {
           const urlMatch = match.match(/"custom_url":"([^"]+)"/);
           if (urlMatch && urlMatch[1]) {
             const url = urlMatch[1];
             // Convert relative URLs to absolute
             const fullUrl = url.startsWith('http') ? url : `https://www.macupdate.com${url}`;
+            console.log(`URL ${index + 1}: ${fullUrl}`);
             if (this.isValidAppUrl(fullUrl) && !allAppUrls.includes(fullUrl)) {
               allAppUrls.push(fullUrl);
-              console.log(`Added URL: ${fullUrl}`);
+              console.log(`✅ Added URL ${index + 1}: ${fullUrl}`);
             } else {
-              console.log(`Skipped URL: ${fullUrl} (invalid or duplicate)`);
+              console.log(`❌ Skipped URL ${index + 1}: ${fullUrl} (invalid or duplicate)`);
             }
           }
         });
       }
       
       // Pattern 2: Look for app links in the HTML structure (backup)
-      if (allAppUrls.length < 15) {
+      if (allAppUrls.length < 20) {
+        console.log(`Only found ${allAppUrls.length} URLs, trying backup pattern...`);
         const appLinkMatches = htmlContent.match(/href="\/app\/[^"]+"/g);
         if (appLinkMatches) {
           console.log(`Found ${appLinkMatches.length} app link matches in HTML`);
-          appLinkMatches.forEach((match: string) => {
+          appLinkMatches.forEach((match: string, index: number) => {
             const urlMatch = match.match(/href="([^"]+)"/);
             if (urlMatch && urlMatch[1]) {
               const url = `https://www.macupdate.com${urlMatch[1]}`;
               if (this.isValidAppUrl(url) && !allAppUrls.includes(url)) {
                 allAppUrls.push(url);
-                console.log(`Added URL from links: ${url}`);
+                console.log(`✅ Added URL from links ${index + 1}: ${url}`);
+              } else {
+                console.log(`❌ Skipped URL from links ${index + 1}: ${url} (invalid or duplicate)`);
               }
             }
           });
@@ -1355,23 +1359,26 @@ export class MacUpdateCategoryScraper {
       }
       
       // Pattern 3: Look for script tags with app data (if we still need more)
-      if (allAppUrls.length < 15) {
+      if (allAppUrls.length < 20) {
+        console.log(`Only found ${allAppUrls.length} URLs, trying script pattern...`);
         const scriptMatches = htmlContent.match(/<script[^>]*>([^<]+)<\/script>/g);
         if (scriptMatches) {
           console.log(`Found ${scriptMatches.length} script tags in HTML`);
-          scriptMatches.forEach((script: string) => {
+          scriptMatches.forEach((script: string, scriptIndex: number) => {
             // Look for app data in script content
             const appDataMatches = script.match(/"custom_url":"([^"]+)"/g);
             if (appDataMatches) {
-              console.log(`Found ${appDataMatches.length} app data matches in script`);
-              appDataMatches.forEach((match: string) => {
+              console.log(`Found ${appDataMatches.length} app data matches in script ${scriptIndex + 1}`);
+              appDataMatches.forEach((match: string, index: number) => {
                 const urlMatch = match.match(/"custom_url":"([^"]+)"/);
                 if (urlMatch && urlMatch[1]) {
                   const url = urlMatch[1];
                   const fullUrl = url.startsWith('http') ? url : `https://www.macupdate.com${url}`;
                   if (this.isValidAppUrl(fullUrl) && !allAppUrls.includes(fullUrl)) {
                     allAppUrls.push(fullUrl);
-                    console.log(`Added URL from script: ${fullUrl}`);
+                    console.log(`✅ Added URL from script ${scriptIndex + 1}-${index + 1}: ${fullUrl}`);
+                  } else {
+                    console.log(`❌ Skipped URL from script ${scriptIndex + 1}-${index + 1}: ${fullUrl} (invalid or duplicate)`);
                   }
                 }
               });
@@ -1380,8 +1387,8 @@ export class MacUpdateCategoryScraper {
         }
       }
       
-      console.log(`Found ${allAppUrls.length} unique app URLs with optimized axios scraping`);
-      console.log('All URLs found:', allAppUrls);
+      console.log(`🎯 Final result: Found ${allAppUrls.length} unique app URLs with optimized axios scraping`);
+      console.log('📋 All URLs found:', allAppUrls);
       
       return allAppUrls;
       
