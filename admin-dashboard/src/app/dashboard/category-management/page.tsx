@@ -694,7 +694,8 @@ export default function CategoryManagementPage() {
             console.log('Step 3/3: Import completed')
             setSuccess(`Successfully scraped and imported ${imported} apps from page ${data.pagination?.currentPage || 1} (${skipped} skipped, ${data.existingApps} already existed and were filtered out)`)
             
-            // Update the import session status to reflect the actual import results
+            // Always update the import session status to reflect the actual import results
+            // This ensures the session is updated even if the batch import API doesn't do it
             console.log(`🔄 About to call updateImportSessionStatus with: page=${data.pagination?.currentPage || 1}, imported=${imported}, skipped=${skipped}`)
             await updateImportSessionStatus(data.pagination?.currentPage || 1, imported, skipped)
             console.log(`✅ updateImportSessionStatus completed`)
