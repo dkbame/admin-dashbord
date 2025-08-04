@@ -13,6 +13,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { apps, categoryUrl } = body
 
+    console.log(`📥 Batch import request received:`)
+    console.log(`   - apps count: ${apps?.length || 0}`)
+    console.log(`   - categoryUrl: "${categoryUrl}"`)
+    console.log(`   - categoryUrl type: ${typeof categoryUrl}`)
+    console.log(`   - categoryUrl undefined: ${categoryUrl === undefined}`)
+    console.log(`   - categoryUrl null: ${categoryUrl === null}`)
+    console.log(`   - categoryUrl empty: ${categoryUrl === ''}`)
+
     if (!apps || !Array.isArray(apps) || apps.length === 0) {
       return NextResponse.json(
         { success: false, error: 'No apps provided for import' },

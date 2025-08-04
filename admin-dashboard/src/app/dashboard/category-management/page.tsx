@@ -664,6 +664,10 @@ export default function CategoryManagementPage() {
             // Step 2b: Import all scraped apps in a single batch
             if (scrapedApps.length > 0) {
               console.log(`Step 2b/3: Importing ${scrapedApps.length} scraped apps in batch...`)
+              console.log(`📤 Sending batch import request:`)
+              console.log(`   - apps count: ${scrapedApps.length}`)
+              console.log(`   - categoryUrl: "${categoryUrl.trim()}"`)
+              console.log(`   - categoryUrl type: ${typeof categoryUrl.trim()}`)
               
               const importResponse = await fetch('/api/macupdate-import/batch', {
                 method: 'POST',
