@@ -708,7 +708,8 @@ export default function CategoryManagementPage() {
   // Update import session status after successful import
   const updateImportSessionStatus = async (pageNumber: number, appsImported: number, appsSkipped: number) => {
     try {
-      console.log(`Updating import session for page ${pageNumber} with ${appsImported} imported, ${appsSkipped} skipped`)
+      console.log(`🔄 Updating import session for page ${pageNumber} with ${appsImported} imported, ${appsSkipped} skipped`)
+      console.log(`📝 Category URL: ${categoryUrl.trim()}`)
       
       const response = await fetch('/api/category-import-page', {
         method: 'PUT', // Use PUT to update status only
@@ -722,13 +723,17 @@ export default function CategoryManagementPage() {
         })
       })
       
+      console.log(`📡 PUT response status: ${response.status}`)
+      
       if (response.ok) {
-        console.log(`Successfully updated import session for page ${pageNumber}`)
+        const data = await response.json()
+        console.log(`✅ Successfully updated import session for page ${pageNumber}:`, data)
       } else {
-        console.error(`Failed to update import session for page ${pageNumber}`)
+        const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }))
+        console.error(`❌ Failed to update import session for page ${pageNumber}:`, errorData)
       }
     } catch (error) {
-      console.error('Error updating import session status:', error)
+      console.error('💥 Error updating import session status:', error)
     }
   }
 

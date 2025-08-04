@@ -214,7 +214,8 @@ export async function PUT(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log(`Updating import session status for category: ${categoryUrl}, page: ${pageNumber}`)
+    console.log(`🔄 PUT: Updating import session status for category: ${categoryUrl}, page: ${pageNumber}`)
+    console.log(`📊 Request data: appsImported=${appsImported}, appsSkipped=${appsSkipped}, status=${status}`)
 
     // Find the import session for this category and page
     const { data: sessions, error: sessionsError } = await supabase
@@ -226,19 +227,23 @@ export async function PUT(request: NextRequest) {
       .limit(1)
 
     if (sessionsError) {
-      console.error('Error finding import sessions:', sessionsError)
+      console.error('❌ Error finding import sessions:', sessionsError)
       return NextResponse.json({
         error: `Database error: ${sessionsError.message}`
       }, { status: 500 })
     }
 
+    console.log(`🔍 Found ${sessions?.length || 0} sessions for category: ${categoryUrl}, page: ${pageNumber}`)
+
     if (!sessions || sessions.length === 0) {
+      console.error('❌ No import session found for category:', categoryUrl, 'page:', pageNumber)
       return NextResponse.json({
         error: 'Import session not found'
       }, { status: 404 })
     }
 
     const session = sessions[0]
+    console.log(`📄 Found session: ${session.id}, name: "${session.session_name}", current status: "${session.page_status}"`)
     
     // Update the session with the provided status and counts
     const { error: updateError } = await supabase
@@ -252,13 +257,13 @@ export async function PUT(request: NextRequest) {
       .eq('id', session.id)
 
     if (updateError) {
-      console.error('Error updating import session:', updateError)
+      console.error('❌ Error updating import session:', updateError)
       return NextResponse.json({
         error: `Failed to update session: ${updateError.message}`
       }, { status: 500 })
     }
 
-    console.log(`Successfully updated import session ${session.id} with status: ${status}, apps imported: ${appsImported}`)
+    console.log(`✅ Successfully updated import session ${session.id} with status: ${status}, apps imported: ${appsImported}`)
 
     return NextResponse.json({
       success: true,
@@ -272,7 +277,7 @@ export async function PUT(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Category import page status update error:', error)
+    console.error('💥 Category import page status update error:', error)
     return NextResponse.json({
       error: error instanceof Error ? error.message : 'Failed to update import session status'
     }, { status: 500 })
