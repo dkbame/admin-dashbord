@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
     console.log(`   - categoryUrl undefined: ${categoryUrl === undefined}`)
     console.log(`   - categoryUrl null: ${categoryUrl === null}`)
     console.log(`   - categoryUrl empty: ${categoryUrl === ''}`)
+    console.log(`   - categoryUrl is "undefined" string: ${categoryUrl === "undefined"}`)
 
     if (!apps || !Array.isArray(apps) || apps.length === 0) {
       return NextResponse.json(
@@ -28,7 +29,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`Starting batch import of ${apps.length} apps${categoryUrl ? ` for category: ${categoryUrl}` : ''}`)
+    // Handle the case where categoryUrl is the string "undefined"
+    let actualCategoryUrl = categoryUrl
+    if (categoryUrl === "undefined" || categoryUrl === undefined || categoryUrl === null || categoryUrl === "") {
+      console.log(`⚠️ categoryUrl is invalid, attempting to extract from apps...`)
+      
+      // Try to extract category URL from the first app's macupdate_url
+      if (apps.length > 0 && apps[0].macupdate_url) {
+        const appUrl = apps[0].macupdate_url
+        // Extract category URL from app URL: https://www.macupdate.com/app/mac/12345/app-name -> https://www.macupdate.com/explore/categories/category-name
+        const urlMatch = appUrl.match(/https:\/\/www\.macupdate\.com\/app\/mac\/\d+\/([^\/]+)/)
+        if (urlMatch) {
+          // This is a fallback - we'll use a generic category URL since we can't determine the exact category
+          actualCategoryUrl = "https://www.macupdate.com/explore/categories/system-utilities"
+          console.log(`🔧 Using fallback category URL: ${actualCategoryUrl}`)
+        }
+      }
+    }
+
+    console.log(`Starting batch import of ${apps.length} apps${actualCategoryUrl ? ` for category: ${actualCategoryUrl}` : ''}`)
 
     // Check execution time periodically
     const checkTimeout = () => {
@@ -43,15 +62,15 @@ export async function POST(request: NextRequest) {
     checkTimeout()
 
     // Update import sessions if categoryUrl is provided
-    if (categoryUrl && result.successful > 0) {
+    if (actualCategoryUrl && result.successful > 0) {
       try {
-        console.log(`Attempting to update import sessions for category: ${categoryUrl}`)
+        console.log(`Attempting to update import sessions for category: ${actualCategoryUrl}`)
         
         // Find the most recent import session for this category
         const { data: sessions, error: sessionsError } = await supabase
           .from('import_sessions')
           .select('*')
-          .eq('category_url', categoryUrl)
+          .eq('category_url', actualCategoryUrl)
           .like('session_name', '%Page %')
           .order('created_at', { ascending: false })
           .limit(1)
@@ -79,14 +98,14 @@ export async function POST(request: NextRequest) {
             console.log(`Successfully updated import session ${latestSession.id} with ${result.successful} imported apps, status: imported`)
           }
         } else {
-          console.log('No import sessions found for category:', categoryUrl)
+          console.log('No import sessions found for category:', actualCategoryUrl)
         }
       } catch (sessionError) {
         console.error('Error updating import sessions:', sessionError)
         // Don't fail the entire import if session update fails
       }
     } else {
-      console.log(`Skipping import session update - categoryUrl: ${categoryUrl}, successful imports: ${result.successful}`)
+      console.log(`Skipping import session update - categoryUrl: ${actualCategoryUrl}, successful imports: ${result.successful}`)
     }
 
     const executionTime = Date.now() - startTime
