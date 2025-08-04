@@ -625,8 +625,9 @@ export default function CategoryManagementPage() {
             
             let imported = 0
             let skipped = 0
+            const scrapedApps = []
             
-            // Import each app individually to get full data
+            // Step 2a: Scrape all apps first
             for (let i = 0; i < data.appUrls.length; i++) {
               const appUrl = data.appUrls[i]
               try {
@@ -643,26 +644,7 @@ export default function CategoryManagementPage() {
                 if (scrapeResponse.ok) {
                   const scrapeData = await scrapeResponse.json()
                   if (scrapeData.success && scrapeData.app) {
-                    // Import the scraped app
-                    const importResponse = await fetch('/api/macupdate-import/batch', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        apps: [scrapeData.app],
-                        categoryUrl: categoryUrl.trim()
-                      })
-                    })
-                    
-                    if (importResponse.ok) {
-                      const importData = await importResponse.json()
-                      if (importData.success) {
-                        imported++
-                      } else {
-                        skipped++
-                      }
-                    } else {
-                      skipped++
-                    }
+                    scrapedApps.push(scrapeData.app)
                   } else {
                     skipped++
                   }
@@ -676,6 +658,32 @@ export default function CategoryManagementPage() {
               } catch (appError) {
                 console.error(`Error processing app ${appUrl}:`, appError)
                 skipped++
+              }
+            }
+            
+            // Step 2b: Import all scraped apps in a single batch
+            if (scrapedApps.length > 0) {
+              console.log(`Step 2b/3: Importing ${scrapedApps.length} scraped apps in batch...`)
+              
+              const importResponse = await fetch('/api/macupdate-import/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  apps: scrapedApps,
+                  categoryUrl: categoryUrl.trim()
+                })
+              })
+              
+              if (importResponse.ok) {
+                const importData = await importResponse.json()
+                if (importData.success) {
+                  imported = importData.successful || scrapedApps.length
+                  skipped += importData.failed || 0
+                } else {
+                  skipped += scrapedApps.length
+                }
+              } else {
+                skipped += scrapedApps.length
               }
             }
             
