@@ -593,6 +593,12 @@ export default function CategoryManagementPage() {
       return
     }
 
+    console.log(`🔍 handleCategoryScrape called with categoryUrl: "${categoryUrl}"`)
+    console.log(`🔍 categoryUrl type: ${typeof categoryUrl}`)
+    console.log(`🔍 categoryUrl undefined: ${categoryUrl === undefined}`)
+    console.log(`🔍 categoryUrl null: ${categoryUrl === null}`)
+    console.log(`🔍 categoryUrl empty: ${categoryUrl === ''}`)
+
     setIsCategoryScraping(true)
     setError(null)
     setSuccess(null)
@@ -668,6 +674,9 @@ export default function CategoryManagementPage() {
               console.log(`   - apps count: ${scrapedApps.length}`)
               console.log(`   - categoryUrl: "${categoryUrl.trim()}"`)
               console.log(`   - categoryUrl type: ${typeof categoryUrl.trim()}`)
+              console.log(`🔍 Before batch import - categoryUrl state: "${categoryUrl}"`)
+              console.log(`🔍 Before batch import - categoryUrl type: ${typeof categoryUrl}`)
+              console.log(`🔍 Before batch import - categoryUrl undefined: ${categoryUrl === undefined}`)
               
               const importResponse = await fetch('/api/macupdate-import/batch', {
                 method: 'POST',
