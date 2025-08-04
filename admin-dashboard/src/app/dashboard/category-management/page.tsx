@@ -695,7 +695,9 @@ export default function CategoryManagementPage() {
             setSuccess(`Successfully scraped and imported ${imported} apps from page ${data.pagination?.currentPage || 1} (${skipped} skipped, ${data.existingApps} already existed and were filtered out)`)
             
             // Update the import session status to reflect the actual import results
+            console.log(`🔄 About to call updateImportSessionStatus with: page=${data.pagination?.currentPage || 1}, imported=${imported}, skipped=${skipped}`)
             await updateImportSessionStatus(data.pagination?.currentPage || 1, imported, skipped)
+            console.log(`✅ updateImportSessionStatus completed`)
           } else {
             setSuccess(`No new apps found on page ${data.pagination?.currentPage || 1}. All ${data.existingApps} apps on this page already exist in the database.`)
           }

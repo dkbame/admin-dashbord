@@ -206,9 +206,13 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    console.log(`🚀 PUT method called for category-import-page`)
     const { categoryUrl, pageNumber, appsImported, appsSkipped, status } = await request.json()
 
+    console.log(`📋 PUT request body:`, { categoryUrl, pageNumber, appsImported, appsSkipped, status })
+
     if (!categoryUrl || !pageNumber) {
+      console.log(`❌ Missing required parameters: categoryUrl=${categoryUrl}, pageNumber=${pageNumber}`)
       return NextResponse.json({ 
         error: 'Category URL and page number are required' 
       }, { status: 400 })
