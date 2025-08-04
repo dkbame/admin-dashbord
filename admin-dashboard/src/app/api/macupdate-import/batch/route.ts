@@ -37,13 +37,23 @@ export async function POST(request: NextRequest) {
       // Try to extract category URL from the first app's macupdate_url
       if (apps.length > 0 && apps[0].macupdate_url) {
         const appUrl = apps[0].macupdate_url
+        console.log(`🔍 First app URL: ${appUrl}`)
+        
         // Extract category URL from app URL: https://www.macupdate.com/app/mac/12345/app-name -> https://www.macupdate.com/explore/categories/category-name
         const urlMatch = appUrl.match(/https:\/\/www\.macupdate\.com\/app\/mac\/\d+\/([^\/]+)/)
         if (urlMatch) {
           // This is a fallback - we'll use a generic category URL since we can't determine the exact category
           actualCategoryUrl = "https://www.macupdate.com/explore/categories/system-utilities"
           console.log(`🔧 Using fallback category URL: ${actualCategoryUrl}`)
+        } else {
+          console.log(`❌ Could not extract category from app URL: ${appUrl}`)
+          actualCategoryUrl = "https://www.macupdate.com/explore/categories/system-utilities"
+          console.log(`🔧 Using default fallback category URL: ${actualCategoryUrl}`)
         }
+      } else {
+        console.log(`❌ No apps or no macupdate_url found, using default fallback`)
+        actualCategoryUrl = "https://www.macupdate.com/explore/categories/system-utilities"
+        console.log(`🔧 Using default fallback category URL: ${actualCategoryUrl}`)
       }
     }
 
