@@ -593,6 +593,10 @@ export default function CategoryManagementPage() {
       return
     }
 
+    console.log(`🔍 Browser Debug: handleCategoryScrape called with new session-first approach`)
+    console.log(`🔍 Browser Debug: categoryUrl = "${categoryUrl}"`)
+    console.log(`🔍 Browser Debug: categoryUrl type = ${typeof categoryUrl}`)
+
     console.log(`🔍 handleCategoryScrape called with categoryUrl: "${categoryUrl}"`)
     console.log(`🔍 categoryUrl type: ${typeof categoryUrl}`)
     console.log(`🔍 categoryUrl undefined: ${categoryUrl === undefined}`)
@@ -669,8 +673,15 @@ export default function CategoryManagementPage() {
             
             // Step 2b: Update the import session immediately with the scraped data
             console.log(`Step 2b/3: Updating import session with ${scrapedApps.length} scraped apps...`)
+            console.log(`🔍 Browser Debug: About to call updateImportSessionStatus`)
+            console.log(`🔍 Browser Debug: pageNumber = ${data.pagination?.currentPage || 1}`)
+            console.log(`🔍 Browser Debug: scrapedApps.length = ${scrapedApps.length}`)
+            console.log(`🔍 Browser Debug: skipped = ${skipped}`)
+            console.log(`🔍 Browser Debug: categoryUrl = "${categoryUrl}"`)
+            
             await updateImportSessionStatus(data.pagination?.currentPage || 1, scrapedApps.length, skipped)
             console.log(`✅ Session updated successfully`)
+            console.log(`🔍 Browser Debug: updateImportSessionStatus completed`)
             
             // Step 2c: Import all scraped apps in a single batch (without session update)
             if (scrapedApps.length > 0) {
@@ -736,6 +747,11 @@ export default function CategoryManagementPage() {
     try {
       console.log(`🔄 Updating import session for page ${pageNumber} with ${appsImported} imported, ${appsSkipped} skipped`)
       console.log(`📝 Category URL: ${categoryUrl.trim()}`)
+      console.log(`🔍 Browser Debug: updateImportSessionStatus called`)
+      console.log(`🔍 Browser Debug: pageNumber = ${pageNumber}`)
+      console.log(`🔍 Browser Debug: appsImported = ${appsImported}`)
+      console.log(`🔍 Browser Debug: appsSkipped = ${appsSkipped}`)
+      console.log(`🔍 Browser Debug: categoryUrl.trim() = "${categoryUrl.trim()}"`)
       
       const response = await fetch('/api/category-import-page', {
         method: 'PUT', // Use PUT to update status only
@@ -750,16 +766,20 @@ export default function CategoryManagementPage() {
       })
       
       console.log(`📡 PUT response status: ${response.status}`)
+      console.log(`🔍 Browser Debug: PUT request sent, status = ${response.status}`)
       
       if (response.ok) {
         const data = await response.json()
         console.log(`✅ Successfully updated import session for page ${pageNumber}:`, data)
+        console.log(`🔍 Browser Debug: Session update successful:`, data)
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }))
         console.error(`❌ Failed to update import session for page ${pageNumber}:`, errorData)
+        console.log(`🔍 Browser Debug: Session update failed:`, errorData)
       }
     } catch (error) {
       console.error('💥 Error updating import session status:', error)
+      console.log(`🔍 Browser Debug: Session update error:`, error)
     }
   }
 
