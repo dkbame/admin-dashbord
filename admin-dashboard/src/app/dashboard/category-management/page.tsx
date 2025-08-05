@@ -667,9 +667,14 @@ export default function CategoryManagementPage() {
               }
             }
             
-            // Step 2b: Import all scraped apps in a single batch
+            // Step 2b: Update the import session immediately with the scraped data
+            console.log(`Step 2b/3: Updating import session with ${scrapedApps.length} scraped apps...`)
+            await updateImportSessionStatus(data.pagination?.currentPage || 1, scrapedApps.length, skipped)
+            console.log(`✅ Session updated successfully`)
+            
+            // Step 2c: Import all scraped apps in a single batch (without session update)
             if (scrapedApps.length > 0) {
-              console.log(`Step 2b/3: Importing ${scrapedApps.length} scraped apps in batch...`)
+              console.log(`Step 2c/3: Importing ${scrapedApps.length} scraped apps in batch...`)
               console.log(`📤 Sending batch import request:`)
               console.log(`   - apps count: ${scrapedApps.length}`)
               console.log(`   - categoryUrl: "${categoryUrl.trim()}"`)
@@ -682,8 +687,8 @@ export default function CategoryManagementPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  apps: scrapedApps,
-                  categoryUrl: categoryUrl.trim()
+                  apps: scrapedApps
+                  // Removed categoryUrl to avoid session update conflicts
                 })
               })
               
@@ -703,11 +708,8 @@ export default function CategoryManagementPage() {
             console.log('Step 3/3: Import completed')
             setSuccess(`Successfully scraped and imported ${imported} apps from page ${data.pagination?.currentPage || 1} (${skipped} skipped, ${data.existingApps} already existed and were filtered out)`)
             
-            // Always update the import session status to reflect the actual import results
-            // This ensures the session is updated even if the batch import API doesn't do it
-            console.log(`🔄 About to call updateImportSessionStatus with: page=${data.pagination?.currentPage || 1}, imported=${imported}, skipped=${skipped}`)
-            await updateImportSessionStatus(data.pagination?.currentPage || 1, imported, skipped)
-            console.log(`✅ updateImportSessionStatus completed`)
+            // Session is already updated, no need to call updateImportSessionStatus again
+            console.log(`✅ Session already updated, skipping redundant update`)
           } else {
             setSuccess(`No new apps found on page ${data.pagination?.currentPage || 1}. All ${data.existingApps} apps on this page already exist in the database.`)
           }
