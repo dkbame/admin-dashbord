@@ -7,11 +7,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { 
-      action = 'scrape-listings',
-      config = {},
-      appUrl = null 
-    } = body
+    const { action, appUrl, ...config } = body
 
     // Validate action
     if (!['scrape-listings', 'scrape-app'].includes(action)) {
@@ -24,49 +20,43 @@ export async function POST(request: NextRequest) {
     // Create scraper instance
     const scraper = createMacUpdateScraper(config)
 
-    try {
-      if (action === 'scrape-listings') {
-        // Scrape listing pages
-        const result = await scraper.scrapeListings(config)
-        
+    if (action === 'scrape-listings') {
+      // Scrape listing pages - use getNewAppsOnly instead of scrapeListings
+      const result = await scraper.getNewAppsOnly(config.category || 'all', 20)
+      
+      return NextResponse.json({
+        success: result.appUrls.length > 0,
+        apps: [], // We're not scraping individual apps here, just getting URLs
+        totalFound: result.totalApps,
+        errors: [],
+        warnings: []
+      })
+
+    } else if (action === 'scrape-app' && appUrl) {
+      // Scrape individual app page - use fallback method directly for Netlify
+      console.log('Scraping individual app page:', appUrl)
+      
+      // Force use of fallback method (axios) instead of Puppeteer
+      const app = await scraper.scrapeAppPage(appUrl)
+      
+      if (app) {
+        console.log('Successfully scraped app:', app.name)
         return NextResponse.json({
-          success: result.success,
-          apps: result.apps,
-          totalFound: result.totalFound,
-          errors: result.errors,
-          warnings: result.warnings
+          success: true,
+          app
         })
-
-      } else if (action === 'scrape-app' && appUrl) {
-        // Scrape individual app page - use fallback method directly for Netlify
-        console.log('Scraping individual app page:', appUrl)
-        
-        // Force use of fallback method (axios) instead of Puppeteer
-        const app = await scraper.scrapeAppPage(appUrl)
-        
-        if (app) {
-          console.log('Successfully scraped app:', app.name)
-          return NextResponse.json({
-            success: true,
-            app
-          })
-        } else {
-          console.log('Failed to scrape app page')
-          return NextResponse.json({
-            success: false,
-            error: 'Failed to scrape app page'
-          })
-        }
       } else {
-        return NextResponse.json(
-          { success: false, error: 'App URL is required for scrape-app action' },
-          { status: 400 }
-        )
+        console.log('Failed to scrape app page')
+        return NextResponse.json({
+          success: false,
+          error: 'Failed to scrape app page'
+        })
       }
-
-    } finally {
-      // Always close the browser
-      await scraper.close()
+    } else {
+      return NextResponse.json(
+        { success: false, error: 'App URL is required for scrape-app action' },
+        { status: 400 }
+      )
     }
 
   } catch (error) {
@@ -109,49 +99,38 @@ export async function GET(request: NextRequest) {
     // Create scraper instance
     const scraper = createMacUpdateScraper(config)
 
-    try {
-      if (action === 'scrape-listings') {
-        // Scrape listing pages
-        const result = await scraper.scrapeListings(config)
-        
+    if (action === 'scrape-listings') {
+      // Scrape listing pages - use getNewAppsOnly instead of scrapeListings
+      const result = await scraper.getNewAppsOnly(config.category || 'all', 20)
+      
+      return NextResponse.json({
+        success: result.appUrls.length > 0,
+        apps: [], // We're not scraping individual apps here, just getting URLs
+        totalFound: result.totalApps,
+        errors: [],
+        warnings: []
+      })
+
+    } else if (action === 'scrape-app' && appUrl) {
+      // Scrape individual app page
+      const app = await scraper.scrapeAppPage(appUrl)
+      
+      if (app) {
         return NextResponse.json({
-          success: result.success,
-          apps: result.apps,
-          totalFound: result.totalFound,
-          errors: result.errors,
-          warnings: result.warnings
+          success: true,
+          app
         })
-
-      } else if (action === 'scrape-app' && appUrl) {
-        // Scrape individual app page - use fallback method directly for Netlify
-        console.log('Scraping individual app page:', appUrl)
-        
-        // Force use of fallback method (axios) instead of Puppeteer
-        const app = await scraper.scrapeAppPage(appUrl)
-        
-        if (app) {
-          console.log('Successfully scraped app:', app.name)
-          return NextResponse.json({
-            success: true,
-            app
-          })
-        } else {
-          console.log('Failed to scrape app page')
-          return NextResponse.json({
-            success: false,
-            error: 'Failed to scrape app page'
-          })
-        }
       } else {
-        return NextResponse.json(
-          { success: false, error: 'App URL is required for scrape-app action' },
-          { status: 400 }
-        )
+        return NextResponse.json({
+          success: false,
+          error: 'Failed to scrape app page'
+        })
       }
-
-    } finally {
-      // Always close the browser
-      await scraper.close()
+    } else {
+      return NextResponse.json(
+        { success: false, error: 'App URL is required for scrape-app action' },
+        { status: 400 }
+      )
     }
 
   } catch (error) {
