@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        if (mostCommonCategory) {
+        if (mostCommonCategory && mostCommonCategory !== 'Unknown') {
           console.log(`🔍 Most common category from apps: ${mostCommonCategory} (${maxCount} apps)`)
           
           // Map category names to URLs
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
           actualCategoryUrl = categoryUrlMap[mostCommonCategory] || "https://www.macupdate.com/explore/categories/system-utilities"
           console.log(`🔧 Using extracted category URL: ${actualCategoryUrl}`)
         } else {
-          console.log(`❌ No category found in apps, using default fallback`)
+          console.log(`❌ No valid category found in apps (found: ${mostCommonCategory}), using default fallback`)
           actualCategoryUrl = "https://www.macupdate.com/explore/categories/system-utilities"
           console.log(`🔧 Using default fallback category URL: ${actualCategoryUrl}`)
         }

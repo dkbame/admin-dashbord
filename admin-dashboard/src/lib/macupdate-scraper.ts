@@ -181,8 +181,40 @@ export class MacUpdateCategoryScraper {
       // Extract description
       const description = $('.description').text().trim() || $('.app-description').text().trim() || ''
       
-      // Extract category
-      const category = $('.category').text().trim() || $('[data-category]').attr('data-category') || 'Unknown'
+      // Extract category - try multiple approaches
+      let category = $('.category').text().trim() || $('[data-category]').attr('data-category') || ''
+      
+      // If category is still empty, try to extract from JSON data in the page
+      if (!category) {
+        const pageContent = $.html()
+        
+        // Look for category in JSON data
+        const categoryMatches = pageContent.match(/"category":"([^"]+)"/g)
+        if (categoryMatches && categoryMatches.length > 0) {
+          const categoryMatch = categoryMatches[0].match(/"category":"([^"]+)"/)
+          if (categoryMatch && categoryMatch[1]) {
+            category = categoryMatch[1]
+          }
+        }
+        
+        // Look for category in breadcrumbs or navigation
+        if (!category) {
+          const breadcrumbText = $('.breadcrumb').text().toLowerCase()
+          if (breadcrumbText.includes('music')) category = 'Music & Audio'
+          else if (breadcrumbText.includes('system')) category = 'System Utilities'
+          else if (breadcrumbText.includes('video')) category = 'Video & Audio'
+          else if (breadcrumbText.includes('photo')) category = 'Photography'
+          else if (breadcrumbText.includes('productivity')) category = 'Productivity'
+          else if (breadcrumbText.includes('development')) category = 'Development'
+          else if (breadcrumbText.includes('games')) category = 'Games'
+          else if (breadcrumbText.includes('education')) category = 'Education'
+        }
+      }
+      
+      // Fallback category if still empty
+      if (!category) {
+        category = 'Unknown'
+      }
       
       // Extract system requirements
       const systemRequirements: string[] = []
@@ -224,6 +256,15 @@ export class MacUpdateCategoryScraper {
         console.error('Could not extract app name from HTML')
         return null
       }
+      
+      console.log(`Extracted data: {
+  name: '${name}',
+  developer: '${developer}',
+  version: '${parsedVersion}',
+  price: ${price},
+  category: '${category}',
+  descriptionLength: ${description.length}
+}`)
       
       return {
         name,
