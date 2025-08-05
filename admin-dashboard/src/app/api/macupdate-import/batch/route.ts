@@ -56,12 +56,11 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        if (mostCommonCategory && mostCommonCategory !== 'Unknown') {
+        if (mostCommonCategory) {
           console.log(`🔍 Most common category from apps: ${mostCommonCategory} (${maxCount} apps)`)
           
           // Map category names to URLs
           const categoryUrlMap: { [key: string]: string } = {
-            // Main categories
             'Music & Audio': 'https://www.macupdate.com/explore/categories/music-audio',
             'Music Audio': 'https://www.macupdate.com/explore/categories/music-audio',
             'System Utilities': 'https://www.macupdate.com/explore/categories/system-utilities',
@@ -71,64 +70,13 @@ export async function POST(request: NextRequest) {
             'Productivity': 'https://www.macupdate.com/explore/categories/productivity',
             'Development': 'https://www.macupdate.com/explore/categories/development',
             'Games': 'https://www.macupdate.com/explore/categories/games',
-            'Education': 'https://www.macupdate.com/explore/categories/education',
-            'Video': 'https://www.macupdate.com/explore/categories/video',
-            'Business': 'https://www.macupdate.com/explore/categories/business',
-            'Customization': 'https://www.macupdate.com/explore/categories/customization',
-            'Developer Tools': 'https://www.macupdate.com/explore/categories/developer-tools',
-            'Finance': 'https://www.macupdate.com/explore/categories/finance',
-            'Graphic Design': 'https://www.macupdate.com/explore/categories/graphic-design',
-            'Health & Fitness': 'https://www.macupdate.com/explore/categories/health-fitness',
-            'Internet Utilities': 'https://www.macupdate.com/explore/categories/internet-utilities',
-            'Lifestyle & Hobby': 'https://www.macupdate.com/explore/categories/lifestyle-hobby',
-            'Medical Software': 'https://www.macupdate.com/explore/categories/medical-software',
-            'Security': 'https://www.macupdate.com/explore/categories/security',
-            'Travel': 'https://www.macupdate.com/explore/categories/travel',
-            
-            // Video subcategories
-            'DVD Software': 'https://www.macupdate.com/explore/categories/video/dvd-software',
-            'Video Converters': 'https://www.macupdate.com/explore/categories/video/video-converters',
-            'Video Editors': 'https://www.macupdate.com/explore/categories/video/video-editors',
-            'Video Players': 'https://www.macupdate.com/explore/categories/video/video-players',
-            'Video Recording': 'https://www.macupdate.com/explore/categories/video/video-recording',
-            'Video Streaming': 'https://www.macupdate.com/explore/categories/video/video-streaming',
-            
-            // Music & Audio subcategories
-            'Audio Converters': 'https://www.macupdate.com/explore/categories/music-audio/audio-converters',
-            'Audio Players': 'https://www.macupdate.com/explore/categories/music-audio/audio-players',
-            'Audio Plug-ins': 'https://www.macupdate.com/explore/categories/music-audio/audio-plug-ins',
-            'Audio Production': 'https://www.macupdate.com/explore/categories/music-audio/audio-production',
-            'Audio Recording': 'https://www.macupdate.com/explore/categories/music-audio/audio-recording',
-            'Audio Streaming': 'https://www.macupdate.com/explore/categories/music-audio/audio-streaming',
-            'DJ Mixing Software': 'https://www.macupdate.com/explore/categories/music-audio/dj-mixing-software',
-            'Music Management': 'https://www.macupdate.com/explore/categories/music-audio/music-management',
-            'Radio': 'https://www.macupdate.com/explore/categories/music-audio/radio',
-            
-            // System Utilities subcategories
-            'Automation': 'https://www.macupdate.com/explore/categories/system-utilities/automation',
-            'Backup': 'https://www.macupdate.com/explore/categories/system-utilities/backup',
-            'Cleaners': 'https://www.macupdate.com/explore/categories/system-utilities/cleaners',
-            'Clocks & Alarms': 'https://www.macupdate.com/explore/categories/system-utilities/clocks-alarms',
-            'Compression': 'https://www.macupdate.com/explore/categories/system-utilities/compression',
-            'Contextual Menus': 'https://www.macupdate.com/explore/categories/system-utilities/contextual-menus',
-            'Diagnostic Software': 'https://www.macupdate.com/explore/categories/system-utilities/diagnostic-software',
-            'Disk Utilities': 'https://www.macupdate.com/explore/categories/system-utilities/disk-utilities',
-            'Emulation': 'https://www.macupdate.com/explore/categories/system-utilities/emulation',
-            'File Management': 'https://www.macupdate.com/explore/categories/system-utilities/file-management',
-            'Font Managers': 'https://www.macupdate.com/explore/categories/system-utilities/font-managers',
-            'Maintenance & Optimization': 'https://www.macupdate.com/explore/categories/system-utilities/maintenance-optimization',
-            'Network Software': 'https://www.macupdate.com/explore/categories/system-utilities/network-software',
-            'Printer & Scanner Drivers': 'https://www.macupdate.com/explore/categories/system-utilities/printer-scanner-drivers',
-            'Recovery': 'https://www.macupdate.com/explore/categories/system-utilities/recovery',
-            'Synchronization': 'https://www.macupdate.com/explore/categories/system-utilities/synchronization',
-            'USB Drivers': 'https://www.macupdate.com/explore/categories/system-utilities/usb-drivers',
-            'Virtualization': 'https://www.macupdate.com/explore/categories/system-utilities/virtualization'
+            'Education': 'https://www.macupdate.com/explore/categories/education'
           }
           
           actualCategoryUrl = categoryUrlMap[mostCommonCategory] || "https://www.macupdate.com/explore/categories/system-utilities"
           console.log(`🔧 Using extracted category URL: ${actualCategoryUrl}`)
         } else {
-          console.log(`❌ No valid category found in apps (found: ${mostCommonCategory}), using default fallback`)
+          console.log(`❌ No category found in apps, using default fallback`)
           actualCategoryUrl = "https://www.macupdate.com/explore/categories/system-utilities"
           console.log(`🔧 Using default fallback category URL: ${actualCategoryUrl}`)
         }
