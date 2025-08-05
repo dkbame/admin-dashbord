@@ -159,30 +159,67 @@ export class MacUpdateCategoryScraper {
    */
   private extractAppData($: cheerio.CheerioAPI, appUrl: string): MacUpdateApp | null {
     try {
-      // Extract basic app information
-      const name = $('h1').first().text().trim() || $('.app-title').text().trim()
-      const developer = $('.developer-name').text().trim() || $('[data-developer]').attr('data-developer') || 'Unknown'
-      const version = $('.version').text().trim() || $('[data-version]').attr('data-version') || 'Unknown'
+      // Debug: Log the HTML structure to understand what we're working with
+      console.log('Extracting app data from:', appUrl)
       
-      // Extract price information
-      const priceText = $('.price').text().trim() || $('[data-price]').attr('data-price') || ''
+      // Extract basic app information with multiple fallback selectors
+      const name = $('h1').first().text().trim() || 
+                   $('.app-title').text().trim() || 
+                   $('title').text().trim() ||
+                   $('[data-app-name]').attr('data-app-name') ||
+                   $('.app-name').text().trim()
+      
+      const developer = $('.developer-name').text().trim() || 
+                       $('[data-developer]').attr('data-developer') || 
+                       $('.developer').text().trim() ||
+                       $('[data-vendor]').attr('data-vendor') ||
+                       $('.vendor').text().trim() ||
+                       'Unknown'
+      
+      const version = $('.version').text().trim() || 
+                      $('[data-version]').attr('data-version') || 
+                      $('.app-version').text().trim() ||
+                      'Unknown'
+      
+      // Extract price information with multiple selectors
+      const priceText = $('.price').text().trim() || 
+                        $('[data-price]').attr('data-price') || 
+                        $('.app-price').text().trim() ||
+                        $('.cost').text().trim() ||
+                        ''
       const price = this.parsePrice(priceText)
       const currency = priceText.includes('$') ? 'USD' : 'Unknown'
       
       // Extract rating information
-      const ratingText = $('.rating').text().trim() || $('[data-rating]').attr('data-rating') || ''
+      const ratingText = $('.rating').text().trim() || 
+                         $('[data-rating]').attr('data-rating') || 
+                         $('.app-rating').text().trim() ||
+                         $('.stars').text().trim() ||
+                         ''
       const rating = this.parseRating(ratingText)
-      const ratingCount = parseInt($('.rating-count').text().trim()) || 0
+      const ratingCount = parseInt($('.rating-count').text().trim()) || 
+                          parseInt($('.reviews-count').text().trim()) || 
+                          0
       
       // Extract download count
-      const downloadText = $('.download-count').text().trim() || ''
+      const downloadText = $('.download-count').text().trim() || 
+                           $('.downloads').text().trim() ||
+                           ''
       const downloadCount = this.parseDownloadCount(downloadText)
       
-      // Extract description
-      const description = $('.description').text().trim() || $('.app-description').text().trim() || ''
+      // Extract description with multiple selectors
+      const description = $('.description').text().trim() || 
+                         $('.app-description').text().trim() || 
+                         $('.description-text').text().trim() ||
+                         $('.app-summary').text().trim() ||
+                         $('.summary').text().trim() ||
+                         ''
       
       // Extract category - try multiple approaches
-      let category = $('.category').text().trim() || $('[data-category]').attr('data-category') || ''
+      let category = $('.category').text().trim() || 
+                     $('[data-category]').attr('data-category') || 
+                     $('.app-category').text().trim() ||
+                     ''
       
       // If category is still empty, try to extract from JSON data in the page
       if (!category) {
@@ -272,33 +309,50 @@ export class MacUpdateCategoryScraper {
         if (req) systemRequirements.push(req)
       })
       
-      // Extract screenshots
+      // Extract screenshots with multiple selectors
       const screenshots: string[] = []
-      $('.screenshots img').each((_, el) => {
+      $('.screenshots img, .app-screenshots img, .gallery img, .images img').each((_, el) => {
         const src = $(el).attr('src')
         if (src) screenshots.push(src)
       })
       
-      // Extract icon URL
-      const iconUrl = $('.app-icon img').attr('src') || $('.icon img').attr('src') || ''
+      // Extract icon URL with multiple selectors
+      const iconUrl = $('.app-icon img').attr('src') || 
+                      $('.icon img').attr('src') || 
+                      $('.app-logo img').attr('src') ||
+                      $('[data-icon]').attr('data-icon') ||
+                      ''
       
       // Extract developer website
-      const developerWebsite = $('.developer-website a').attr('href') || ''
+      const developerWebsite = $('.developer-website a').attr('href') || 
+                              $('.vendor-website a').attr('href') ||
+                              $('.developer a').attr('href') ||
+                              ''
       
       // Extract file size
-      const fileSize = $('.file-size').text().trim() || ''
+      const fileSize = $('.file-size').text().trim() || 
+                       $('.app-size').text().trim() ||
+                       $('.download-size').text().trim() ||
+                       ''
       
       // Extract requirements
-      const requirements = $('.requirements').text().trim() || ''
+      const requirements = $('.requirements').text().trim() || 
+                          $('.system-requirements').text().trim() ||
+                          ''
       
       // Extract architecture
-      const architecture = $('.architecture').text().trim() || ''
+      const architecture = $('.architecture').text().trim() || 
+                          $('.app-architecture').text().trim() ||
+                          ''
       
       // Parse version
       const parsedVersion = this.parseVersion(version)
       
       // Parse last updated date
-      const updatedText = $('.last-updated').text().trim() || ''
+      const updatedText = $('.last-updated').text().trim() || 
+                          $('.updated-date').text().trim() ||
+                          $('.release-date').text().trim() ||
+                          ''
       const lastUpdated = this.parseUpdatedDate(updatedText)
       
       if (!name) {
