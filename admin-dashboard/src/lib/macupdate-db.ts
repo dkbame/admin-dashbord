@@ -48,8 +48,9 @@ const CATEGORY_MAP: { [key: string]: string } = {
   // Video & Audio
   'video': 'video-audio',
   'audio': 'video-audio',
-  'music': 'video-audio',
-  'music & audio': 'video-audio',
+  'music': 'music-audio',  // Changed from video-audio to music-audio
+  'music & audio': 'music-audio',  // Fixed: was incorrectly mapped to video-audio
+  'music audio': 'music-audio',  // Added for consistency
   'video editing': 'video-audio',
   'audio editing': 'video-audio',
   'media': 'video-audio',
@@ -173,14 +174,48 @@ async function getCategoryId(categoryName: string): Promise<string | null> {
       console.log('✅ Exact match found:', searchTerm, '->', targetSlug)
     } else {
       console.log('❌ No exact match found, trying partial matches...')
-      // Try partial matches
+      // Try partial matches with better prioritization
+      let bestMatch = null
+      let bestScore = 0
+      
       for (const [key, slug] of Object.entries(CATEGORY_MAP)) {
+        // Calculate match score based on how well the terms match
+        let score = 0
+        
+        // Exact substring match gets high score
         if (searchTerm.includes(key) || key.includes(searchTerm)) {
-          targetSlug = slug
-          matchType = 'partial'
-          console.log('✅ Partial match found:', searchTerm, 'includes', key, '->', targetSlug)
-          break
+          score = Math.min(searchTerm.length, key.length) / Math.max(searchTerm.length, key.length)
+          
+          // Bonus for longer matches
+          if (searchTerm.includes(key)) {
+            score += 0.5
+          }
+          if (key.includes(searchTerm)) {
+            score += 0.3
+          }
+          
+          // Extra bonus for word boundaries
+          const words = searchTerm.split(/\s+/)
+          const keyWords = key.split(/\s+/)
+          for (const word of words) {
+            if (keyWords.includes(word)) {
+              score += 0.2
+            }
+          }
         }
+        
+        if (score > bestScore) {
+          bestScore = score
+          bestMatch = { key, slug, score }
+        }
+      }
+      
+      if (bestMatch && bestScore > 0.3) { // Only use if score is good enough
+        targetSlug = bestMatch.slug
+        matchType = 'partial'
+        console.log('✅ Best partial match found:', searchTerm, '->', bestMatch.key, '->', targetSlug, '(score:', bestScore.toFixed(2), ')')
+      } else {
+        console.log('❌ No good partial match found, using default')
       }
     }
     
