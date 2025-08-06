@@ -10,7 +10,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     
     const categoryId = searchParams.get('category_id');
+    const categoryName = searchParams.get('category'); // New: filter by category name
     const search = searchParams.get('search');
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '20');
+    const offset = (page - 1) * limit;
+    
+    console.log('API Request params:', { categoryId, categoryName, search, page, limit, offset });
     
     let query = supabase
       .from('apps')
@@ -23,12 +29,17 @@ export async function GET(request: NextRequest) {
           icon,
           color
         )
-      `)
+      `, { count: 'exact' }) // Get total count for pagination
       .order('created_at', { ascending: false });
     
-    // Filter by category if provided
+    // Filter by category ID if provided
     if (categoryId) {
       query = query.eq('category_id', categoryId);
+    }
+    
+    // Filter by category name if provided
+    if (categoryName && categoryName !== 'all') {
+      query = query.eq('categories.name', categoryName);
     }
     
     // Search functionality
@@ -36,14 +47,45 @@ export async function GET(request: NextRequest) {
       query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%,developer.ilike.%${search}%`);
     }
     
-    const { data: apps, error } = await query;
+    // Apply pagination
+    query = query.range(offset, offset + limit - 1);
+    
+    const { data: apps, error, count } = await query;
     
     if (error) {
       console.error('Error fetching apps:', error);
       return NextResponse.json({ error: 'Failed to fetch apps' }, { status: 500 });
     }
     
-    return NextResponse.json(apps);
+    // Calculate pagination metadata
+    const totalPages = Math.ceil((count || 0) / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+    
+    const response = {
+      apps,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems: count || 0,
+        itemsPerPage: limit,
+        hasNextPage,
+        hasPrevPage,
+        nextPage: hasNextPage ? page + 1 : null,
+        prevPage: hasPrevPage ? page - 1 : null
+      }
+    };
+    
+    console.log('API Response:', {
+      appsCount: apps?.length || 0,
+      totalItems: count || 0,
+      currentPage: page,
+      totalPages,
+      hasNextPage,
+      hasPrevPage
+    });
+    
+    return NextResponse.json(response);
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

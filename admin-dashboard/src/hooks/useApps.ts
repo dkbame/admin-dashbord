@@ -24,55 +24,70 @@ interface App {
   is_free: boolean | null
 }
 
+interface PaginationInfo {
+  currentPage: number
+  totalPages: number
+  totalItems: number
+  itemsPerPage: number
+  hasNextPage: boolean
+  hasPrevPage: boolean
+  nextPage: number | null
+  prevPage: number | null
+}
+
+interface AppsResponse {
+  apps: App[]
+  pagination: PaginationInfo
+  error?: string
+}
+
 export function useApps() {
   const [apps, setApps] = useState<App[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+  
+  // Pagination and filtering state
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [searchTerm, setSearchTerm] = useState('')
 
-  const fetchApps = async () => {
+  const fetchApps = async (page: number = 1, category: string = 'all', search: string = '') => {
     try {
-      console.log('Fetching apps from Supabase...')
+      console.log('Fetching apps from API with pagination and filters...')
+      console.log('Params:', { page, category, search })
       
-      const { data, error } = await supabase
-        .from('apps')
-        .select(`
-          id,
-          name,
-          developer,
-          category:categories!apps_category_id_fkey (name),
-          price,
-          is_on_mas,
-          status,
-          icon_url,
-          is_featured,
-          is_free,
-          screenshots:screenshots!fk_app (
-            id,
-            url,
-            caption,
-            display_order
-          )
-        `)
-        .order('created_at', { ascending: false })
+      // Build query parameters
+      const params = new URLSearchParams()
+      if (page > 1) params.append('page', page.toString())
+      if (category && category !== 'all') params.append('category', category)
+      if (search) params.append('search', search)
+      
+      const url = `/api/apps${params.toString() ? `?${params.toString()}` : ''}`
+      console.log('API URL:', url)
+      
+      const response = await fetch(url)
+      const data: AppsResponse = await response.json()
+      
+      console.log('API Response:', {
+        appsCount: data.apps?.length || 0,
+        pagination: data.pagination
+      })
 
-      console.log('Supabase apps data:', data)
-      console.log('Supabase apps error:', error)
-      console.log('Apps count from database:', data?.length || 0)
-
-      if (error) {
-        console.error('Supabase query error:', error)
-        throw error
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch apps')
       }
 
-      if (!data) {
-        console.warn('No data returned from Supabase')
+      if (!data.apps) {
+        console.warn('No apps data returned from API')
         setApps([])
+        setPagination(null)
         return
       }
 
       // Properly type the response data and handle price field
-      const typedData = (data || []).map(item => ({
+      const typedData = (data.apps || []).map(item => ({
         ...item,
         price: item.price || '0',
         category: Array.isArray(item.category) ? item.category[0] : item.category
@@ -80,7 +95,9 @@ export function useApps() {
       
       console.log('Processed apps data:', typedData)
       console.log('Final apps count to set in state:', typedData.length)
+      
       setApps(typedData)
+      setPagination(data.pagination)
       setLastUpdate(new Date())
     } catch (err) {
       console.error('Error in fetchApps:', err)
@@ -90,9 +107,34 @@ export function useApps() {
     }
   }
 
+  // Fetch apps with current filters
+  const fetchAppsWithCurrentFilters = () => {
+    return fetchApps(currentPage, selectedCategory, searchTerm)
+  }
+
+  // Handle page change
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage)
+    fetchApps(newPage, selectedCategory, searchTerm)
+  }
+
+  // Handle category filter change
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category)
+    setCurrentPage(1) // Reset to first page when changing filters
+    fetchApps(1, category, searchTerm)
+  }
+
+  // Handle search term change
+  const handleSearchChange = (search: string) => {
+    setSearchTerm(search)
+    setCurrentPage(1) // Reset to first page when changing filters
+    fetchApps(1, selectedCategory, search)
+  }
+
   // Simple fetch on mount (real-time subscriptions can be added later)
   useEffect(() => {
-    fetchApps()
+    fetchAppsWithCurrentFilters()
   }, [])
 
   const toggleFeatured = async (appId: string, currentFeatured: boolean) => {
@@ -103,7 +145,7 @@ export function useApps() {
         .eq('id', appId)
 
       if (error) throw error
-      await fetchApps() // Refresh the list
+      await fetchAppsWithCurrentFilters() // Refresh the list with current filters
     } catch (err) {
       console.error('Error toggling featured status:', err)
       setError(err instanceof Error ? err.message : 'Failed to update featured status')
@@ -150,18 +192,18 @@ export function useApps() {
       
       // Force immediate refresh without verification
       console.log('Forcing immediate refresh...')
-      await fetchApps() // Refresh the list immediately
+      await fetchAppsWithCurrentFilters() // Refresh with current filters
       
       // Add a second refresh after a short delay to ensure consistency
       setTimeout(async () => {
         console.log('Performing delayed refresh...')
-        await fetchApps()
+        await fetchAppsWithCurrentFilters()
       }, 1000)
       
       // Add a third refresh after a longer delay to handle any caching issues
       setTimeout(async () => {
         console.log('Performing final refresh to clear any cache...')
-        await fetchApps()
+        await fetchAppsWithCurrentFilters()
       }, 2000)
     } catch (err) {
       console.error('Error deleting app:', err)
@@ -188,8 +230,8 @@ export function useApps() {
 
       console.log('Single delete: App deleted successfully')
       
-      // Simple refresh
-      await fetchApps()
+      // Simple refresh with current filters
+      await fetchAppsWithCurrentFilters()
     } catch (err) {
       console.error('Single delete error:', err)
       setError(err instanceof Error ? err.message : 'Failed to delete app')
@@ -206,7 +248,14 @@ export function useApps() {
     loading,
     error,
     lastUpdate,
-    fetchApps,
+    pagination,
+    currentPage,
+    selectedCategory,
+    searchTerm,
+    fetchApps: fetchAppsWithCurrentFilters,
+    handlePageChange,
+    handleCategoryChange,
+    handleSearchChange,
     toggleFeatured,
     deleteApp,
     deleteSingleApp,

@@ -10,6 +10,8 @@ import DeleteConfirmationDialog from '@/components/DeleteConfirmationDialog'
 import BulkDeleteConfirmationDialog from '@/components/BulkDeleteConfirmationDialog'
 import DashboardAnalytics from '@/components/DashboardAnalytics'
 import RealtimeNotifications from '@/components/RealtimeNotifications'
+import PaginationControls from '@/components/PaginationControls'
+import FilterControls from '@/components/FilterControls'
 import { useApps } from '@/hooks/useApps'
 import { AppListItem } from '@/types/app'
 
@@ -45,7 +47,14 @@ export default function DashboardPage() {
     deleteApp, 
     deleteSingleApp,
     clearError,
-    lastUpdate
+    lastUpdate,
+    pagination,
+    currentPage,
+    selectedCategory,
+    searchTerm,
+    handlePageChange,
+    handleCategoryChange,
+    handleSearchChange
   } = useApps()
   
   const [tabValue, setTabValue] = useState(0)
@@ -259,7 +268,7 @@ export default function DashboardPage() {
           />
           <Tab 
             icon={<List />} 
-            label={`All Apps (${apps.length})`} 
+            label={`All Apps (${pagination?.totalItems || apps.length})`} 
             iconPosition="start"
           />
         </Tabs>
@@ -270,6 +279,19 @@ export default function DashboardPage() {
 
         <TabPanel value={tabValue} index={1}>
           <Paper sx={{ width: '100%', overflow: 'hidden' }}>
+            {/* Filter Controls */}
+            <FilterControls
+              selectedCategory={selectedCategory}
+              searchTerm={searchTerm}
+              onCategoryChange={handleCategoryChange}
+              onSearchChange={handleSearchChange}
+              onClearFilters={() => {
+                handleCategoryChange('all')
+                handleSearchChange('')
+              }}
+            />
+            
+            {/* Apps Table */}
             <AppsTable
               apps={apps}
               onEdit={handleEdit}
@@ -278,6 +300,12 @@ export default function DashboardPage() {
               updatingFeatured={updatingFeatured}
               onBulkDelete={handleBulkDelete}
               onBulkToggleFeatured={handleBulkToggleFeatured}
+            />
+            
+            {/* Pagination Controls */}
+            <PaginationControls
+              pagination={pagination}
+              onPageChange={handlePageChange}
             />
           </Paper>
         </TabPanel>
