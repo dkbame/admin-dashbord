@@ -32,61 +32,86 @@ interface MatchResult {
 
 export class iTunesMatchingService {
   private static readonly BASE_URL = 'https://itunes.apple.com/search'
-  private static readonly RATE_LIMIT_DELAY = 1000 // 1 second between requests
+  private static readonly RATE_LIMIT_DELAY = 200 // Reduced from 1000ms to 200ms
 
   /**
    * Search iTunes API for a Mac app
    */
   static async searchApp(appName: string, developerName?: string): Promise<MatchResult> {
     try {
-      console.log(`Searching iTunes for: "${appName}" by ${developerName || 'unknown'}`)
+      // Clean the app name by removing "For Mac" suffix
+      const cleanAppName = this.cleanAppName(appName)
+      console.log(`Searching iTunes for: "${cleanAppName}" (original: "${appName}") by ${developerName || 'unknown'}`)
       
       // Build search query
-      const searchTerm = encodeURIComponent(appName)
+      const searchTerm = encodeURIComponent(cleanAppName)
       const url = `${this.BASE_URL}?term=${searchTerm}&entity=macSoftware&country=us&limit=10`
       
       console.log(`iTunes API URL: ${url}`)
       
-      const response = await fetch(url)
-      const data: iTunesSearchResponse = await response.json()
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
       
-      console.log(`iTunes API response: ${data.resultCount} results`)
-      
-      if (!response.ok) {
-        throw new Error(`iTunes API error: ${response.status}`)
-      }
-      
-      if (data.resultCount === 0) {
+      try {
+        const response = await fetch(url, {
+          signal: controller.signal
+        })
+        
+        clearTimeout(timeoutId)
+        
+        if (!response.ok) {
+          throw new Error(`iTunes API error: ${response.status}`)
+        }
+        
+        let data: iTunesSearchResponse
+        try {
+          data = await response.json()
+        } catch (jsonError) {
+          console.error('JSON parsing error:', jsonError)
+          throw new Error('Invalid JSON response from iTunes API')
+        }
+        
+        console.log(`iTunes API response: ${data.resultCount} results`)
+        
+        if (data.resultCount === 0) {
+          return {
+            found: false,
+            confidence: 0,
+            error: 'No results found'
+          }
+        }
+        
+        // Find the best match using strict criteria
+        const bestMatch = this.findBestMatch(data.results, cleanAppName, developerName)
+        
+        if (bestMatch) {
+          const masId = bestMatch.result.trackId.toString()
+          const masUrl = bestMatch.result.trackViewUrl
+          
+          console.log(`✅ Found match: ${bestMatch.result.trackName} by ${bestMatch.result.artistName}`)
+          console.log(`MAS ID: ${masId}, URL: ${masUrl}`)
+          
+          return {
+            found: true,
+            confidence: bestMatch.confidence,
+            masId,
+            masUrl,
+            itunesData: bestMatch.result
+          }
+        }
+        
         return {
           found: false,
           confidence: 0,
-          error: 'No results found'
+          error: 'No high-confidence match found'
         }
-      }
-      
-      // Find the best match using strict criteria
-      const bestMatch = this.findBestMatch(data.results, appName, developerName)
-      
-      if (bestMatch) {
-        const masId = bestMatch.result.trackId.toString()
-        const masUrl = bestMatch.result.trackViewUrl
         
-        console.log(`✅ Found match: ${bestMatch.result.trackName} by ${bestMatch.result.artistName}`)
-        console.log(`MAS ID: ${masId}, URL: ${masUrl}`)
-        
-        return {
-          found: true,
-          confidence: bestMatch.confidence,
-          masId,
-          masUrl,
-          itunesData: bestMatch.result
+      } catch (fetchError) {
+        clearTimeout(timeoutId)
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error('iTunes API request timed out')
         }
-      }
-      
-      return {
-        found: false,
-        confidence: 0,
-        error: 'No high-confidence match found'
+        throw fetchError
       }
       
     } catch (error) {
@@ -201,6 +226,17 @@ export class iTunesMatchingService {
       .toLowerCase()
       .replace(/[^\w\s]/g, '') // Remove special characters
       .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim()
+  }
+
+  /**
+   * Clean app name by removing "For Mac" suffix
+   */
+  private static cleanAppName(appName: string): string {
+    return appName
+      .replace(/\s+for\s+mac$/i, '') // Remove "For Mac" suffix
+      .replace(/\s+for\s+macos$/i, '') // Remove "For macOS" suffix
+      .replace(/\s+mac\s+version$/i, '') // Remove "Mac Version" suffix
       .trim()
   }
 

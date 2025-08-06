@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     console.log(`Found ${apps.length} apps without MAS data`)
     
     const results = []
-    const batchSize = 10 // Process in batches to respect rate limits
+    const batchSize = 5 // Reduced from 10 to 5 to prevent timeouts
     
     for (let i = 0; i < apps.length; i += batchSize) {
       const batch = apps.slice(i, i + batchSize)
