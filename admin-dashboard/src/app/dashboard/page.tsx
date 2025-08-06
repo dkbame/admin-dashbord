@@ -14,6 +14,7 @@ import PaginationControls from '@/components/PaginationControls'
 import FilterControls from '@/components/FilterControls'
 import { useApps } from '@/hooks/useApps'
 import { AppListItem } from '@/types/app'
+import React from 'react'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -57,6 +58,10 @@ export default function DashboardPage() {
     handleSearchChange
   } = useApps()
   
+  // Separate state for all apps (for analytics)
+  const [allApps, setAllApps] = useState<AppListItem[]>([])
+  const [allAppsLoading, setAllAppsLoading] = useState(true)
+  
   const [tabValue, setTabValue] = useState(0)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [appToDelete, setAppToDelete] = useState<AppListItem | null>(null)
@@ -70,6 +75,32 @@ export default function DashboardPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null)
   const [bulkUpdatingFeatured, setBulkUpdatingFeatured] = useState<Set<string>>(new Set())
+
+  // Fetch all apps for analytics (without pagination/filtering)
+  const fetchAllAppsForAnalytics = async () => {
+    try {
+      setAllAppsLoading(true)
+      const response = await fetch('/api/apps?limit=1000') // Get all apps
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch all apps')
+      }
+
+      // Handle the new API response structure
+      const allAppsData = data.apps || data
+      setAllApps(Array.isArray(allAppsData) ? allAppsData : [])
+    } catch (err) {
+      console.error('Error fetching all apps for analytics:', err)
+    } finally {
+      setAllAppsLoading(false)
+    }
+  }
+
+  // Fetch all apps on mount for analytics
+  React.useEffect(() => {
+    fetchAllAppsForAnalytics()
+  }, [])
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue)
@@ -106,12 +137,14 @@ export default function DashboardPage() {
       
       // Simple refresh after successful deletion
       await fetchApps()
+      // Also refresh analytics data
+      await fetchAllAppsForAnalytics()
       
       setDeleteDialogOpen(false)
       setAppToDelete(null)
     } catch (err) {
       console.error('UI Delete: Error:', err)
-      setDeleteError(err instanceof Error ? err.message : 'Failed to delete app')
+      setDeleteError(err instanceof Error ? err.message : 'Delete failed')
     } finally {
       setDeleting(false)
     }
@@ -124,9 +157,11 @@ export default function DashboardPage() {
   }
 
   const handleToggleFeatured = async (appId: string, currentFeatured: boolean) => {
-    setUpdatingFeatured(appId)
     try {
+      setUpdatingFeatured(appId)
       await toggleFeatured(appId, currentFeatured)
+      // Also refresh analytics data
+      await fetchAllAppsForAnalytics()
     } catch (err) {
       console.error('Error toggling featured status:', err)
     } finally {
@@ -152,35 +187,35 @@ export default function DashboardPage() {
     setBulkDeleteError(null)
     
     try {
-      console.log('Ultra-fast Bulk Delete: Starting deletion of', appsToDelete.length, 'apps')
+      console.log('Bulk delete: Starting deletion of', appsToDelete.length, 'apps')
       
-      // Use ultra-fast bulk delete API
+      // Use the ultra-fast bulk delete API
       const response = await fetch('/api/bulk-delete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          appIds: appsToDelete,
-          confirm: true
-        })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ appIds: appsToDelete }),
       })
       
       const result = await response.json()
-      console.log('Ultra-fast Bulk Delete: API response:', result)
+      console.log('Bulk delete: API response:', result)
       
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Bulk delete failed')
       }
       
-      console.log(`Ultra-fast Bulk Delete: Successfully deleted ${result.deletedCount} apps, refreshing...`)
+      console.log('Bulk delete: Success, refreshing apps...')
       
-      // Single refresh after bulk deletion
+      // Refresh both paginated apps and analytics data
       await fetchApps()
+      await fetchAllAppsForAnalytics()
       
       setBulkDeleteDialogOpen(false)
       setAppsToDelete([])
     } catch (err) {
-      console.error('Ultra-fast Bulk Delete: Error:', err)
-      setBulkDeleteError(err instanceof Error ? err.message : 'Failed to delete apps')
+      console.error('Bulk delete: Error:', err)
+      setBulkDeleteError(err instanceof Error ? err.message : 'Bulk delete failed')
     } finally {
       setBulkDeleting(false)
     }
@@ -274,7 +309,13 @@ export default function DashboardPage() {
         </Tabs>
 
         <TabPanel value={tabValue} index={0}>
-          <DashboardAnalytics apps={apps} />
+          {allAppsLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <DashboardAnalytics apps={allApps} />
+          )}
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
