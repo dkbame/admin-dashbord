@@ -590,6 +590,8 @@ export default function CategoryManagementPage() {
 
   // Category scraping
   const handleCategoryScrape = async () => {
+    console.log('🔍 TEST: handleCategoryScrape function called')
+    
     if (!categoryUrl.trim()) {
       setError('Please enter a MacUpdate category URL')
       return
