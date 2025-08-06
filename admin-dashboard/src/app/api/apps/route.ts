@@ -57,6 +57,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch apps' }, { status: 500 });
     }
     
+    // Debug: Log the first few apps to see category structure
+    if (apps && apps.length > 0) {
+      console.log('=== CATEGORY DEBUG ===')
+      console.log('First 3 apps category data:')
+      apps.slice(0, 3).forEach((app, index) => {
+        console.log(`App ${index + 1}:`, {
+          name: app.name,
+          category_id: app.category_id,
+          category: app.category,
+          categoryType: typeof app.category,
+          categoryKeys: app.category ? Object.keys(app.category) : 'no category'
+        })
+      })
+      console.log('=== END CATEGORY DEBUG ===')
+    }
+    
     // Calculate pagination metadata
     const totalPages = Math.ceil((count || 0) / limit);
     const hasNextPage = page < totalPages;
