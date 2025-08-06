@@ -450,7 +450,10 @@ export default function CategoryManagementPage() {
           const importResponse = await fetch('/api/macupdate-import/batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ apps: scrapedApps })
+            body: JSON.stringify({ 
+              apps: scrapedApps,
+              categoryUrl: categoryUrl.trim() // Add the categoryUrl parameter
+            })
           })
           
           if (importResponse.ok) {
