@@ -438,6 +438,15 @@ export default function CategoryManagementPage() {
         if (scrapedApps.length > 0) {
           setSuccess(`Step 3/3: Importing ${scrapedApps.length} apps with full details...`)
           
+          // Step 3a: Update the import session immediately with the scraped data
+          console.log(`🔍 Browser Debug: About to update session in scrapeNextPage`)
+          console.log(`🔍 Browser Debug: pageNumber = ${data.pagination?.currentPage || 1}`)
+          console.log(`🔍 Browser Debug: scrapedApps.length = ${scrapedApps.length}`)
+          
+          await updateImportSessionStatus(data.pagination?.currentPage || 1, scrapedApps.length, 0)
+          console.log(`✅ Session updated successfully in scrapeNextPage`)
+          
+          // Step 3b: Import all scraped apps in batch
           const importResponse = await fetch('/api/macupdate-import/batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
