@@ -31,9 +31,10 @@ import {
   Collapse,
   Card,
   CardContent,
-  Grid
+  Grid,
+  Alert
 } from '@mui/material'
-import { Edit, Delete, Image as ImageIcon, Star, StarBorder, SelectAll, Clear, FilterList, Search } from '@mui/icons-material'
+import { Edit, Delete, Image as ImageIcon, Star, StarBorder, SelectAll, Clear, FilterList, Search, Apple as AppleIcon } from '@mui/icons-material'
 import { useState, useMemo } from 'react'
 
 interface Screenshot {
@@ -99,6 +100,11 @@ export default function AppsTable({
     source: '',
     featured: ''
   })
+  
+  // iTunes matching state
+  const [isItunesMatching, setIsItunesMatching] = useState(false)
+  const [itunesResults, setItunesResults] = useState<any[]>([])
+  const [itunesError, setItunesError] = useState<string | null>(null)
 
   // Get unique categories for filter dropdown
   const categories = useMemo(() => {
@@ -200,6 +206,45 @@ export default function AppsTable({
     if (onBulkToggleFeatured && selectedApps.size > 0) {
       onBulkToggleFeatured(Array.from(selectedApps), featured)
       setSelectedApps(new Set())
+    }
+  }
+
+  const handleItunesMatching = async () => {
+    if (selectedApps.size === 0) {
+      setItunesError('Please select apps to match')
+      return
+    }
+
+    setIsItunesMatching(true)
+    setItunesResults([])
+    setItunesError(null)
+
+    try {
+      const response = await fetch('/api/itunes-match', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          appIds: Array.from(selectedApps),
+          autoApply: true
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to start matching')
+      }
+
+      setItunesResults(data.results || [])
+      console.log('iTunes matching completed:', data)
+
+    } catch (err) {
+      console.error('iTunes matching error:', err)
+      setItunesError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setIsItunesMatching(false)
     }
   }
 
@@ -425,6 +470,18 @@ export default function AppsTable({
                 Delete
               </Button>
             </Tooltip>
+            <Tooltip title="Check for iTunes Match">
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={handleItunesMatching}
+                disabled={isItunesMatching}
+                sx={{ color: 'white', borderColor: 'white', '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
+              >
+                <AppleIcon sx={{ mr: 0.5 }} />
+                {isItunesMatching ? 'Matching...' : 'iTunes Match'}
+              </Button>
+            </Tooltip>
             <Tooltip title="Clear Selection">
               <IconButton
                 size="small"
@@ -436,6 +493,20 @@ export default function AppsTable({
             </Tooltip>
           </Box>
         </Toolbar>
+      )}
+
+      {/* iTunes Matching Error */}
+      {itunesError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {itunesError}
+        </Alert>
+      )}
+
+      {/* iTunes Matching Results */}
+      {itunesResults.length > 0 && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          iTunes matching completed. Found {itunesResults.filter(r => r.found).length} matches out of {itunesResults.length} apps.
+        </Alert>
       )}
 
       <TableContainer>
