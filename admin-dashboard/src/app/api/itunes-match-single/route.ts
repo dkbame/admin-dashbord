@@ -35,25 +35,35 @@ export async function POST(request: NextRequest) {
     // Search iTunes API
     const matchResult = await iTunesMatchingService.searchApp(app.name, app.developer)
     
-    // Create or update match attempt record
-    const { data: attempt, error: attemptError } = await supabase
-      .from('itunes_match_attempts')
-      .upsert({
-        app_id: app.id,
-        search_term: app.name,
-        developer_name: app.developer,
-        itunes_response: matchResult.itunesData || null,
-        confidence_score: matchResult.confidence,
-        status: matchResult.found ? 'found' : 'failed',
-        mas_id: matchResult.masId || null,
-        mas_url: matchResult.masUrl || null,
-        error_message: matchResult.error || null
-      })
-      .select()
-      .single()
+    console.log('iTunes match result:', matchResult)
     
-    if (attemptError) {
-      console.error('Error saving attempt:', attemptError)
+    // Create or update match attempt record
+    let attempt = null
+    try {
+      const { data: attemptData, error: attemptError } = await supabase
+        .from('itunes_match_attempts')
+        .upsert({
+          app_id: app.id,
+          search_term: app.name,
+          developer_name: app.developer,
+          itunes_response: matchResult.itunesData || null,
+          confidence_score: matchResult.confidence,
+          status: matchResult.found ? 'found' : 'failed',
+          mas_id: matchResult.masId || null,
+          mas_url: matchResult.masUrl || null,
+          error_message: matchResult.error || null
+        })
+        .select()
+        .single()
+      
+      if (attemptError) {
+        console.error('Error saving attempt:', attemptError)
+      } else {
+        attempt = attemptData
+        console.log('Successfully saved attempt:', attempt)
+      }
+    } catch (upsertError) {
+      console.error('Upsert error:', upsertError)
     }
     
     // Auto-apply high-confidence matches (80%+)
@@ -72,11 +82,13 @@ export async function POST(request: NextRequest) {
       if (updateError) {
         console.error('Error updating app:', updateError)
       } else {
-        // Update attempt status to confirmed
-        await supabase
-          .from('itunes_match_attempts')
-          .update({ status: 'confirmed' })
-          .eq('id', attempt.id)
+        // Update attempt status to confirmed (only if attempt was created successfully)
+        if (attempt && attempt.id) {
+          await supabase
+            .from('itunes_match_attempts')
+            .update({ status: 'confirmed' })
+            .eq('id', attempt.id)
+        }
       }
     }
     
