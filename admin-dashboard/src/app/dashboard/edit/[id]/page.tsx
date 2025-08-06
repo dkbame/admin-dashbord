@@ -24,7 +24,7 @@ import {
   ImageListItem,
   ImageListItemBar,
 } from '@mui/material'
-import { Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material'
+import { Delete as DeleteIcon, Add as AddIcon, Apple as AppleIcon } from '@mui/icons-material'
 import { supabase } from '@/lib/supabase'
 import { uploadImage, uploadMultipleImages } from '@/lib/imageUpload'
 
@@ -78,6 +78,11 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
   const [newIconFile, setNewIconFile] = useState<File | null>(null)
   const [newScreenshotFiles, setNewScreenshotFiles] = useState<File[]>([])
   const [newFeature, setNewFeature] = useState('')
+  
+  // iTunes matching state
+  const [isItunesMatching, setIsItunesMatching] = useState(false)
+  const [itunesResult, setItunesResult] = useState<any>(null)
+  const [itunesError, setItunesError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchApp()
@@ -131,6 +136,46 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
       .order('name')
 
     if (data) setCategories(data)
+  }
+
+  const handleItunesMatch = async () => {
+    if (!app) return
+
+    setIsItunesMatching(true)
+    setItunesResult(null)
+    setItunesError(null)
+
+    try {
+      console.log('Starting iTunes matching for:', app.name)
+
+      const response = await fetch('/api/itunes-match-single', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          appId: app.id
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to start matching')
+      }
+
+      setItunesResult(data.result)
+      console.log('iTunes matching completed:', data.result)
+
+      // Refresh app data to get updated MAS info
+      fetchApp()
+
+    } catch (err) {
+      console.error('iTunes matching error:', err)
+      setItunesError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setIsItunesMatching(false)
+    }
   }
 
   const handleSave = async (e: React.FormEvent) => {
@@ -338,6 +383,15 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
             Cancel
           </Button>
           <Button
+            variant="outlined"
+            startIcon={<AppleIcon />}
+            onClick={handleItunesMatch}
+            disabled={isItunesMatching}
+            sx={{ mr: 2 }}
+          >
+            {isItunesMatching ? 'Matching...' : 'iTunes Match'}
+          </Button>
+          <Button
             variant="contained"
             type="submit"
             disabled={saving}
@@ -356,6 +410,34 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
       {success && (
         <Alert severity="success" sx={{ mb: 3 }}>
           {success}
+        </Alert>
+      )}
+
+      {/* iTunes Matching Results */}
+      {itunesError && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          iTunes Match Error: {itunesError}
+        </Alert>
+      )}
+
+      {itunesResult && (
+        <Alert severity={itunesResult.found ? "success" : "info"} sx={{ mb: 3 }}>
+          {itunesResult.found ? (
+            <>
+              ✅ Found iTunes match for "{itunesResult.appName}"! 
+              Confidence: {(itunesResult.confidence * 100).toFixed(1)}%
+              {itunesResult.autoApplied && " (Auto-applied)"}
+              {itunesResult.masUrl && (
+                <Box sx={{ mt: 1 }}>
+                  <a href={itunesResult.masUrl} target="_blank" rel="noopener noreferrer">
+                    View on Mac App Store
+                  </a>
+                </Box>
+              )}
+            </>
+          ) : (
+            `❌ No iTunes match found for "${itunesResult.appName}". ${itunesResult.error || ''}`
+          )}
         </Alert>
       )}
 
