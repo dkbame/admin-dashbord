@@ -167,6 +167,8 @@ const POPULAR_CATEGORIES = [
 ]
 
 export default function CategoryManagementPage() {
+  console.log('🔍 NEW CODE DEPLOYED: CategoryManagementPage component loaded')
+  
   // Category Management State
   const [categoryUrl, setCategoryUrl] = useState('https://www.macupdate.com/explore/categories/music-audio')
   const [progress, setProgress] = useState<CategoryProgress | null>(null)
