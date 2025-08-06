@@ -149,8 +149,8 @@ export class iTunesMatchingService {
       }
     }
     
-    // Only return if confidence is 95% or higher
-    if (bestMatch && bestMatch.confidence >= 0.95) {
+    // Only return if confidence is 80% or higher (reduced from 95%)
+    if (bestMatch && bestMatch.confidence >= 0.8) {
       console.log(`✅ High-confidence match found: ${bestMatch.confidence}`)
       return bestMatch
     }
@@ -169,17 +169,27 @@ export class iTunesMatchingService {
   ): number {
     let score = 0
     
-    // Name matching (60% weight)
+    // Name matching (70% weight)
     const nameScore = this.calculateNameSimilarity(result.trackName, appName)
-    score += nameScore * 0.6
+    score += nameScore * 0.7
     
-    // Developer matching (40% weight)
+    // Developer matching (30% weight)
     if (developerName) {
       const developerScore = this.calculateNameSimilarity(result.artistName, developerName)
-      score += developerScore * 0.4
+      score += developerScore * 0.3
     } else {
       // If no developer name, give full weight to name matching
-      score += nameScore * 0.4
+      score += nameScore * 0.3
+    }
+    
+    // Bonus for exact name matches
+    if (this.cleanName(result.trackName) === this.cleanName(appName)) {
+      score += 0.2 // 20% bonus for exact name match
+    }
+    
+    // Bonus for exact developer matches
+    if (developerName && this.cleanName(result.artistName) === this.cleanName(developerName)) {
+      score += 0.1 // 10% bonus for exact developer match
     }
     
     return Math.min(score, 1.0)
@@ -199,7 +209,7 @@ export class iTunesMatchingService {
     
     // Contains match (one name contains the other)
     if (clean1.includes(clean2) || clean2.includes(clean1)) {
-      return 0.9
+      return 0.95
     }
     
     // Word-by-word comparison
@@ -215,7 +225,14 @@ export class iTunesMatchingService {
     ).length
     
     const totalWords = Math.max(words1.length, words2.length)
-    return commonWords / totalWords
+    const wordSimilarity = commonWords / totalWords
+    
+    // If we have at least 50% word similarity, boost the score
+    if (wordSimilarity >= 0.5) {
+      return Math.min(wordSimilarity + 0.2, 1.0)
+    }
+    
+    return wordSimilarity
   }
 
   /**

@@ -64,8 +64,8 @@ export async function POST(request: NextRequest) {
             console.error('Error saving attempt:', attemptError)
           }
           
-          // Auto-apply high-confidence matches (95%+)
-          if (autoApply && matchResult.found && matchResult.confidence >= 0.95) {
+          // Auto-apply high-confidence matches (80%+) (reduced from 95%)
+          if (autoApply && matchResult.found && matchResult.confidence >= 0.8) {
             console.log(`Auto-applying high-confidence match for ${app.name}`)
             
             const { error: updateError } = await supabase
