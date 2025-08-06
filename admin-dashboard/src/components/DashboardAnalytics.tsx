@@ -42,7 +42,7 @@ interface App {
   id: string
   name: string
   developer: string
-  category: { name: string }
+  category: { name: string; id?: string }
   price: string | number | null
   is_on_mas: boolean
   status: string
@@ -51,6 +51,7 @@ interface App {
   is_featured: boolean | null
   is_free: boolean | null
   created_at?: string
+  source?: string // Add source field for MacUpdate/iTunes/Custom
 }
 
 interface Screenshot {
@@ -98,15 +99,42 @@ export default function DashboardAnalytics({ apps }: DashboardAnalyticsProps) {
   const categoryData = useMemo(() => {
     const categoryCounts: { [key: string]: number } = {}
     
-    apps.forEach(app => {
-      const categoryName = app.category?.name || 'Uncategorized'
+    console.log('Processing categories for analytics:', apps.length, 'apps')
+    
+    apps.forEach((app, index) => {
+      // Debug first few apps to see category structure
+      if (index < 3) {
+        console.log(`App ${index + 1}:`, {
+          name: app.name,
+          category: app.category,
+          categoryType: typeof app.category,
+          categoryName: app.category?.name,
+          categoryKeys: app.category ? Object.keys(app.category) : 'no category'
+        })
+      }
+      
+      // Handle different category structures
+      let categoryName = 'Uncategorized'
+      if (app.category) {
+        if (typeof app.category === 'string') {
+          categoryName = app.category
+        } else if (app.category.name) {
+          categoryName = app.category.name
+        } else if ((app.category as any).id) {
+          categoryName = `Category ${(app.category as any).id}`
+        }
+      }
+      
       categoryCounts[categoryName] = (categoryCounts[categoryName] || 0) + 1
     })
 
-    return Object.entries(categoryCounts)
+    const result = Object.entries(categoryCounts)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 8) // Top 8 categories
+    
+    console.log('Category distribution result:', result)
+    return result
   }, [apps])
 
   // Price distribution data
@@ -131,17 +159,34 @@ export default function DashboardAnalytics({ apps }: DashboardAnalyticsProps) {
   }, [apps])
 
   // Source distribution data
-  const sourceData = useMemo(() => [
-    { name: 'Mac App Store', value: metrics.masApps, color: '#0088FE' },
-    { name: 'Custom', value: metrics.customApps, color: '#00C49F' }
-  ], [metrics])
+  const sourceData = useMemo(() => {
+    const sourceCounts: { [key: string]: number } = {}
+    
+    apps.forEach(app => {
+      let source = 'Custom'
+      if (app.source) {
+        source = app.source
+      } else if (app.is_on_mas) {
+        source = 'Mac App Store'
+      } else if (app.source === 'MACUPDATE') {
+        source = 'MacUpdate'
+      } else if (app.source === 'ITUNES') {
+        source = 'iTunes'
+      }
+      
+      sourceCounts[source] = (sourceCounts[source] || 0) + 1
+    })
 
-  // Status distribution data
-  const statusData = useMemo(() => [
-    { name: 'Active', value: metrics.activeApps, color: '#00C49F' },
-    { name: 'Pending', value: metrics.pendingApps, color: '#FFBB28' },
-    { name: 'Inactive', value: metrics.inactiveApps, color: '#FF8042' }
-  ], [metrics])
+    return Object.entries(sourceCounts)
+      .map(([name, value]) => ({ 
+        name, 
+        value, 
+        color: name === 'Mac App Store' ? '#0088FE' : 
+               name === 'MacUpdate' ? '#00C49F' : 
+               name === 'iTunes' ? '#FFBB28' : '#8884D8'
+      }))
+      .sort((a, b) => b.value - a.value)
+  }, [apps])
 
   // Recent activity (apps added in last 30 days)
   const recentActivity = useMemo(() => {
@@ -274,8 +319,43 @@ export default function DashboardAnalytics({ apps }: DashboardAnalyticsProps) {
                   <XAxis dataKey="name" />
                   <YAxis />
                   <Tooltip />
-                  <Bar dataKey="count" fill="#82ca9d" />
+                  <Bar dataKey="count" fill="#8884d8" />
                 </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Featured Apps Distribution */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Featured Apps
+              </Typography>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Featured', value: metrics.featuredApps, color: '#FFBB28' },
+                      { name: 'Standard', value: metrics.totalApps - metrics.featuredApps, color: '#8884D8' }
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => {
+                      const percentage = typeof percent === 'number' ? (percent * 100).toFixed(0) : '0'
+                      return `${name} ${percentage}%`
+                    }}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    <Cell fill="#FFBB28" />
+                    <Cell fill="#8884D8" />
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
@@ -304,39 +384,6 @@ export default function DashboardAnalytics({ apps }: DashboardAnalyticsProps) {
                     dataKey="value"
                   >
                     {sourceData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Status Distribution */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                App Status Distribution
-              </Typography>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={statusData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => {
-                      const percentage = typeof percent === 'number' ? (percent * 100).toFixed(0) : '0'
-                      return `${name} ${percentage}%`
-                    }}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {statusData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
