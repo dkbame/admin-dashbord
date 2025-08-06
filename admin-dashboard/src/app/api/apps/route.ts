@@ -73,13 +73,48 @@ export async function GET(request: NextRequest) {
       console.log('=== END CATEGORY DEBUG ===')
     }
     
+    // Manually fetch categories for apps that have category_id
+    let appsWithCategories = apps
+    if (apps && apps.length > 0) {
+      const categoryIds = [...new Set(apps.map(app => app.category_id).filter(Boolean))]
+      
+      if (categoryIds.length > 0) {
+        console.log('Fetching categories for IDs:', categoryIds)
+        
+        const { data: categories, error: categoriesError } = await supabase
+          .from('categories')
+          .select('id, name, description, icon, color')
+          .in('id', categoryIds)
+        
+        if (categoriesError) {
+          console.error('Error fetching categories:', categoriesError)
+        } else {
+          console.log('Fetched categories:', categories)
+          
+          // Create a map of category_id to category data
+          const categoryMap = categories.reduce((map, category) => {
+            map[category.id] = category
+            return map
+          }, {} as Record<string, any>)
+          
+          // Attach category data to apps
+          appsWithCategories = apps.map(app => ({
+            ...app,
+            category: app.category_id ? categoryMap[app.category_id] : null
+          }))
+          
+          console.log('Apps with categories attached:', appsWithCategories.slice(0, 2))
+        }
+      }
+    }
+    
     // Calculate pagination metadata
     const totalPages = Math.ceil((count || 0) / limit);
     const hasNextPage = page < totalPages;
     const hasPrevPage = page > 1;
     
     const response = {
-      apps,
+      apps: appsWithCategories, // Use the appsWithCategories data
       pagination: {
         currentPage: page,
         totalPages,
@@ -93,7 +128,7 @@ export async function GET(request: NextRequest) {
     };
     
     console.log('API Response:', {
-      appsCount: apps?.length || 0,
+      appsCount: appsWithCategories?.length || 0,
       totalItems: count || 0,
       currentPage: page,
       totalPages,
