@@ -64,12 +64,31 @@ export async function POST(request: NextRequest) {
             
             if (attemptError) {
               console.error('Error saving attempt:', attemptError)
+              console.error('Attempt data that failed:', {
+                app_id: app.id,
+                search_term: app.name,
+                developer_name: app.developer,
+                confidence_score: matchResult.confidence,
+                status: matchResult.found ? 'found' : 'failed',
+                mas_id: matchResult.masId || null,
+                mas_url: matchResult.masUrl || null,
+                error_message: matchResult.error || null
+              })
+              
+              // Check if it's a table doesn't exist error
+              if (attemptError.code === '42P01') {
+                console.error('Table itunes_match_attempts does not exist. Please run the migration.')
+              }
             } else {
               attempt = attemptData
               console.log('Successfully saved attempt:', attempt)
             }
           } catch (upsertError) {
             console.error('Upsert error:', upsertError)
+            console.error('Upsert error details:', {
+              message: upsertError instanceof Error ? upsertError.message : 'Unknown error',
+              stack: upsertError instanceof Error ? upsertError.stack : undefined
+            })
           }
           
           // Auto-apply high-confidence matches (80%+) (reduced from 95%)
@@ -105,8 +124,8 @@ export async function POST(request: NextRequest) {
             confidence: matchResult.confidence,
             masId: matchResult.masId,
             masUrl: matchResult.masUrl,
-            error: matchResult.error,
-            autoApplied: autoApply && matchResult.found && matchResult.confidence >= 0.95
+            error: matchResult.error || null,
+            autoApplied: autoApply && matchResult.found && matchResult.confidence >= 0.8
           })
           
           // Rate limiting delay
