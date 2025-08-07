@@ -167,8 +167,16 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
       setItunesResult(data.result)
       console.log('iTunes matching completed:', data.result)
 
-      // Refresh app data to get updated MAS info
-      fetchApp()
+      // Update local app state with MAS data only (don't refetch from database)
+      if (data.result.found && data.result.autoApplied) {
+        setApp({
+          ...app,
+          mas_id: data.result.masId,
+          mas_url: data.result.masUrl,
+          is_on_mas: true
+        })
+        console.log('Updated local app state with MAS data')
+      }
 
     } catch (err) {
       console.error('iTunes matching error:', err)

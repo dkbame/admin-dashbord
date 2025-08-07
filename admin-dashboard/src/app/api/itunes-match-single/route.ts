@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
       confidence: matchResult.confidence,
       masId: matchResult.masId,
       masUrl: matchResult.masUrl,
-      error: matchResult.error,
+      error: matchResult.error || null,
       autoApplied: matchResult.found && matchResult.confidence >= 0.8
     }
     
