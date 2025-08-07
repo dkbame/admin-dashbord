@@ -95,18 +95,24 @@ export async function POST(request: NextRequest) {
           if (autoApply && matchResult.found && matchResult.confidence >= 0.8) {
             console.log(`Auto-applying high-confidence match for ${app.name}`)
             
+            // Only update the specific MAS fields, don't touch other fields
+            const updateData = {
+              mas_id: matchResult.masId,
+              mas_url: matchResult.masUrl,
+              is_on_mas: true
+            }
+            
+            console.log('Updating app with MAS data:', updateData)
+            
             const { error: updateError } = await supabase
               .from('apps')
-              .update({
-                mas_id: matchResult.masId,
-                mas_url: matchResult.masUrl,
-                is_on_mas: true
-              })
+              .update(updateData)
               .eq('id', app.id)
             
             if (updateError) {
               console.error('Error updating app:', updateError)
             } else {
+              console.log('Successfully updated app with MAS data')
               // Update attempt status to confirmed (only if attempt was created successfully)
               if (attempt && attempt.id) {
                 await supabase
