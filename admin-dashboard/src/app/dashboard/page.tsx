@@ -195,7 +195,10 @@ export default function DashboardPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ appIds: appsToDelete }),
+        body: JSON.stringify({ 
+          appIds: appsToDelete,
+          confirm: true 
+        }),
       })
       
       const result = await response.json()
