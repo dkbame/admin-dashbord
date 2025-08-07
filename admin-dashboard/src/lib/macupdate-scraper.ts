@@ -2081,7 +2081,7 @@ export class MacUpdateCategoryScraper {
       
       console.log(`HTML content length: ${htmlContent.length} characters`);
       
-      // Extract app data from embedded JSON in the HTML - try multiple patterns
+      // Try multiple patterns to extract app data
       let appDataMatches = htmlContent.match(/"custom_url":"([^"]+)","title":"([^"]+)","developer":"([^"]+)","price":(\d+),"rating":([\d.]+),"download_count":(\d+),"review_count":(\d+),"filesize":"([^"]+)","logo":"([^"]+)","short_description":"([^"]+)"/g);
       
       // If the first pattern doesn't work, try a more flexible approach
@@ -2159,11 +2159,30 @@ export class MacUpdateCategoryScraper {
         });
       }
       
-      // If we didn't find complete data, fall back to just URLs
-      if (appData.length === 0) {
-        console.log('No complete app data found, falling back to URL extraction only');
-        const pageUrlsOnly = await this.scrapeAllAppUrlsWithAxios(pageUrl);
-        pageUrls.push(...pageUrlsOnly);
+      // If we didn't find enough apps (less than 20), use the more robust URL extraction
+      if (pageUrls.length < 20) {
+        console.log(`Only found ${pageUrls.length} apps, using robust URL extraction to get all 20...`);
+        const robustUrls = await this.scrapeAllAppUrlsWithAxios(pageUrl);
+        
+        // Merge URLs, avoiding duplicates
+        robustUrls.forEach(url => {
+          if (!pageUrls.includes(url)) {
+            pageUrls.push(url);
+            // Add placeholder app data for URLs we don't have full data for
+            appData.push({
+              custom_url: url.replace('https://www.macupdate.com', ''),
+              title: 'Unknown App',
+              developer: 'Unknown Developer',
+              price: 0,
+              rating: 0,
+              download_count: 0,
+              review_count: 0,
+              filesize: 'Unknown',
+              logo: null,
+              short_description: 'No description available'
+            });
+          }
+        });
       }
       
       console.log(`Found ${pageUrls.length} apps on page ${pageNumber} with full data`);
