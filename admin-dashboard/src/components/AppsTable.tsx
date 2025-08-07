@@ -34,7 +34,7 @@ import {
   Grid,
   Alert
 } from '@mui/material'
-import { Edit, Delete, Image as ImageIcon, Star, StarBorder, SelectAll, Apple as AppleIcon } from '@mui/icons-material'
+import { Edit, Delete, Image as ImageIcon, Star, StarBorder, SelectAll, Apple as AppleIcon, Clear } from '@mui/icons-material'
 import { useState, useMemo } from 'react'
 
 interface Screenshot {
@@ -217,6 +217,81 @@ export default function AppsTable({
         <Alert severity="info" sx={{ mb: 2 }}>
           iTunes matching completed. Found {itunesResults.filter(r => r.found).length} matches out of {itunesResults.length} apps.
         </Alert>
+      )}
+
+      {/* Bulk Actions Toolbar */}
+      {selectedApps.size > 0 && (
+        <Toolbar
+          sx={{
+            pl: { sm: 2 },
+            pr: { xs: 1, sm: 1 },
+            bgcolor: 'primary.main',
+            color: 'white',
+            borderRadius: 1,
+            mb: 2
+          }}
+        >
+          <Typography sx={{ flex: '1 1 100%' }} color="inherit" variant="subtitle1" component="div">
+            {selectedApps.size} app{selectedApps.size !== 1 ? 's' : ''} selected
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Tooltip title="Mark as Featured">
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => handleBulkToggleFeatured(true)}
+                sx={{ color: 'white', borderColor: 'white', '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
+              >
+                <Star sx={{ mr: 0.5 }} />
+                Featured
+              </Button>
+            </Tooltip>
+            <Tooltip title="Remove from Featured">
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => handleBulkToggleFeatured(false)}
+                sx={{ color: 'white', borderColor: 'white', '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
+              >
+                <StarBorder sx={{ mr: 0.5 }} />
+                Unfeature
+              </Button>
+            </Tooltip>
+            <Tooltip title="Delete Selected">
+              <Button
+                size="small"
+                variant="outlined"
+                color="error"
+                onClick={handleBulkDelete}
+                sx={{ color: 'white', borderColor: 'white', '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
+              >
+                <Delete sx={{ mr: 0.5 }} />
+                Delete
+              </Button>
+            </Tooltip>
+            <Tooltip title="Check for iTunes Match">
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={handleItunesMatching}
+                disabled={isItunesMatching}
+                sx={{ color: 'white', borderColor: 'white', '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
+              >
+                <AppleIcon sx={{ mr: 0.5 }} />
+                {isItunesMatching ? 'Matching...' : 'iTunes Match'}
+              </Button>
+            </Tooltip>
+            <Tooltip title="Clear Selection">
+              <IconButton
+                size="small"
+                onClick={() => setSelectedApps(new Set())}
+                sx={{ color: 'white' }}
+              >
+                <Clear />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </Toolbar>
       )}
 
       <TableContainer>
