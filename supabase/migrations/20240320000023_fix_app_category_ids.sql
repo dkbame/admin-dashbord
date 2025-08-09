@@ -1,5 +1,5 @@
--- Fix category_id values for apps imported from MacUpdate
--- This migration will update apps that have category names but no category_id
+-- Fix category_id values for apps that have invalid or missing category relationships
+-- This migration will update apps that have category_id but the category might not exist
 
 -- First, let's see what categories we have and what apps need fixing
 DO $$
@@ -9,86 +9,60 @@ DECLARE
     category_id uuid;
     category_name text;
 BEGIN
-    -- Loop through apps that don't have category_id set
+    -- Loop through apps that have category_id but the category might be invalid
     FOR app_record IN 
-        SELECT id, name, category 
-        FROM apps 
-        WHERE category_id IS NULL 
-        AND category IS NOT NULL 
-        AND category != ''
+        SELECT a.id, a.name, a.category_id, c.name as category_name
+        FROM apps a
+        LEFT JOIN categories c ON a.category_id = c.id
+        WHERE a.category_id IS NOT NULL 
+        AND c.id IS NULL  -- This means the category_id references a non-existent category
     LOOP
-        -- Try to find a matching category by name
-        SELECT id, name INTO category_record
+        RAISE NOTICE 'Found app "%" with invalid category_id: %', app_record.name, app_record.category_id;
+        
+        -- Try to find a matching category by app name or set to default
+        -- For now, set to 'utilities' as default
+        SELECT id INTO category_id 
         FROM categories 
-        WHERE LOWER(name) = LOWER(app_record.category)
+        WHERE slug = 'utilities' 
         LIMIT 1;
         
-        -- If no exact match, try partial matching
-        IF category_record.id IS NULL THEN
-            SELECT id, name INTO category_record
-            FROM categories 
-            WHERE LOWER(name) LIKE '%' || LOWER(app_record.category) || '%'
-            OR LOWER(app_record.category) LIKE '%' || LOWER(name) || '%'
-            LIMIT 1;
-        END IF;
-        
-        -- If still no match, try some common mappings
-        IF category_record.id IS NULL THEN
-            CASE LOWER(app_record.category)
-                WHEN 'music & audio' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'music' LIMIT 1;
-                WHEN 'video & audio' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'video & audio' LIMIT 1;
-                WHEN 'graphics & design' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'graphics & design' LIMIT 1;
-                WHEN 'developer tools' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'development' LIMIT 1;
-                WHEN 'system utilities' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'utilities' LIMIT 1;
-                WHEN 'productivity' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'productivity' LIMIT 1;
-                WHEN 'games' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'games' LIMIT 1;
-                WHEN 'education' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'education' LIMIT 1;
-                WHEN 'business' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'business' LIMIT 1;
-                WHEN 'entertainment' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'entertainment' LIMIT 1;
-                WHEN 'lifestyle' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'lifestyle' LIMIT 1;
-                WHEN 'health & fitness' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'health & fitness' LIMIT 1;
-                WHEN 'social networking' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'social networking' LIMIT 1;
-                WHEN 'sports' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'sports' LIMIT 1;
-                WHEN 'finance' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'finance' LIMIT 1;
-                WHEN 'reference' THEN
-                    SELECT id INTO category_id FROM categories WHERE LOWER(name) = 'reference' LIMIT 1;
-                ELSE
-                    category_id := NULL;
-            END CASE;
-            
-            IF category_id IS NOT NULL THEN
-                category_record.id := category_id;
-            END IF;
-        ELSE
-            category_id := category_record.id;
-        END IF;
-        
-        -- Update the app with the found category_id
-        IF category_record.id IS NOT NULL THEN
+        -- Update the app with the default category_id
+        IF category_id IS NOT NULL THEN
             UPDATE apps 
-            SET category_id = category_record.id
+            SET category_id = category_id
             WHERE id = app_record.id;
             
-            RAISE NOTICE 'Updated app "%" with category "%" (ID: %)', 
-                app_record.name, category_record.name, category_record.id;
+            RAISE NOTICE 'Updated app "%" with default category_id: %', 
+                app_record.name, category_id;
         ELSE
-            RAISE NOTICE 'Could not find category for app "%" with category "%"', 
-                app_record.name, app_record.category;
+            RAISE NOTICE 'Could not find default category for app "%"', 
+                app_record.name;
+        END IF;
+    END LOOP;
+    
+    -- Also check for apps with NULL category_id and set them to default
+    FOR app_record IN 
+        SELECT id, name
+        FROM apps 
+        WHERE category_id IS NULL
+    LOOP
+        -- Set to 'utilities' as default
+        SELECT id INTO category_id 
+        FROM categories 
+        WHERE slug = 'utilities' 
+        LIMIT 1;
+        
+        -- Update the app with the default category_id
+        IF category_id IS NOT NULL THEN
+            UPDATE apps 
+            SET category_id = category_id
+            WHERE id = app_record.id;
+            
+            RAISE NOTICE 'Updated app "%" with default category_id: %', 
+                app_record.name, category_id;
+        ELSE
+            RAISE NOTICE 'Could not find default category for app "%"', 
+                app_record.name;
         END IF;
     END LOOP;
 END $$;
