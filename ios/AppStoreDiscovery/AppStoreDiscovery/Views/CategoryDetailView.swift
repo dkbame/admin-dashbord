@@ -84,12 +84,6 @@ struct CategoryDetailView: View {
                     self.isLoading = false
                     print("[DEBUG] CategoryDetailView - Updated UI with \(self.categoryApps.count) apps")
                 }
-            } catch {
-                print("[DEBUG] CategoryDetailView - Error loading apps: \(error.localizedDescription)")
-                await MainActor.run {
-                    self.errorMessage = "Failed to load apps: \(error.localizedDescription)"
-                    self.isLoading = false
-                }
             }
         }
     }

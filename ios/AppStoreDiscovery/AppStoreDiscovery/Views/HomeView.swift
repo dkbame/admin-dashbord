@@ -12,28 +12,49 @@ struct HomeView: View {
     @State private var selectedCategoryId: String? = nil // nil means "All"
     
     // Filtered apps based on selected category
-    private var filteredApps: [AppModel] {
+    private var filteredFeaturedApps: [AppModel] {
         if let selectedCategoryId = selectedCategoryId {
-            return apiService.apps.filter { $0.category_id == selectedCategoryId }
+            let filtered = apiService.featuredApps.filter { $0.category_id == selectedCategoryId }
+            print("[DEBUG] HomeView - Filtering featured apps for category \(selectedCategoryId): \(filtered.count) apps")
+            return filtered
         }
-        return apiService.apps
+        return apiService.featuredApps
     }
     
-    // Featured apps from filtered results
-    private var featuredApps: [AppModel] {
-        filteredApps.filter { $0.is_featured == true }
+    private var filteredRecentlyAddedApps: [AppModel] {
+        if let selectedCategoryId = selectedCategoryId {
+            let filtered = apiService.recentlyAddedApps.filter { $0.category_id == selectedCategoryId }
+            print("[DEBUG] HomeView - Filtering recent apps for category \(selectedCategoryId): \(filtered.count) apps")
+            return filtered
+        }
+        return apiService.recentlyAddedApps
     }
     
-    // Top rated apps from filtered results
-    private var topRatedApps: [AppModel] {
-        filteredApps
-            .filter { $0.rating != nil }
-            .sorted { ($0.rating ?? 0) > ($1.rating ?? 0) }
+    private var filteredPaidApps: [AppModel] {
+        if let selectedCategoryId = selectedCategoryId {
+            let filtered = apiService.paidApps.filter { $0.category_id == selectedCategoryId }
+            print("[DEBUG] HomeView - Filtering paid apps for category \(selectedCategoryId): \(filtered.count) apps")
+            return filtered
+        }
+        return apiService.paidApps
     }
     
-    // Free apps from filtered results
-    private var freeApps: [AppModel] {
-        filteredApps.filter { $0.is_free == true }
+    private var filteredTopRatedApps: [AppModel] {
+        if let selectedCategoryId = selectedCategoryId {
+            let filtered = apiService.topRatedApps.filter { $0.category_id == selectedCategoryId }
+            print("[DEBUG] HomeView - Filtering top rated apps for category \(selectedCategoryId): \(filtered.count) apps")
+            return filtered
+        }
+        return apiService.topRatedApps
+    }
+    
+    private var filteredFreeApps: [AppModel] {
+        if let selectedCategoryId = selectedCategoryId {
+            let filtered = apiService.freeApps.filter { $0.category_id == selectedCategoryId }
+            print("[DEBUG] HomeView - Filtering free apps for category \(selectedCategoryId): \(filtered.count) apps")
+            return filtered
+        }
+        return apiService.freeApps
     }
     
     var body: some View {
@@ -43,36 +64,52 @@ struct HomeView: View {
                     // Categories Horizontal Slider
                     CategoriesPillSlider(
                         categories: apiService.categories,
-                        selectedCategoryId: $selectedCategoryId
+                        selectedCategoryId: $selectedCategoryId,
+                        isLoading: apiService.isInitialLoading
                     )
                     
                     // Loading state
-                    if apiService.isLoading && apiService.apps.isEmpty {
-                        ProgressView("Loading apps...")
-                            .frame(maxWidth: .infinity, minHeight: 200)
+                    if apiService.isInitialLoading {
+                        VStack(spacing: 16) {
+                            ProgressView("Loading apps...")
+                                .frame(maxWidth: .infinity, minHeight: 200)
+                            
+                            // Show skeleton loading for better UX
+                            SkeletonLoadingView()
+                        }
                     } else {
                         // Featured Apps Carousel
-                        if !featuredApps.isEmpty {
-                            FeaturedAppsCarousel(apps: Array(featuredApps.prefix(6)))
+                        if !filteredFeaturedApps.isEmpty {
+                            FeaturedAppsCarousel(apps: Array(filteredFeaturedApps.prefix(6)))
                         }
                         
                         // Recently Added Apps
-                        if !filteredApps.isEmpty {
-                            RecentlyAddedSection(apps: Array(filteredApps.prefix(6)))
+                        if !filteredRecentlyAddedApps.isEmpty {
+                            RecentlyAddedSection(apps: Array(filteredRecentlyAddedApps.prefix(6)))
+                        }
+                        
+                        // Paid Apps
+                        if !filteredPaidApps.isEmpty {
+                            PaidAppsSection(apps: Array(filteredPaidApps.prefix(6)))
                         }
                         
                         // Top Rated Apps
-                        if !topRatedApps.isEmpty {
-                            TopRatedSection(apps: Array(topRatedApps.prefix(6)))
+                        if !filteredTopRatedApps.isEmpty {
+                            TopRatedSection(apps: Array(filteredTopRatedApps.prefix(6)))
                         }
                         
                         // Free Apps
-                        if !freeApps.isEmpty {
-                            FreeAppsSection(apps: Array(freeApps.prefix(6)))
+                        if !filteredFreeApps.isEmpty {
+                            FreeAppsSection(apps: Array(filteredFreeApps.prefix(6)))
                         }
                         
                         // Empty state
-                        if filteredApps.isEmpty && !apiService.isLoading {
+                        if filteredFeaturedApps.isEmpty && 
+                           filteredRecentlyAddedApps.isEmpty && 
+                           filteredTopRatedApps.isEmpty && 
+                           filteredFreeApps.isEmpty && 
+                           filteredPaidApps.isEmpty &&
+                           !apiService.isInitialLoading {
                             VStack(spacing: 16) {
                                 Image(systemName: "apps.iphone")
                                     .font(.system(size: 60))
@@ -102,7 +139,7 @@ struct HomeView: View {
                 await refreshData()
             }
             .task {
-                if apiService.apps.isEmpty {
+                if apiService.featuredApps.isEmpty {
                     await loadInitialData()
                 }
             }
@@ -113,27 +150,117 @@ struct HomeView: View {
     
     @MainActor
     private func refreshData() async {
-        // Load data sequentially to prevent race conditions
-        await apiService.fetchApps()
-        
-        // Only fetch categories if apps succeeded and task wasn't cancelled
-        if !Task.isCancelled {
-            await apiService.fetchCategories()
-        }
+        await apiService.loadHomePageData()
     }
     
     @MainActor
     private func loadInitialData() async {
-        // Only load if we don't have data already
-        guard apiService.apps.isEmpty && apiService.categories.isEmpty else { return }
+        print("[DEBUG] HomeView - Starting to load initial data")
+        await apiService.loadHomePageData()
+        print("[DEBUG] HomeView - Initial data loading completed")
+        print("[DEBUG] HomeView - Categories count: \(apiService.categories.count)")
+        print("[DEBUG] HomeView - Featured apps count: \(apiService.featuredApps.count)")
+        print("[DEBUG] HomeView - Paid apps count: \(apiService.paidApps.count)")
+        print("[DEBUG] HomeView - Free apps count: \(apiService.freeApps.count)")
+        print("[DEBUG] HomeView - Top rated apps count: \(apiService.topRatedApps.count)")
+        print("[DEBUG] HomeView - Recently added apps count: \(apiService.recentlyAddedApps.count)")
         
-        // Load data sequentially to prevent race conditions
-        await apiService.fetchApps()
-        
-        // Only fetch categories if apps succeeded and task wasn't cancelled
-        if !Task.isCancelled {
-            await apiService.fetchCategories()
+        // Debug category details
+        for (index, category) in apiService.categories.enumerated() {
+            print("[DEBUG] HomeView - Category \(index): \(category.name) (ID: \(category.id))")
         }
+        
+        // Debug app category IDs
+        print("[DEBUG] HomeView - === APP CATEGORY IDS ===")
+        print("[DEBUG] HomeView - Featured apps category IDs:")
+        for app in apiService.featuredApps {
+            print("[DEBUG] HomeView - - \(app.name): category_id = \(app.category_id)")
+        }
+        print("[DEBUG] HomeView - Paid apps category IDs:")
+        for app in apiService.paidApps {
+            print("[DEBUG] HomeView - - \(app.name): category_id = \(app.category_id)")
+        }
+        print("[DEBUG] HomeView - Free apps category IDs:")
+        for app in apiService.freeApps {
+            print("[DEBUG] HomeView - - \(app.name): category_id = \(app.category_id)")
+        }
+        print("[DEBUG] HomeView - Recent apps category IDs:")
+        for app in apiService.recentlyAddedApps {
+            print("[DEBUG] HomeView - - \(app.name): category_id = \(app.category_id)")
+        }
+        print("[DEBUG] HomeView - === END APP CATEGORY IDS ===")
+        
+        // Debug category matching
+        print("[DEBUG] HomeView - === CATEGORY MATCHING DEBUG ===")
+        for category in apiService.categories {
+            let matchingApps = apiService.featuredApps.filter { $0.category_id == category.id }
+            print("[DEBUG] HomeView - Category '\(category.name)' (ID: \(category.id)): \(matchingApps.count) matching apps")
+        }
+        print("[DEBUG] HomeView - === END CATEGORY MATCHING DEBUG ===")
+    }
+}
+
+// MARK: - Skeleton Loading View
+struct SkeletonLoadingView: View {
+    var body: some View {
+        VStack(spacing: 24) {
+            // Featured Apps Skeleton
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Featured Apps")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .padding(.horizontal)
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(0..<3, id: \.self) { _ in
+                            SkeletonAppCard()
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            }
+            
+            // Recently Added Skeleton
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Recently Added")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .padding(.horizontal)
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(0..<3, id: \.self) { _ in
+                            SkeletonAppCard()
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Skeleton App Card
+struct SkeletonAppCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // App icon skeleton
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.systemGray5))
+                .frame(width: 80, height: 80)
+            
+            // App name skeleton
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color(.systemGray5))
+                .frame(width: 60, height: 12)
+            
+            // Developer skeleton
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color(.systemGray5))
+                .frame(width: 40, height: 10)
+        }
+        .frame(width: 80)
     }
 }
 
@@ -141,6 +268,7 @@ struct HomeView: View {
 struct CategoriesPillSlider: View {
     let categories: [Category]
     @Binding var selectedCategoryId: String?
+    let isLoading: Bool
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -162,13 +290,21 @@ struct CategoriesPillSlider: View {
                     }
                     
                     // Category pill buttons
-                    ForEach(categories, id: \.id) { category in
-                        CategoryPillButton(
-                            title: category.name,
-                            isSelected: selectedCategoryId == category.id
-                        ) {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                selectedCategoryId = category.id
+                    if isLoading {
+                        // Show skeleton categories while loading
+                        ForEach(0..<5, id: \.self) { _ in
+                            SkeletonCategoryPill()
+                        }
+                    } else {
+                        ForEach(categories, id: \.id) { category in
+                            CategoryPillButton(
+                                title: category.name,
+                                isSelected: selectedCategoryId == category.id
+                            ) {
+                                print("[DEBUG] CategoriesPillSlider - Category tapped: \(category.name) (ID: \(category.id))")
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    selectedCategoryId = category.id
+                                }
                             }
                         }
                     }
@@ -176,6 +312,27 @@ struct CategoriesPillSlider: View {
                 .padding(.horizontal)
             }
         }
+        .onAppear {
+            print("[DEBUG] CategoriesPillSlider - onAppear")
+            print("[DEBUG] CategoriesPillSlider - categories count: \(categories.count)")
+            print("[DEBUG] CategoriesPillSlider - isLoading: \(isLoading)")
+            for (index, category) in categories.enumerated() {
+                print("[DEBUG] CategoriesPillSlider - Category \(index): \(category.name) (ID: \(category.id))")
+            }
+        }
+    }
+}
+
+// MARK: - Skeleton Category Pill
+struct SkeletonCategoryPill: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 20)
+            .fill(Color(.systemGray5))
+            .frame(width: 80, height: 32)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(Color(.systemGray4), lineWidth: 1)
+            )
     }
 }
 
@@ -216,10 +373,20 @@ struct FeaturedAppsCarousel: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Featured Apps")
-                .font(.title2)
-                .fontWeight(.bold)
-                .padding(.horizontal)
+            HStack {
+                Text("Featured Apps")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Spacer()
+                
+                NavigationLink(destination: ViewAllAppsView(title: "Featured Apps", apps: apps)) {
+                    Text("View All")
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                }
+            }
+            .padding(.horizontal)
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
@@ -242,10 +409,20 @@ struct RecentlyAddedSection: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Recently Added")
-                .font(.title2)
-                .fontWeight(.bold)
-                .padding(.horizontal)
+            HStack {
+                Text("Recently Added")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Spacer()
+                
+                NavigationLink(destination: ViewAllAppsView(title: "Recently Added", apps: apps)) {
+                    Text("View All")
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                }
+            }
+            .padding(.horizontal)
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
@@ -268,10 +445,20 @@ struct TopRatedSection: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Top Rated")
-                .font(.title2)
-                .fontWeight(.bold)
-                .padding(.horizontal)
+            HStack {
+                Text("Top Rated")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Spacer()
+                
+                NavigationLink(destination: ViewAllAppsView(title: "Top Rated", apps: apps)) {
+                    Text("View All")
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                }
+            }
+            .padding(.horizontal)
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
@@ -294,10 +481,20 @@ struct FreeAppsSection: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Free Apps")
-                .font(.title2)
-                .fontWeight(.bold)
-                .padding(.horizontal)
+            HStack {
+                Text("Free Apps")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Spacer()
+                
+                NavigationLink(destination: ViewAllAppsView(title: "Free Apps", apps: apps)) {
+                    Text("View All")
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                }
+            }
+            .padding(.horizontal)
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
@@ -311,6 +508,67 @@ struct FreeAppsSection: View {
                 .padding(.horizontal)
             }
         }
+    }
+}
+
+// MARK: - Paid Apps Section
+struct PaidAppsSection: View {
+    let apps: [AppModel]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Paid Apps")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Spacer()
+                
+                NavigationLink(destination: ViewAllAppsView(title: "Paid Apps", apps: apps)) {
+                    Text("View All")
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                }
+            }
+            .padding(.horizontal)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    ForEach(apps, id: \.id) { app in
+                        NavigationLink(destination: AppDetailView(app: app)) {
+                            AppCard(app: app)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+}
+
+// MARK: - View All Apps View
+struct ViewAllAppsView: View {
+    let title: String
+    let apps: [AppModel]
+    
+    var body: some View {
+        ScrollView {
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 16) {
+                ForEach(apps, id: \.id) { app in
+                    NavigationLink(destination: AppDetailView(app: app)) {
+                        AppCard(app: app)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+            .padding()
+        }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.large)
     }
 }
 

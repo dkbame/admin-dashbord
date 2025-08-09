@@ -50,7 +50,78 @@ class SupabaseManager {
         throw lastError ?? NSError(domain: "SupabaseManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Max retries exceeded"])
     }
     
-    // MARK: - Enhanced Query Methods
+    // MARK: - Optimized Query Methods for Fast Initial Loading
+    
+    // Fast initial load - apps without screenshots
+    func fetchAppsFast(limit: Int = 30, offset: Int = 0) async throws -> PostgrestResponse<[AppModel]> {
+        return try await executeWithRetry {
+            try await self.client
+                .from("ios_apps_view")
+                .select("*")
+                .eq("status", value: "ACTIVE")
+                .order("created_at", ascending: false)
+                .range(from: offset, to: offset + limit - 1)
+                .execute()
+        }
+    }
+    
+    // Fetch featured apps for home page
+    func fetchFeaturedApps(limit: Int = 10) async throws -> PostgrestResponse<[AppModel]> {
+        return try await executeWithRetry {
+            try await self.client
+                .from("ios_apps_view")
+                .select("*")
+                .eq("status", value: "ACTIVE")
+                .eq("is_featured", value: true)
+                .order("created_at", ascending: false)
+                .limit(limit)
+                .execute()
+        }
+    }
+    
+    // Fetch top rated apps
+    func fetchTopRatedApps(limit: Int = 10) async throws -> PostgrestResponse<[AppModel]> {
+        return try await executeWithRetry {
+            try await self.client
+                .from("ios_apps_view")
+                .select("*")
+                .eq("status", value: "ACTIVE")
+                .not("rating", operator: .is, value: "null")
+                .order("rating", ascending: false)
+                .limit(limit)
+                .execute()
+        }
+    }
+    
+    // Fetch free apps
+    func fetchFreeApps(limit: Int = 10) async throws -> PostgrestResponse<[AppModel]> {
+        return try await executeWithRetry {
+            try await self.client
+                .from("ios_apps_view")
+                .select("*")
+                .eq("status", value: "ACTIVE")
+                .eq("is_free", value: true)
+                .order("created_at", ascending: false)
+                .limit(limit)
+                .execute()
+        }
+    }
+    
+    // Fetch paid apps
+    func fetchPaidApps(limit: Int = 10) async throws -> PostgrestResponse<[AppModel]> {
+        return try await executeWithRetry {
+            try await self.client
+                .from("ios_apps_view")
+                .select("*")
+                .eq("status", value: "ACTIVE")
+                .eq("is_free", value: false)
+                .order("created_at", ascending: false)
+                .limit(limit)
+                .execute()
+        }
+    }
+    
+    // MARK: - Enhanced Query Methods (Original)
     
     func fetchAppsWithRetry() async throws -> PostgrestResponse<[AppModel]> {
         return try await executeWithRetry {
@@ -65,10 +136,14 @@ class SupabaseManager {
     
     func fetchCategoriesWithRetry() async throws -> PostgrestResponse<[Category]> {
         return try await executeWithRetry {
-            try await self.client
+            print("[DEBUG] SupabaseManager - Starting to fetch categories")
+            let response: PostgrestResponse<[Category]> = try await self.client
                 .from("categories")
-                .select()
+                .select("*")
                 .execute()
+            print("[DEBUG] SupabaseManager - Categories response status: \(response.status)")
+            print("[DEBUG] SupabaseManager - Categories response data length: \(response.data.count) bytes")
+            return response
         }
     }
     

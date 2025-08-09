@@ -38,10 +38,9 @@ struct MainTabView: View {
         }
         .accentColor(.blue)
         .onAppear {
-            // Initialize data when app launches
+            // Initialize data when app launches using optimized loading
             Task {
-                await apiService.fetchApps()
-                await apiService.fetchCategories()
+                await apiService.loadHomePageData()
             }
         }
     }
@@ -73,14 +72,14 @@ struct CategoriesView: View {
             }
             .navigationTitle("Categories")
             .refreshable {
-                await apiService.fetchCategories()
+                await apiService.loadHomePageData()
             }
             .sheet(isPresented: $showingCategoryDetail) {
                 if let category = selectedCategory {
                     CategoryDetailView(category: category, apiService: apiService)
                 }
             }
-            .onChange(of: showingCategoryDetail) { newValue in
+            .onChange(of: showingCategoryDetail) { _, newValue in
                 print("[DEBUG] CategoriesView - showingCategoryDetail changed to: \(newValue)")
                 if newValue, let category = selectedCategory {
                     print("[DEBUG] CategoriesView - Presenting CategoryDetailView for: \(category.name)")
@@ -98,20 +97,29 @@ struct CategoryCard: View {
     var body: some View {
         Button(action: onTap) {
             VStack(spacing: 8) {
+                // Category icon placeholder
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color.blue.opacity(0.1))
-                    .frame(height: 80)
+                    .frame(width: 60, height: 60)
                     .overlay(
                         Image(systemName: "folder.fill")
-                            .font(.title)
+                            .font(.title2)
                             .foregroundColor(.blue)
                     )
                 
                 Text(category.name)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
+                    .lineLimit(2)
             }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+            )
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -121,203 +129,133 @@ struct CategoryCard: View {
 struct SearchView: View {
     let apiService: APIService
     @State private var searchText = ""
+    @State private var searchResults: [AppModel] = []
     @State private var isSearching = false
-    
-    private var filteredApps: [AppModel] {
-        if searchText.isEmpty {
-            return []
-        }
-        return apiService.apps.filter { app in
-            app.name.localizedCaseInsensitiveContains(searchText) ||
-            (app.developer?.localizedCaseInsensitiveContains(searchText) ?? false) ||
-            app.description.localizedCaseInsensitiveContains(searchText)
-        }
-    }
     
     var body: some View {
         NavigationView {
             VStack {
-                // Search Bar
-                SearchBar(text: $searchText, isSearching: $isSearching)
-                
-                // Search Results
-                if isSearching {
-                    if filteredApps.isEmpty && !searchText.isEmpty {
-                        EmptySearchView(searchText: searchText)
-                    } else {
-                        SearchResultsView(apps: filteredApps)
+                // Search bar
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.gray)
+                    
+                    TextField("Search apps...", text: $searchText)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .onSubmit {
+                            Task {
+                                await performSearch()
+                            }
+                        }
+                    
+                    if !searchText.isEmpty {
+                        Button("Clear") {
+                            searchText = ""
+                            searchResults = []
+                        }
+                        .foregroundColor(.blue)
                     }
-                } else {
-                    SearchSuggestionsView()
                 }
+                .padding()
                 
-                Spacer()
+                // Search results
+                if isSearching {
+                    ProgressView("Searching...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if searchResults.isEmpty && !searchText.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 60))
+                            .foregroundColor(.gray)
+                        
+                        Text("No apps found")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        
+                        Text("Try different keywords")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if searchResults.isEmpty && searchText.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 60))
+                            .foregroundColor(.gray)
+                        
+                        Text("Search for apps")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        
+                        Text("Enter app name, developer, or description")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 16) {
+                            ForEach(searchResults, id: \.id) { app in
+                                NavigationLink(destination: AppDetailView(app: app)) {
+                                    AppCard(app: app)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
+                        .padding()
+                    }
+                }
             }
             .navigationTitle("Search")
         }
     }
-}
-
-// MARK: - Search Bar
-struct SearchBar: View {
-    @Binding var text: String
-    @Binding var isSearching: Bool
     
-    var body: some View {
-        HStack {
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.gray)
-                
-                TextField("Search apps...", text: $text)
-                    .onTapGesture {
-                        isSearching = true
-                    }
-                
-                if !text.isEmpty {
-                    Button(action: {
-                        text = ""
-                        isSearching = false
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.gray)
-                    }
-                }
-            }
-            .padding(8)
-            .background(Color(.systemGray6))
-            .cornerRadius(10)
-            
-            if isSearching {
-                Button("Cancel") {
-                    text = ""
-                    isSearching = false
-                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
-                                                 to: nil, from: nil, for: nil)
-                }
-                .transition(.move(edge: .trailing))
-                .animation(.default, value: isSearching)
-            }
+    private func performSearch() async {
+        guard !searchText.isEmpty else { return }
+        
+        await MainActor.run {
+            isSearching = true
         }
-        .padding(.horizontal)
-    }
-}
-
-// MARK: - Search Results View
-struct SearchResultsView: View {
-    let apps: [AppModel]
-    
-    var body: some View {
-        List(apps, id: \.id) { app in
-            AppListRow(app: app)
+        
+        // TODO: Implement search functionality
+        // For now, just simulate a search
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+        
+        await MainActor.run {
+            isSearching = false
+            // searchResults = await apiService.searchApps(query: searchText)
         }
-        .listStyle(PlainListStyle())
-    }
-}
-
-// MARK: - Empty Search View
-struct EmptySearchView: View {
-    let searchText: String
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 60))
-                .foregroundColor(.gray)
-            
-            Text("No Results Found")
-                .font(.title2)
-                .fontWeight(.semibold)
-            
-            Text("No apps found for \"\(searchText)\"")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
-    }
-}
-
-// MARK: - Search Suggestions View
-struct SearchSuggestionsView: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 60))
-                .foregroundColor(.gray)
-            
-            Text("Search Apps")
-                .font(.title2)
-                .fontWeight(.semibold)
-            
-            Text("Search for apps by name, developer, or description")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
     }
 }
 
 // MARK: - Favorites View
 struct FavoritesView: View {
     let apiService: APIService
-    @State private var favoriteAppIds: Set<String> = []
-    
-    private var favoriteApps: [AppModel] {
-        apiService.apps.filter { favoriteAppIds.contains($0.id) }
-    }
     
     var body: some View {
         NavigationView {
-            VStack {
-                if favoriteApps.isEmpty {
-                    EmptyFavoritesView()
-                } else {
-                    List(favoriteApps, id: \.id) { app in
-                        AppListRow(app: app)
-                    }
-                    .listStyle(PlainListStyle())
-                }
+            VStack(spacing: 16) {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 60))
+                    .foregroundColor(.red)
+                
+                Text("Favorites")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                
+                Text("Your favorite apps will appear here")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                
+                Text("Coming soon...")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle("Favorites")
-            .onAppear {
-                loadFavorites()
-            }
         }
-    }
-    
-    private func loadFavorites() {
-        // TODO: Load favorites from UserDefaults or database
-        // For now, using a placeholder
-        favoriteAppIds = []
-    }
-}
-
-// MARK: - Empty Favorites View
-struct EmptyFavoritesView: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "heart")
-                .font(.system(size: 60))
-                .foregroundColor(.gray)
-            
-            Text("No Favorites Yet")
-                .font(.title2)
-                .fontWeight(.semibold)
-            
-            Text("Apps you favorite will appear here")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
     }
 }
 

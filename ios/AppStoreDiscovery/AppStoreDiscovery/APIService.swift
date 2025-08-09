@@ -27,10 +27,182 @@ class APIService: ObservableObject {
     private var currentAppsTask: Task<Void, Never>?
     private var currentCategoriesTask: Task<Void, Never>?
     
-    // Real-time subscriptions - Temporarily disabled
-    // private var appsSubscription: RealtimeChannelV2?
-    // private var categoriesSubscription: RealtimeChannelV2?
+    // Optimized loading state
+    @Published var isInitialLoading = false
+    @Published var featuredApps: [AppModel] = []
+    @Published var topRatedApps: [AppModel] = []
+    @Published var freeApps: [AppModel] = []
+    @Published var paidApps: [AppModel] = []
+    @Published var recentlyAddedApps: [AppModel] = []
+    
+    // Screenshot cache to avoid re-fetching
+    private var screenshotCache: [String: [Screenshot]] = [:]
 
+    // MARK: - Optimized Fast Loading Methods
+    
+    func loadHomePageData() async {
+        await MainActor.run {
+            isInitialLoading = true
+            errorMessage = nil
+        }
+        
+        do {
+            // Load all sections in parallel for faster initial load
+            async let featuredTask = loadFeaturedApps()
+            async let topRatedTask = loadTopRatedApps()
+            async let freeTask = loadFreeApps()
+            async let paidTask = loadPaidApps()
+            async let recentTask = loadRecentlyAddedApps()
+            async let categoriesTask = loadCategories()
+            
+            // Wait for all tasks to complete
+            let (featured, topRated, free, paid, recent, categories) = await (featuredTask, topRatedTask, freeTask, paidTask, recentTask, categoriesTask)
+            
+            await MainActor.run {
+                self.featuredApps = featured
+                self.topRatedApps = topRated
+                self.freeApps = free
+                self.paidApps = paid
+                self.recentlyAddedApps = recent
+                self.categories = categories
+                self.isInitialLoading = false
+            }
+            
+            print("[DEBUG] Home page data loaded successfully")
+            print("[DEBUG] Categories loaded: \(categories.count)")
+            
+            // Fallback: If categories failed to load, try again
+            if categories.isEmpty {
+                print("[DEBUG] Categories are empty, trying to load them separately")
+                let fallbackCategories = await loadCategories()
+                await MainActor.run {
+                    self.categories = fallbackCategories
+                }
+                print("[DEBUG] Fallback categories loaded: \(fallbackCategories.count)")
+            }
+            
+        } catch {
+            print("[DEBUG] Error loading home page data: \(error)")
+            await MainActor.run {
+                self.errorMessage = "Error loading data: \(error.localizedDescription)"
+                self.isInitialLoading = false
+            }
+        }
+    }
+    
+    private func loadFeaturedApps() async -> [AppModel] {
+        do {
+            let response = try await SupabaseManager.shared.fetchFeaturedApps(limit: 6)
+            let apps = try JSONDecoder().decode([AppModel].self, from: response.data)
+            return apps
+        } catch {
+            print("[DEBUG] Error loading featured apps: \(error)")
+            return []
+        }
+    }
+    
+    private func loadTopRatedApps() async -> [AppModel] {
+        do {
+            let response = try await SupabaseManager.shared.fetchTopRatedApps(limit: 6)
+            let apps = try JSONDecoder().decode([AppModel].self, from: response.data)
+            return apps
+        } catch {
+            print("[DEBUG] Error loading top rated apps: \(error)")
+            return []
+        }
+    }
+    
+    private func loadFreeApps() async -> [AppModel] {
+        do {
+            let response = try await SupabaseManager.shared.fetchFreeApps(limit: 6)
+            let apps = try JSONDecoder().decode([AppModel].self, from: response.data)
+            return apps
+        } catch {
+            print("[DEBUG] Error loading free apps: \(error)")
+            return []
+        }
+    }
+    
+    private func loadPaidApps() async -> [AppModel] {
+        do {
+            let response = try await SupabaseManager.shared.fetchPaidApps(limit: 6)
+            let apps = try JSONDecoder().decode([AppModel].self, from: response.data)
+            return apps
+        } catch {
+            print("[DEBUG] Error loading paid apps: \(error)")
+            return []
+        }
+    }
+    
+    private func loadRecentlyAddedApps() async -> [AppModel] {
+        do {
+            let response = try await SupabaseManager.shared.fetchAppsFast(limit: 6)
+            let apps = try JSONDecoder().decode([AppModel].self, from: response.data)
+            return apps
+        } catch {
+            print("[DEBUG] Error loading recent apps: \(error)")
+            return []
+        }
+    }
+    
+    private func loadCategories() async -> [Category] {
+        do {
+            print("[DEBUG] loadCategories - Starting to load categories")
+            let response = try await SupabaseManager.shared.fetchCategoriesWithRetry()
+            print("[DEBUG] loadCategories - Response status: \(response.status)")
+            print("[DEBUG] loadCategories - Response data length: \(response.data.count) bytes")
+            
+            let categories = try JSONDecoder().decode([Category].self, from: response.data)
+            print("[DEBUG] loadCategories - Successfully decoded \(categories.count) categories")
+            
+            for (index, category) in categories.enumerated() {
+                print("[DEBUG] loadCategories - Category \(index): \(category.name) (ID: \(category.id))")
+            }
+            
+            return categories
+        } catch {
+            print("[DEBUG] loadCategories - Error loading categories: \(error)")
+            return []
+        }
+    }
+    
+    // MARK: - Screenshot Loading (On-Demand)
+    
+    func loadScreenshotsForApp(_ app: AppModel) async -> [Screenshot] {
+        // Check cache first
+        if let cachedScreenshots = screenshotCache[app.id] {
+            return cachedScreenshots
+        }
+        
+        do {
+            let response = try await SupabaseManager.shared.fetchScreenshotsWithRetry(appId: app.id)
+            let screenshots = try JSONDecoder().decode([Screenshot].self, from: response.data)
+            
+            // Cache the screenshots
+            await MainActor.run {
+                self.screenshotCache[app.id] = screenshots
+            }
+            
+            return screenshots
+        } catch {
+            print("[DEBUG] Error loading screenshots for \(app.name): \(error)")
+            return []
+        }
+    }
+    
+    // MARK: - Category-Specific App Loading
+    
+    func fetchAppsByCategory(categoryId: String) async -> [AppModel] {
+        do {
+            let response = try await SupabaseManager.shared.fetchAppsByCategoryWithRetry(categoryId: categoryId)
+            let apps = try JSONDecoder().decode([AppModel].self, from: response.data)
+            return apps
+        } catch {
+            print("[DEBUG] Error loading apps for category \(categoryId): \(error)")
+            return []
+        }
+    }
+    
     // MARK: - Enhanced App Fetching with Optimized Functions
     
     func fetchApps() async {
@@ -201,219 +373,53 @@ class APIService: ObservableObject {
             return
         }
         
-        await MainActor.run {
-            isLoading = true
-            errorMessage = nil
-        }
-        
         do {
             guard !Task.isCancelled else {
                 print("[DEBUG] fetchCategories - Task cancelled before API call")
-                await MainActor.run { isLoading = false }
                 return
             }
             
-            // Use the enhanced retry method for better reliability
-            let response = try await SupabaseManager.shared.fetchCategoriesWithRetry()
+            let categoriesResponse = try await SupabaseManager.shared.fetchCategoriesWithRetry()
             
-            guard !Task.isCancelled else {
-                print("[DEBUG] fetchCategories - Task cancelled after API call")
-                await MainActor.run { isLoading = false }
-                return
-            }
+            print("[DEBUG] fetchCategories - Categories response status: \(categoriesResponse.status)")
             
-            // Debug: Print the raw response data from Supabase
-            print("[DEBUG] fetchCategories - Raw response data:")
-            print(String(data: response.data, encoding: .utf8) ?? "No data or not UTF-8")
-            print("[DEBUG] fetchCategories - Status: \(response.status)")
-
-            if response.status == 200 {
-                let categories = try JSONDecoder().decode([Category].self, from: response.data)
-                
-                guard !Task.isCancelled else {
-                    print("[DEBUG] fetchCategories - Task cancelled before updating UI")
-                    return
-                }
-                
-                await MainActor.run {
-                    self.categories = categories
-                    self.cachedCategories = categories
-                    self.isLoading = false
-                    self.isOffline = false
+            if categoriesResponse.status == 200 {
+                do {
+                    let categories = try JSONDecoder().decode([Category].self, from: categoriesResponse.data)
+                    
+                    print("[DEBUG] fetchCategories - Successfully decoded \(categories.count) categories")
+                    
+                    await MainActor.run {
+                        self.categories = categories
+                        self.cachedCategories = categories
+                        self.isOffline = false
+                    }
+                } catch let decodingError {
+                    print("[DEBUG] Categories JSON Decoding Error: \(decodingError)")
+                    await MainActor.run {
+                        self.errorMessage = "Categories Decoding Error: \(decodingError.localizedDescription)"
+                        self.loadFromCache()
+                    }
                 }
             } else {
-                let errorString = String(data: response.data, encoding: .utf8) ?? "Unknown error (status: \(response.status))"
+                let errorString = String(data: categoriesResponse.data, encoding: .utf8) ?? "Unknown error (status: \(categoriesResponse.status))"
                 print("[DEBUG] fetchCategories - Error: \(errorString)")
                 await MainActor.run {
-                    self.errorMessage = "Error: \(errorString)"
-                    self.isLoading = false
+                    self.errorMessage = "Categories Error: \(errorString)"
                     self.loadFromCache()
                 }
             }
         } catch {
-            guard !Task.isCancelled else {
-                print("[DEBUG] fetchCategories - Task cancelled during exception handling")
-                return
-            }
-            
             print("[DEBUG] fetchCategories - Exception: \(error.localizedDescription)")
             await MainActor.run {
-                self.errorMessage = "Error: \(error.localizedDescription)"
-                self.isLoading = false
+                self.errorMessage = "Categories Error: \(error.localizedDescription)"
                 self.isOffline = true
                 self.loadFromCache()
             }
         }
     }
     
-    // MARK: - Enhanced Methods Using New Database Functions
-    
-    func fetchTrendingApps() async -> [AppModel] {
-        do {
-            let response = try await SupabaseManager.shared.client
-                .rpc("get_trending_apps")
-                .execute()
-            
-            if response.status == 200 {
-                let trendingApps = try JSONDecoder().decode([AppModel].self, from: response.data)
-                return trendingApps
-            }
-        } catch {
-            print("[DEBUG] fetchTrendingApps - Error: \(error.localizedDescription)")
-        }
-        return []
-    }
-    
-    func fetchNewReleases() async -> [AppModel] {
-        do {
-            let response = try await SupabaseManager.shared.client
-                .rpc("get_new_releases")
-                .execute()
-            
-            if response.status == 200 {
-                let newReleases = try JSONDecoder().decode([AppModel].self, from: response.data)
-                return newReleases
-            }
-        } catch {
-            print("[DEBUG] fetchNewReleases - Error: \(error.localizedDescription)")
-        }
-        return []
-    }
-    
-    func fetchFeaturedApps() async -> [AppModel] {
-        do {
-            let response = try await SupabaseManager.shared.client
-                .from("featured_apps_view")
-                .select("*")
-                .execute()
-            
-            if response.status == 200 {
-                let featuredApps = try JSONDecoder().decode([AppModel].self, from: response.data)
-                return featuredApps
-            }
-        } catch {
-            print("[DEBUG] fetchFeaturedApps - Error: \(error.localizedDescription)")
-        }
-        return []
-    }
-    
-    func fetchFreeApps() async -> [AppModel] {
-        do {
-            let response = try await SupabaseManager.shared.client
-                .from("free_apps_view")
-                .select("*")
-                .execute()
-            
-            if response.status == 200 {
-                let freeApps = try JSONDecoder().decode([AppModel].self, from: response.data)
-                return freeApps
-            }
-        } catch {
-            print("[DEBUG] fetchFreeApps - Error: \(error.localizedDescription)")
-        }
-        return []
-    }
-    
-    func searchApps(query: String) async -> [AppModel] {
-        do {
-            let response = try await SupabaseManager.shared.client
-                .from("ios_apps_view")
-                .select("*")
-                .eq("status", value: "ACTIVE")
-                .or("name.ilike.%\(query)%,description.ilike.%\(query)%,developer.ilike.%\(query)%")
-                .order("created_at", ascending: false)
-                .limit(20)
-                .execute()
-            
-            if response.status == 200 {
-                let searchResults = try JSONDecoder().decode([AppModel].self, from: response.data)
-                return searchResults
-            }
-        } catch {
-            print("[DEBUG] searchApps - Error: \(error.localizedDescription)")
-        }
-        return []
-    }
-    
-    func fetchAppsByCategory(categoryId: String) async -> [AppModel] {
-        do {
-            print("[DEBUG] fetchAppsByCategory - Starting fetch for category: \(categoryId)")
-            print("[DEBUG] fetchAppsByCategory - Current thread: \(Thread.isMainThread ? "Main" : "Background")")
-            
-            // Add a small delay to prevent overwhelming the API
-            try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-            
-            print("[DEBUG] fetchAppsByCategory - About to call SupabaseManager.fetchAppsByCategoryWithRetry")
-            
-            let response = try await SupabaseManager.shared.fetchAppsByCategoryWithRetry(categoryId: categoryId)
-            
-            print("[DEBUG] fetchAppsByCategory - Response received, status: \(response.status)")
-            print("[DEBUG] fetchAppsByCategory - Response data length: \(response.data.count) bytes")
-            
-            if response.status == 200 {
-                let apps = try JSONDecoder().decode([AppModel].self, from: response.data)
-                print("[DEBUG] fetchAppsByCategory - Successfully decoded \(apps.count) apps")
-                
-                // Log first few apps for debugging
-                for (index, app) in apps.prefix(3).enumerated() {
-                    print("[DEBUG] fetchAppsByCategory - App \(index + 1): \(app.name) by \(app.developer)")
-                }
-                
-                return apps
-            } else {
-                print("[DEBUG] fetchAppsByCategory - Non-200 status: \(response.status)")
-                return []
-            }
-        } catch {
-            print("[DEBUG] fetchAppsByCategory - Error occurred: \(error.localizedDescription)")
-            print("[DEBUG] fetchAppsByCategory - Error type: \(type(of: error))")
-            
-            if let decodingError = error as? DecodingError {
-                print("[DEBUG] fetchAppsByCategory - Decoding error details: \(decodingError)")
-            }
-            
-            return []
-        }
-    }
-    
-    func fetchCategoryStats() async -> [CategoryStats] {
-        do {
-            let response = try await SupabaseManager.shared.client
-                .from("category_stats_view")
-                .select("*")
-                .execute()
-            
-            if response.status == 200 {
-                let stats = try JSONDecoder().decode([CategoryStats].self, from: response.data)
-                return stats
-            }
-        } catch {
-            print("[DEBUG] fetchCategoryStats - Error: \(error.localizedDescription)")
-        }
-        return []
-    }
-    
-    // MARK: - Offline Support
+    // MARK: - Cache Management
     
     private func loadFromCache() {
         if !cachedApps.isEmpty {
@@ -424,31 +430,11 @@ class APIService: ObservableObject {
         }
     }
     
-    func refreshData() async {
-        await fetchApps()
-        await fetchCategories()
-    }
-    
-    // MARK: - Real-time Subscriptions (Temporarily disabled due to API changes)
-    
-    func subscribeToRealTimeUpdates() {
-        // TODO: Re-implement with current Supabase Swift SDK API
-        print("[DEBUG] Real-time subscriptions temporarily disabled")
-    }
-    
-    func unsubscribeFromRealTimeUpdates() {
-        // TODO: Re-implement with current Supabase Swift SDK API
-        print("[DEBUG] Real-time unsubscriptions temporarily disabled")
-    }
-    
-    private func handleAppsUpdate(_ payload: Any) async {
-        // Refresh apps data when changes occur
-        await fetchApps()
-    }
-    
-    private func handleCategoriesUpdate(_ payload: Any) async {
-        // Refresh categories data when changes occur
-        await fetchCategories()
+    func clearCache() {
+        cachedApps = []
+        cachedCategories = []
+        screenshotCache.removeAll()
+        lastFetchTime = nil
     }
 }
 
