@@ -42,9 +42,9 @@ BEGIN
     
     -- Also check for apps with NULL category_id and set them to default
     FOR app_record IN 
-        SELECT id, name
-        FROM apps 
-        WHERE category_id IS NULL
+        SELECT a.id, a.name
+        FROM apps a
+        WHERE a.category_id IS NULL
     LOOP
         -- Set to 'utilities' as default
         SELECT id INTO category_id 
