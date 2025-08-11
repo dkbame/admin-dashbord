@@ -41,6 +41,7 @@ class APIService: ObservableObject {
     // MARK: - Optimized Fast Loading Methods
     
     func loadHomePageData() async {
+        print("[DEBUG] 🏠 loadHomePageData: Starting...")
         await MainActor.run {
             isInitialLoading = true
             errorMessage = nil
@@ -58,14 +59,27 @@ class APIService: ObservableObject {
             // Wait for all tasks to complete
             await (featuredTask, topRatedTask, freeTask, paidTask, recentTask, categoriesTask)
             
+            print("[DEBUG] 🏠 loadHomePageData: All tasks completed")
+            print("[DEBUG] 🏠 loadHomePageData: Featured apps count: \(featuredApps.count)")
+            
+            // Debug: Check if featured apps have screenshots
+            for (index, app) in featuredApps.enumerated() {
+                print("[DEBUG] 🏠 Featured app \(index + 1): \(app.name)")
+                print("[DEBUG] 🏠   - Has screenshots: \(app.screenshots != nil)")
+                print("[DEBUG] 🏠   - Screenshots count: \(app.screenshots?.count ?? 0)")
+                if let screenshots = app.screenshots, !screenshots.isEmpty {
+                    print("[DEBUG] 🏠   - First screenshot URL: \(screenshots.first?.url ?? "nil")")
+                }
+            }
+            
             await MainActor.run {
                 self.isInitialLoading = false
             }
             
-            print("[DEBUG] Home page data loaded successfully")
+            print("[DEBUG] 🏠 Home page data loaded successfully")
             
         } catch {
-            print("[DEBUG] Error loading home page data: \(error)")
+            print("[DEBUG] ❌ Error loading home page data: \(error)")
             await MainActor.run {
                 self.errorMessage = "Error loading data: \(error.localizedDescription)"
                 self.isInitialLoading = false
@@ -78,14 +92,67 @@ class APIService: ObservableObject {
     // MARK: - Individual Section Loading Methods (for View All pages)
     
     func loadFeaturedApps() async {
+        print("[DEBUG] ⭐ loadFeaturedApps: Starting...")
         do {
             let response = try await SupabaseManager.shared.fetchFeaturedApps(limit: 50)
+            print("[DEBUG] ⭐ loadFeaturedApps: Database response received")
+            
             let apps = try JSONDecoder().decode([AppModel].self, from: response.data)
+            print("[DEBUG] ⭐ loadFeaturedApps: Decoded \(apps.count) apps")
+            
+            // Debug: Check if apps have screenshots from database
+            for (index, app) in apps.enumerated() {
+                print("[DEBUG] ⭐ App \(index + 1): \(app.name)")
+                print("[DEBUG] ⭐   - Has screenshots: \(app.screenshots != nil)")
+                print("[DEBUG] ⭐   - Screenshots count: \(app.screenshots?.count ?? 0)")
+            }
+            
+            // Load screenshots for each app
+            print("[DEBUG] ⭐ loadFeaturedApps: Loading screenshots for each app...")
+            var appsWithScreenshots: [AppModel] = []
+            
+            for app in apps {
+                let screenshots = await loadScreenshotsForApp(app)
+                print("[DEBUG] ⭐ App \(app.name): Loaded \(screenshots.count) screenshots")
+                
+                // Create a new app model with screenshots
+                let appWithScreenshots = AppModel(
+                    id: app.id,
+                    name: app.name,
+                    description: app.description,
+                    developer: app.developer,
+                    price: app.price,
+                    category_id: app.category_id,
+                    icon_url: app.icon_url,
+                    screenshots: screenshots, // Add the loaded screenshots
+                    app_store_url: app.app_store_url,
+                    website_url: app.website_url,
+                    version: app.version,
+                    size: app.size,
+                    rating: app.rating,
+                    rating_count: app.rating_count,
+                    last_updated: app.last_updated,
+                    is_free: app.is_free,
+                    is_featured: app.is_featured,
+                    created_at: app.created_at,
+                    updated_at: app.updated_at,
+                    status: app.status,
+                    currency: app.currency,
+                    minimum_os_version: app.minimum_os_version,
+                    architecture: app.architecture,
+                    features: app.features,
+                    source: app.source
+                )
+                
+                appsWithScreenshots.append(appWithScreenshots)
+            }
+            
             await MainActor.run {
-                self.featuredApps = apps
+                self.featuredApps = appsWithScreenshots
+                print("[DEBUG] ⭐ loadFeaturedApps: Updated featuredApps with \(appsWithScreenshots.count) apps")
             }
         } catch {
-            print("[DEBUG] Error loading featured apps: \(error)")
+            print("[DEBUG] ❌ Error loading featured apps: \(error)")
         }
     }
     
@@ -161,23 +228,42 @@ class APIService: ObservableObject {
     // MARK: - Screenshot Loading (On-Demand)
     
     func loadScreenshotsForApp(_ app: AppModel) async -> [Screenshot] {
+        print("[DEBUG] 🔍 Starting loadScreenshotsForApp for app: \(app.name) (ID: \(app.id))")
+        
         // Check cache first
         if let cachedScreenshots = screenshotCache[app.id] {
+            print("[DEBUG] ✅ Found cached screenshots for \(app.name): \(cachedScreenshots.count) screenshots")
             return cachedScreenshots
         }
         
+        print("[DEBUG] 📱 No cached screenshots, fetching from database...")
+        
         do {
+            print("[DEBUG] 🗄️ Calling SupabaseManager.fetchScreenshotsWithRetry...")
             let response = try await SupabaseManager.shared.fetchScreenshotsWithRetry(appId: app.id)
+            
+            print("[DEBUG] 📊 Screenshot response status: \(response.status)")
+            print("[DEBUG] 📊 Screenshot response data type: \(type(of: response.data))")
+            print("[DEBUG] 📊 Screenshot response data count: \(response.data.count)")
+            
             let screenshots = try JSONDecoder().decode([Screenshot].self, from: response.data)
+            print("[DEBUG] ✅ Successfully decoded \(screenshots.count) screenshots for \(app.name)")
+            
+            // Log each screenshot URL for debugging
+            for (index, screenshot) in screenshots.enumerated() {
+                print("[DEBUG] 📸 Screenshot \(index + 1): ID=\(screenshot.id), URL=\(screenshot.url)")
+            }
             
             // Cache the screenshots
             await MainActor.run {
                 self.screenshotCache[app.id] = screenshots
+                print("[DEBUG] 💾 Cached \(screenshots.count) screenshots for \(app.name)")
             }
             
             return screenshots
         } catch {
-            print("[DEBUG] Error loading screenshots for \(app.name): \(error)")
+            print("[DEBUG] ❌ Error loading screenshots for \(app.name): \(error)")
+            print("[DEBUG] ❌ Error details: \(error.localizedDescription)")
             return []
         }
     }

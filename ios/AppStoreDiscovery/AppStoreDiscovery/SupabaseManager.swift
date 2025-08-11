@@ -146,8 +146,11 @@ class SupabaseManager {
     }
     
     func fetchScreenshotsWithRetry(appId: String) async throws -> PostgrestResponse<[Screenshot]> {
+        print("[DEBUG] 🗄️ SupabaseManager: fetchScreenshotsWithRetry called for appId: \(appId)")
+        
         return try await executeWithRetry {
-            try await self.client
+            print("[DEBUG] 🗄️ SupabaseManager: Executing screenshots query...")
+            return try await self.client
                 .from("screenshots")
                 .select("*")
                 .eq("app_id", value: appId)

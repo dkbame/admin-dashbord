@@ -69,14 +69,24 @@ struct HighResCardImage: View {
     }
     
     private func loadImage() {
-        guard let imageURL = URL(string: url) else { return }
+        print("[DEBUG] 🖼️ HighResCardImage: loadImage() called for URL: \(url)")
+        
+        guard let imageURL = URL(string: url) else { 
+            print("[DEBUG] ❌ HighResCardImage: Invalid URL: \(url)")
+            return 
+        }
+        
+        print("[DEBUG] 🖼️ HighResCardImage: Valid URL created: \(imageURL)")
         
         // Check cache first
         if let cachedImage = ImageCache.shared.getImage(for: url) {
+            print("[DEBUG] ✅ HighResCardImage: Found cached image for: \(url)")
             self.highResImage = cachedImage
             self.isLoading = false
             return
         }
+        
+        print("[DEBUG] 📱 HighResCardImage: No cached image, starting download...")
         
         loadTask = Task {
             // Load low-res first (for instant display)
@@ -88,39 +98,67 @@ struct HighResCardImage: View {
     }
     
     private func loadLowResImage(from url: URL) async {
+        print("[DEBUG] 📱 HighResCardImage: Loading low-res image from: \(url)")
         // Create a smaller version for instant display
         let lowResSize = CGSize(width: size.width * 0.3, height: size.height * 0.3)
         
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            print("[DEBUG] 📱 HighResCardImage: Starting URLSession download...")
+            let (data, response) = try await URLSession.shared.data(from: url)
+            print("[DEBUG] 📱 HighResCardImage: Download completed, data size: \(data.count) bytes")
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                print("[DEBUG] 📱 HighResCardImage: HTTP status: \(httpResponse.statusCode)")
+            }
+            
             if let image = UIImage(data: data) {
+                print("[DEBUG] 📱 HighResCardImage: Successfully created UIImage from data")
                 let resizedImage = await resizeImage(image, to: lowResSize)
                 
                 await MainActor.run {
                     self.lowResImage = resizedImage
+                    print("[DEBUG] 📱 HighResCardImage: Low-res image set successfully")
                 }
+            } else {
+                print("[DEBUG] ❌ HighResCardImage: Failed to create UIImage from data")
             }
         } catch {
-            print("Failed to load low-res image: \(error)")
+            print("[DEBUG] ❌ HighResCardImage: Failed to load low-res image: \(error)")
         }
     }
     
     private func loadHighResImage(from url: URL) async {
+        print("[DEBUG] 🖼️ HighResCardImage: Loading high-res image from: \(url)")
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            print("[DEBUG] 🖼️ HighResCardImage: Starting URLSession download for high-res...")
+            let (data, response) = try await URLSession.shared.data(from: url)
+            print("[DEBUG] 🖼️ HighResCardImage: High-res download completed, data size: \(data.count) bytes")
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                print("[DEBUG] 🖼️ HighResCardImage: HTTP status: \(httpResponse.statusCode)")
+            }
+            
             if let image = UIImage(data: data) {
+                print("[DEBUG] 🖼️ HighResCardImage: Successfully created high-res UIImage")
                 let resizedImage = await resizeImage(image, to: size)
                 
                 await MainActor.run {
                     self.highResImage = resizedImage
                     self.isLoading = false
+                    print("[DEBUG] 🖼️ HighResCardImage: High-res image set successfully, loading complete")
                     
                     // Cache the high-res image
                     ImageCache.shared.setImage(resizedImage, for: url.absoluteString)
+                    print("[DEBUG] 🖼️ HighResCardImage: High-res image cached successfully")
+                }
+            } else {
+                print("[DEBUG] ❌ HighResCardImage: Failed to create high-res UIImage from data")
+                await MainActor.run {
+                    self.isLoading = false
                 }
             }
         } catch {
-            print("Failed to load high-res image: \(error)")
+            print("[DEBUG] ❌ HighResCardImage: Failed to load high-res image: \(error)")
             await MainActor.run {
                 self.isLoading = false
             }
