@@ -84,6 +84,12 @@ struct CategoryDetailView: View {
                     self.isLoading = false
                     print("[DEBUG] CategoryDetailView - Updated UI with \(self.categoryApps.count) apps")
                 }
+            } catch {
+                print("[DEBUG] CategoryDetailView - Error loading apps: \(error.localizedDescription)")
+                await MainActor.run {
+                    self.errorMessage = "Failed to load apps: \(error.localizedDescription)"
+                    self.isLoading = false
+                }
             }
         }
     }
@@ -350,7 +356,7 @@ struct ScreenshotsView: View {
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(screenshots.sorted(by: { ($0.display_order ?? 0) < ($1.display_order ?? 0) }), id: \.id) { screenshot in
+                    ForEach(screenshots, id: \.id) { screenshot in
                         AsyncImage(url: URL(string: screenshot.url)) { image in
                             image
                                 .resizable()

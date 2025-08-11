@@ -12,6 +12,7 @@ struct AppCard: View {
     let size: AppCardSize
     let showRating: Bool
     let onTap: (() -> Void)?
+    @StateObject private var favoritesManager = FavoritesManager.shared
     
     init(
         app: AppModel,
@@ -40,8 +41,24 @@ struct AppCard: View {
     
     private var cardContent: some View {
         VStack(alignment: .leading, spacing: size.spacing) {
-            // App Icon
-            AppIconView(app: app, size: size.iconSize)
+            // App Icon and Favorite Button
+            ZStack(alignment: .topTrailing) {
+                AppIconView(app: app, size: size.iconSize)
+                
+                // Favorite Button
+                Button(action: {
+                    favoritesManager.toggleFavorite(app)
+                }) {
+                    Image(systemName: favoritesManager.isFavorite(app) ? "heart.fill" : "heart")
+                        .foregroundColor(favoritesManager.isFavorite(app) ? .red : .gray)
+                        .font(.caption)
+                        .padding(4)
+                        .background(Color(.systemBackground))
+                        .clipShape(Circle())
+                        .shadow(radius: 1)
+                }
+                .offset(x: 4, y: -4)
+            }
             
             // App Info
             VStack(alignment: .leading, spacing: size.infoSpacing) {
@@ -252,6 +269,7 @@ enum AppCardSize {
 struct FeaturedAppCard: View {
     let app: AppModel
     let onTap: (() -> Void)?
+    @StateObject private var favoritesManager = FavoritesManager.shared
     
     var body: some View {
         Group {
@@ -268,11 +286,26 @@ struct FeaturedAppCard: View {
     
     private var featuredCardContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Screenshot or Icon
-            if let firstScreenshot = app.screenshots?.first {
-                HighResCardImage(url: firstScreenshot.url, size: CGSize(width: 280, height: 160))
-            } else {
-                AppIconView(app: app, size: CGSize(width: 280, height: 160))
+            // Screenshot or Icon with Favorite Button
+            ZStack(alignment: .topTrailing) {
+                if let firstScreenshot = app.screenshots?.first {
+                    HighResCardImage(url: firstScreenshot.url, size: CGSize(width: 280, height: 160))
+                } else {
+                    AppIconView(app: app, size: CGSize(width: 280, height: 160))
+                }
+                
+                // Favorite Button
+                Button(action: {
+                    favoritesManager.toggleFavorite(app)
+                }) {
+                    Image(systemName: favoritesManager.isFavorite(app) ? "heart.fill" : "heart")
+                        .foregroundColor(favoritesManager.isFavorite(app) ? .red : .white)
+                        .font(.title3)
+                        .padding(8)
+                        .background(Color.black.opacity(0.3))
+                        .clipShape(Circle())
+                }
+                .offset(x: -8, y: 8)
             }
             
             // App Info
@@ -310,6 +343,7 @@ struct FeaturedAppCard: View {
 struct CompactAppCard: View {
     let app: AppModel
     let onTap: (() -> Void)?
+    @StateObject private var favoritesManager = FavoritesManager.shared
     
     var body: some View {
         Group {
@@ -346,6 +380,15 @@ struct CompactAppCard: View {
             Spacer()
             
             PriceBadge(app: app, size: .small)
+            
+            // Favorite Button
+            Button(action: {
+                favoritesManager.toggleFavorite(app)
+            }) {
+                Image(systemName: favoritesManager.isFavorite(app) ? "heart.fill" : "heart")
+                    .foregroundColor(favoritesManager.isFavorite(app) ? .red : .gray)
+                    .font(.caption)
+            }
         }
         .padding(.vertical, 4)
     }

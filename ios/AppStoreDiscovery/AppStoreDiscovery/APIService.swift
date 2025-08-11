@@ -56,30 +56,13 @@ class APIService: ObservableObject {
             async let categoriesTask = loadCategories()
             
             // Wait for all tasks to complete
-            let (featured, topRated, free, paid, recent, categories) = await (featuredTask, topRatedTask, freeTask, paidTask, recentTask, categoriesTask)
+            await (featuredTask, topRatedTask, freeTask, paidTask, recentTask, categoriesTask)
             
             await MainActor.run {
-                self.featuredApps = featured
-                self.topRatedApps = topRated
-                self.freeApps = free
-                self.paidApps = paid
-                self.recentlyAddedApps = recent
-                self.categories = categories
                 self.isInitialLoading = false
             }
             
             print("[DEBUG] Home page data loaded successfully")
-            print("[DEBUG] Categories loaded: \(categories.count)")
-            
-            // Fallback: If categories failed to load, try again
-            if categories.isEmpty {
-                print("[DEBUG] Categories are empty, trying to load them separately")
-                let fallbackCategories = await loadCategories()
-                await MainActor.run {
-                    self.categories = fallbackCategories
-                }
-                print("[DEBUG] Fallback categories loaded: \(fallbackCategories.count)")
-            }
             
         } catch {
             print("[DEBUG] Error loading home page data: \(error)")
@@ -90,58 +73,67 @@ class APIService: ObservableObject {
         }
     }
     
-    private func loadFeaturedApps() async -> [AppModel] {
+
+    
+    // MARK: - Individual Section Loading Methods (for View All pages)
+    
+    func loadFeaturedApps() async {
         do {
-            let response = try await SupabaseManager.shared.fetchFeaturedApps(limit: 6)
+            let response = try await SupabaseManager.shared.fetchFeaturedApps(limit: 50)
             let apps = try JSONDecoder().decode([AppModel].self, from: response.data)
-            return apps
+            await MainActor.run {
+                self.featuredApps = apps
+            }
         } catch {
             print("[DEBUG] Error loading featured apps: \(error)")
-            return []
         }
     }
     
-    private func loadTopRatedApps() async -> [AppModel] {
+    func loadTopRatedApps() async {
         do {
-            let response = try await SupabaseManager.shared.fetchTopRatedApps(limit: 6)
+            let response = try await SupabaseManager.shared.fetchTopRatedApps(limit: 50)
             let apps = try JSONDecoder().decode([AppModel].self, from: response.data)
-            return apps
+            await MainActor.run {
+                self.topRatedApps = apps
+            }
         } catch {
             print("[DEBUG] Error loading top rated apps: \(error)")
-            return []
         }
     }
     
-    private func loadFreeApps() async -> [AppModel] {
+    func loadFreeApps() async {
         do {
-            let response = try await SupabaseManager.shared.fetchFreeApps(limit: 6)
+            let response = try await SupabaseManager.shared.fetchFreeApps(limit: 50)
             let apps = try JSONDecoder().decode([AppModel].self, from: response.data)
-            return apps
+            await MainActor.run {
+                self.freeApps = apps
+            }
         } catch {
             print("[DEBUG] Error loading free apps: \(error)")
-            return []
         }
     }
     
-    private func loadPaidApps() async -> [AppModel] {
+    func loadPaidApps() async {
         do {
-            let response = try await SupabaseManager.shared.fetchPaidApps(limit: 6)
+            let response = try await SupabaseManager.shared.fetchPaidApps(limit: 50)
             let apps = try JSONDecoder().decode([AppModel].self, from: response.data)
-            return apps
+            await MainActor.run {
+                self.paidApps = apps
+            }
         } catch {
             print("[DEBUG] Error loading paid apps: \(error)")
-            return []
         }
     }
     
-    private func loadRecentlyAddedApps() async -> [AppModel] {
+    func loadRecentlyAddedApps() async {
         do {
-            let response = try await SupabaseManager.shared.fetchAppsFast(limit: 6)
+            let response = try await SupabaseManager.shared.fetchAppsFast(limit: 50)
             let apps = try JSONDecoder().decode([AppModel].self, from: response.data)
-            return apps
+            await MainActor.run {
+                self.recentlyAddedApps = apps
+            }
         } catch {
-            print("[DEBUG] Error loading recent apps: \(error)")
-            return []
+            print("[DEBUG] Error loading recently added apps: \(error)")
         }
     }
     
@@ -202,7 +194,7 @@ class APIService: ObservableObject {
             return []
         }
     }
-    
+
     // MARK: - Enhanced App Fetching with Optimized Functions
     
     func fetchApps() async {
@@ -388,11 +380,11 @@ class APIService: ObservableObject {
                     let categories = try JSONDecoder().decode([Category].self, from: categoriesResponse.data)
                     
                     print("[DEBUG] fetchCategories - Successfully decoded \(categories.count) categories")
-                    
-                    await MainActor.run {
-                        self.categories = categories
-                        self.cachedCategories = categories
-                        self.isOffline = false
+                
+                await MainActor.run {
+                    self.categories = categories
+                    self.cachedCategories = categories
+                    self.isOffline = false
                     }
                 } catch let decodingError {
                     print("[DEBUG] Categories JSON Decoding Error: \(decodingError)")

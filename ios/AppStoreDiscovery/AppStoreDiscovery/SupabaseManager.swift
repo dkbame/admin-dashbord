@@ -121,6 +121,8 @@ class SupabaseManager {
         }
     }
     
+
+    
     // MARK: - Enhanced Query Methods (Original)
     
     func fetchAppsWithRetry() async throws -> PostgrestResponse<[AppModel]> {
@@ -136,14 +138,10 @@ class SupabaseManager {
     
     func fetchCategoriesWithRetry() async throws -> PostgrestResponse<[Category]> {
         return try await executeWithRetry {
-            print("[DEBUG] SupabaseManager - Starting to fetch categories")
-            let response: PostgrestResponse<[Category]> = try await self.client
+            try await self.client
                 .from("categories")
-                .select("*")
+                .select()
                 .execute()
-            print("[DEBUG] SupabaseManager - Categories response status: \(response.status)")
-            print("[DEBUG] SupabaseManager - Categories response data length: \(response.data.count) bytes")
-            return response
         }
     }
     

@@ -60,6 +60,7 @@ struct AppDetailView: View {
 // MARK: - App Detail Header
 struct AppDetailHeader: View {
     let app: AppModel
+    @StateObject private var favoritesManager = FavoritesManager.shared
     
     var body: some View {
         HStack(spacing: 16) {
@@ -97,6 +98,19 @@ struct AppDetailHeader: View {
             }
             
             Spacer()
+            
+            // Favorite Button
+            Button(action: {
+                favoritesManager.toggleFavorite(app)
+            }) {
+                Image(systemName: favoritesManager.isFavorite(app) ? "heart.fill" : "heart")
+                    .foregroundColor(favoritesManager.isFavorite(app) ? .red : .gray)
+                    .font(.title2)
+                    .padding(8)
+                    .background(Color(.systemBackground))
+                    .clipShape(Circle())
+                    .shadow(radius: 2)
+            }
         }
     }
 }

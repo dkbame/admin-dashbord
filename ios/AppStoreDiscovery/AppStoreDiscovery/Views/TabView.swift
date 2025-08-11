@@ -79,7 +79,7 @@ struct CategoriesView: View {
                     CategoryDetailView(category: category, apiService: apiService)
                 }
             }
-            .onChange(of: showingCategoryDetail) { _, newValue in
+            .onChange(of: showingCategoryDetail) { newValue in
                 print("[DEBUG] CategoriesView - showingCategoryDetail changed to: \(newValue)")
                 if newValue, let category = selectedCategory {
                     print("[DEBUG] CategoriesView - Presenting CategoryDetailView for: \(category.name)")

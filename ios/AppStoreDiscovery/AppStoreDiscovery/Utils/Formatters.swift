@@ -55,6 +55,7 @@ struct DateFormatter {
         }
         
         let now = Date()
+        let timeInterval = now.timeIntervalSince(date)
         
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
