@@ -278,34 +278,58 @@ export default function EditAppPage({ params }: { params: { id: string } }) {
         status: app.status,
       });
 
-      const { data: updateData, error: updateError } = await supabase
+      // Get the current app data to compare
+      const { data: currentAppData, error: currentAppError } = await supabase
         .from('apps')
-        .update({
-          name: app.name,
-          developer: app.developer,
-          description: app.description,
-          category_id: app.category_id,
-          price: app.price,
-          currency: app.currency,
-          is_on_mas: app.is_on_mas,
-          mas_id: app.mas_id,
-          mas_url: app.mas_url,
-          download_url: app.download_url,
-          website_url: app.website_url,
-          icon_url: updatedIconUrl,
-          minimum_os_version: app.minimum_os_version,
-          features: app.features,
-          status: app.status,
-          // Add the new fields
-          version: app.version,
-          size: app.size,
-          architecture: app.architecture,
-          rating: app.rating,
-          rating_count: app.rating_count,
-          last_updated: app.last_updated,
-        })
+        .select('*')
         .eq('id', app.id)
-        .select()
+        .single()
+
+      if (currentAppError) {
+        throw currentAppError
+      }
+
+      // Build update object only with changed fields
+      const updateData: any = {}
+      const fieldsToCheck = [
+        'name', 'developer', 'description', 'category_id', 'price', 'currency',
+        'is_on_mas', 'mas_id', 'mas_url', 'download_url', 'website_url',
+        'minimum_os_version', 'features', 'status', 'version', 'size',
+        'architecture', 'rating', 'rating_count'
+      ]
+
+      fieldsToCheck.forEach(field => {
+        if (JSON.stringify(app[field]) !== JSON.stringify(currentAppData[field])) {
+          updateData[field] = app[field]
+        }
+      })
+
+      // Only update icon_url if it changed
+      if (updatedIconUrl !== currentAppData.icon_url) {
+        updateData.icon_url = updatedIconUrl
+      }
+
+      // Only include last_updated if it was explicitly changed by the user
+      const oldDate = currentAppData.last_updated?.split('T')[0]
+      const newDate = app.last_updated?.split('T')[0]
+      if (oldDate !== newDate && newDate) {
+        updateData.last_updated = app.last_updated
+      }
+
+      console.log('Fields being updated:', Object.keys(updateData))
+
+      // Only perform update if there are changes
+      if (Object.keys(updateData).length > 0) {
+        const { data: updateResult, error: updateError } = await supabase
+          .from('apps')
+          .update(updateData)
+          .eq('id', app.id)
+          .select()
+
+        if (updateError) {
+          throw updateError
+        }
+      }
 
       console.log('Update response:', { updateData, updateError });
 
